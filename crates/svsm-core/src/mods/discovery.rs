@@ -382,10 +382,15 @@ pub(crate) fn parse_log_mod_paths(text: &str) -> Vec<PathBuf> {
 }
 
 /// The game's own install `Mods` folder holds base content; the WPF app skipped any path
-/// containing `/Vintagestory/Mods`.
+/// containing `/Vintagestory/Mods`. Only skip it when it really holds the base game mods: a
+/// data folder such as `~/Vintagestory` (common with `--dataPath`) has a `Mods` folder too.
 fn is_game_install_mods_dir(p: &Path) -> bool {
     let s = p.to_string_lossy().replace('\\', "/").trim_end_matches('/').to_lowercase();
     s.ends_with("/vintagestory/mods")
+        && std::fs::read_dir(p).into_iter().flatten().flatten().any(|e| {
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            ["vssurvivalmod", "vsessentials", "vscreativemod"].iter().any(|b| name.starts_with(b))
+        })
 }
 
 fn normalize(p: &Path) -> PathBuf {

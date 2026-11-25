@@ -162,7 +162,8 @@ pub(crate) fn current_list(state: &AppState) -> AppResult<ModList> {
     })
 }
 
-fn restart_watcher(app: &AppHandle, state: &AppState) {
+/// Watches the current mod folders (again, if they changed: e.g. a first install created `Mods`).
+pub(crate) fn restart_watcher(app: &AppHandle, state: &AppState) {
     let Ok((data, _)) = state.mod_roots() else { return };
     let paths = state.mods.read_safe().search_paths.clone();
     let mut slot = state.watcher.lock_safe();
@@ -292,6 +293,9 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
             .map_err(|e| AppError::msg(format!("The automatic backup failed, so the game wasn't started: {}", e.message)))?;
     }
     match (&shortcut, exe, data) {
+        (Some(sc), _, _) if state.host.os == svsm_core::platform::Os::Linux && sc.extension().is_some_and(|e| e.eq_ignore_ascii_case("desktop")) => {
+            svsm_core::launch::launch_desktop_entry(sc).map_err(|e| AppError::msg(format!("Couldn't start Vintage Story through the shortcut: {e}")))?
+        }
         (Some(sc), _, _) => app
             .opener()
             .open_path(sc.display().to_string(), None::<&str>)

@@ -188,3 +188,18 @@ async fn thumbnails_come_from_cached_mod_data_offline() {
     let got = db2.thumbnails(&["carryon".to_string()]).await;
     assert_eq!(got.get("carryon"), Some(&Some("https://cdn/db.png".to_string())));
 }
+
+#[tokio::test]
+async fn catalogue_is_kept_in_memory() {
+    let t = tempfile::tempdir().unwrap();
+    let db = ModDb::with_client(ModDbClient::with_base("http://127.0.0.1:9").unwrap(), t.path(), true);
+    let entry = parse::list_from_response(&fixture("mods_top_downloads.json")).unwrap().iter().find_map(parse::list_entry).unwrap();
+    db.cache().store("catalogue", &vec![entry], dates::now_ms()).unwrap();
+    let (first, _) = db.catalogue_shared(false).await.unwrap();
+    // The disk copy is gone, the memory copy is still served.
+    db.cache().clear().unwrap();
+    let (second, _) = db.catalogue_shared(false).await.unwrap();
+    assert!(std::sync::Arc::ptr_eq(&first, &second));
+    db.forget_catalogue();
+    assert!(db.catalogue_shared(false).await.is_err());
+}

@@ -312,6 +312,7 @@ pub async fn clear_mod_cache(state: State<'_, AppState>) -> AppResult<ModCacheSt
     let _guard = state.update_lock.lock().await;
     db.cached_mods().clear()?;
     db.cache().clear()?;
+    db.forget_catalogue();
     drop(_guard);
     mod_cache_stats(state).await
 }
@@ -617,6 +618,7 @@ pub async fn install_mod(app: AppHandle, state: State<'_, AppState>, mod_id: Str
     }
     outcome?;
     state.rescan()?;
+    crate::commands::restart_watcher(&app, &state);
     prune_cache(&state, &db, &env);
     current_list(&state)
 }
@@ -644,7 +646,7 @@ pub struct BrowseFacets {
 #[specta::specta]
 pub async fn browse_facets(state: State<'_, AppState>) -> AppResult<BrowseFacets> {
     let db = state.moddb()?;
-    let (entries, _) = db.catalogue(false).await.map_err(|e| AppError::msg(e.to_string()))?;
+    let (entries, _) = db.catalogue_shared(false).await.map_err(|e| AppError::msg(e.to_string()))?;
     let tags = moddb::browse::tag_counts(&entries).into_iter().map(|(name, count)| TagCount { name, count }).collect();
     let mut game_versions: Vec<String> = db
         .game_versions()
@@ -677,7 +679,8 @@ pub async fn browse_mods(
 ) -> AppResult<BrowsePage> {
     let db = state.moddb()?;
     let env = state.environment();
-    let (mut entries, fetched_ms) = db.catalogue(refresh).await.map_err(|e| AppError::msg(e.to_string()))?;
+    let (all, fetched_ms) = db.catalogue_shared(refresh).await.map_err(|e| AppError::msg(e.to_string()))?;
+    let mut filtered = None;
     if let Some(gv) = game_version.as_deref().map(str::trim).filter(|g| !g.is_empty()) {
         let tag = db
             .game_versions()
@@ -686,19 +689,15 @@ pub async fn browse_mods(
             .into_iter()
             .find(|g| g.name == gv)
             .ok_or_else(|| AppError::msg(format!("Unknown game version {gv}.")))?;
-        let ids: HashSet<u32> = db
-            .catalogue_ids_for_game_version(&tag.id, refresh)
-            .await
-            .map_err(|e| AppError::msg(e.to_string()))?
-            .into_iter()
-            .collect();
-        entries.retain(|e| ids.contains(&e.numeric_id));
+        let ids = db.game_version_ids_shared(&tag.id, refresh).await.map_err(|e| AppError::msg(e.to_string()))?;
+        filtered = Some(all.iter().filter(|e| ids.contains(&e.numeric_id)).cloned().collect::<Vec<_>>());
     }
+    let entries: &[moddb::ModDbListEntry] = filtered.as_deref().unwrap_or(&all);
     let installed: HashSet<String> =
         state.mods.read_safe().mods.iter().map(|m| m.mod_id.to_ascii_lowercase()).collect();
     let settings = &env.settings;
     Ok(moddb::browse(
-        &entries,
+        entries,
         &query,
         |e| e.mod_ids.iter().any(|id| installed.contains(&id.to_ascii_lowercase())),
         |e| e.mod_ids.iter().any(|id| settings.is_favourite(id)) || settings.is_favourite(&e.mod_id),

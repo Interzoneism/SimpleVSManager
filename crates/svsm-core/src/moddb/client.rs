@@ -22,6 +22,27 @@ pub enum NetError {
     Cancelled,
 }
 
+fn is_loopback(host: Option<&str>) -> bool {
+    matches!(host, Some("127.0.0.1" | "localhost" | "[::1]" | "::1"))
+}
+
+/// Download addresses must be https. A plain http one is upgraded (the Mod DB and its CDN
+/// serve https); only loopback (tests) may stay http. Anything else is refused.
+pub fn secure_url(url: &str) -> Option<String> {
+    let url = url.trim();
+    if url.starts_with("https://") {
+        return Some(url.to_string());
+    }
+    let rest = url.strip_prefix("http://")?;
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host_only = host.rsplit_once(':').map_or(host, |(h, p)| if p.chars().all(|c| c.is_ascii_digit()) { h } else { host });
+    if is_loopback(Some(host_only)) {
+        Some(url.to_string())
+    } else {
+        Some(format!("https://{rest}"))
+    }
+}
+
 impl From<reqwest::Error> for NetError {
     fn from(e: reqwest::Error) -> Self {
         // reqwest's Display hides the cause ("error sending request"); include the chain.
@@ -62,6 +83,17 @@ impl ModDbClient {
             .user_agent(concat!("SimpleVSManager/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(10))
             .read_timeout(Duration::from_secs(30))
+            // Never follow a redirect from https to plain http: a swapped mod zip is code
+            // that runs in the game.
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() >= 10 {
+                    attempt.error("too many redirects")
+                } else if attempt.url().scheme() != "https" && !is_loopback(attempt.url().host_str()) {
+                    attempt.error("refused a redirect to an insecure (http) address")
+                } else {
+                    attempt.follow()
+                }
+            }))
             .build()?;
         Ok(Self { http, base: base.trim_end_matches('/').to_string() })
     }
@@ -110,7 +142,8 @@ impl ModDbClient {
     ) -> NetResult<u64> {
         use std::io::Write;
         let io_err = |e: std::io::Error| NetError::Io { path: dest.display().to_string(), message: e.to_string() };
-        let mut resp = self.http.get(url).send().await?.error_for_status()?;
+        let url = secure_url(url).ok_or_else(|| NetError::BadResponse(format!("refused to download from an insecure address: {url}")))?;
+        let mut resp = self.http.get(&url).send().await?.error_for_status()?;
         let total = resp.content_length();
         let mut file = std::fs::File::create(dest).map_err(io_err)?;
         let mut received = 0u64;
@@ -149,5 +182,19 @@ mod tests {
     fn encodes() {
         assert_eq!(super::urlencode("carry on/ü"), "carry%20on%2F%C3%BC");
         assert_eq!(super::urlencode("-28149"), "-28149");
+    }
+}
+
+#[cfg(test)]
+mod secure_url_tests {
+    use super::secure_url;
+
+    #[test]
+    fn http_is_upgraded_except_loopback() {
+        assert_eq!(secure_url("https://moddbcdn.vintagestory.at/a.zip").as_deref(), Some("https://moddbcdn.vintagestory.at/a.zip"));
+        assert_eq!(secure_url("http://moddbcdn.vintagestory.at/a.zip").as_deref(), Some("https://moddbcdn.vintagestory.at/a.zip"));
+        assert_eq!(secure_url("http://127.0.0.1:1234/a.zip").as_deref(), Some("http://127.0.0.1:1234/a.zip"));
+        assert_eq!(secure_url("ftp://x/a.zip"), None);
+        assert_eq!(secure_url("file:///etc/passwd"), None);
     }
 }

@@ -60,6 +60,13 @@ pub struct ModDb {
     counter: AtomicU64,
     /// Card thumbnails by lower-case mod id, loaded from disk on first use.
     thumbs: Mutex<Option<HashMap<String, Thumb>>>,
+    /// The parsed catalogue (~10,000 mods), kept in memory so Browse doesn't re-read ~4 MB of
+    /// JSON on every keystroke. With its fetch time.
+    catalogue_memo: Mutex<Option<(std::sync::Arc<Vec<ModDbListEntry>>, f64)>>,
+    /// Per game-version tag id: the Mod DB ids with a release for it.
+    gv_memo: Mutex<HashMap<String, (IdSet, f64)>>,
+    /// Only one catalogue load or download at a time.
+    catalogue_gate: futures_util::lock::Mutex<()>,
 }
 
 /// The Mod DB's card thumbnail (`logofiledb`) for one mod. The catalogue only has `logo`,
@@ -69,6 +76,9 @@ struct Thumb {
     url: Option<String>,
     at: f64,
 }
+
+/// Shared set of Mod DB ids.
+type IdSet = std::sync::Arc<std::collections::HashSet<u32>>;
 
 const THUMBS_CACHE: &str = "thumbnails";
 
@@ -86,6 +96,9 @@ impl ModDb {
             offline: AtomicBool::new(offline),
             counter: AtomicU64::new(0),
             thumbs: Mutex::new(None),
+            catalogue_memo: Mutex::new(None),
+            gv_memo: Mutex::new(HashMap::new()),
+            catalogue_gate: futures_util::lock::Mutex::new(()),
         }
     }
 
@@ -262,6 +275,49 @@ impl ModDb {
             Ok(raw.iter().filter_map(parse::list_entry).collect::<Vec<_>>())
         })
         .await
+    }
+
+    fn memo_fresh(&self, at: f64) -> bool {
+        let now = dates::now_ms();
+        self.is_offline() || (now - at <= LIST_MAX_AGE_MS && at <= now)
+    }
+
+    /// Drops the in-memory catalogue (after the disk cache was cleared).
+    pub fn forget_catalogue(&self) {
+        *self.catalogue_memo.lock_safe() = None;
+        self.gv_memo.lock_safe().clear();
+    }
+
+    /// [`Self::catalogue`], kept in memory between calls (one load at a time).
+    pub async fn catalogue_shared(&self, force: bool) -> NetResult<(std::sync::Arc<Vec<ModDbListEntry>>, f64)> {
+        let memo = || self.catalogue_memo.lock_safe().clone().filter(|(_, at)| !force && self.memo_fresh(*at));
+        if let Some(hit) = memo() {
+            return Ok(hit);
+        }
+        let _gate = self.catalogue_gate.lock().await;
+        if let Some(hit) = memo() {
+            return Ok(hit); // another call loaded it while we waited
+        }
+        let (entries, at) = self.catalogue(force).await?;
+        let entries = std::sync::Arc::new(entries);
+        *self.catalogue_memo.lock_safe() = Some((entries.clone(), at));
+        Ok((entries, at))
+    }
+
+    /// [`Self::catalogue_ids_for_game_version`] as a set, kept in memory between calls.
+    pub async fn game_version_ids_shared(&self, tag_id: &str, force: bool) -> NetResult<std::sync::Arc<std::collections::HashSet<u32>>> {
+        let memo = || self.gv_memo.lock_safe().get(tag_id).cloned().filter(|(_, at)| !force && self.memo_fresh(*at)).map(|(ids, _)| ids);
+        if let Some(hit) = memo() {
+            return Ok(hit);
+        }
+        let _gate = self.catalogue_gate.lock().await;
+        if let Some(hit) = memo() {
+            return Ok(hit);
+        }
+        let ids: std::sync::Arc<std::collections::HashSet<u32>> =
+            std::sync::Arc::new(self.catalogue_ids_for_game_version(tag_id, force).await?.into_iter().collect());
+        self.gv_memo.lock_safe().insert(tag_id.to_string(), (ids.clone(), dates::now_ms()));
+        Ok(ids)
     }
 
     /// Mod DB ids (numeric) of mods that have a release for one game version.

@@ -56,6 +56,21 @@ pub fn launch_game(os: Os, executable: &Path, data_dir: &Path) -> CoreResult<()>
     game_command(os, executable, data_dir).spawn().map(|_| ()).map_err(|e| CoreError::io(executable, e))
 }
 
+/// Linux: starts a `.desktop` shortcut with `gio launch` (opening it would usually show it
+/// in a text editor instead).
+pub fn launch_desktop_entry(entry: &Path) -> CoreResult<()> {
+    let mut cmd = Command::new("gio");
+    cmd.arg("launch").arg(entry);
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    if std::env::var_os("APPIMAGE").is_some() {
+        for key in APPIMAGE_ENV {
+            cmd.env_remove(key);
+        }
+    }
+    detach(&mut cmd);
+    cmd.spawn().map(|_| ()).map_err(|e| CoreError::io(entry, std::io::Error::new(e.kind(), format!("gio launch failed: {e}"))))
+}
+
 #[cfg(windows)]
 fn detach(cmd: &mut Command) {
     use std::os::windows::process::CommandExt;

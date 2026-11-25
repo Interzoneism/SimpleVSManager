@@ -32,6 +32,8 @@ pub struct AppState {
     pub legacy_cloud_config: svsm_core::cloud::CloudConfig,
     pub environment: RwLock<Option<DetectedEnvironment>>,
     pub mods: RwLock<ModSnapshot>,
+    /// Serialises changes to the manager's settings file.
+    settings_lock: Mutex<()>,
     /// Serialises writes to clientsettings.json and scans.
     pub mods_lock: Mutex<()>,
     pub watcher: Mutex<Option<ModWatcher>>,
@@ -65,6 +67,7 @@ impl AppState {
             environment: RwLock::new(None),
             mods: RwLock::new(ModSnapshot::default()),
             mods_lock: Mutex::new(()),
+            settings_lock: Mutex::new(()),
             watcher: Mutex::new(None),
             moddb: Mutex::new(None),
             cloud: Mutex::new(None),
@@ -117,12 +120,23 @@ impl AppState {
         PathBuf::from(self.environment().manager_dir.path)
     }
 
+    /// Changes and saves the settings. Serialised, so two quick changes can't overwrite each
+    /// other. Detection (folder probing, reading game files) only runs again when a setting it
+    /// depends on changed.
     pub fn update_settings(&self, change: impl FnOnce(&mut Settings)) -> AppResult<DetectedEnvironment> {
-        let dir = self.manager_dir();
-        let mut settings = self.environment().settings;
+        let _guard = self.settings_lock.lock_safe();
+        let mut env = self.environment();
+        let dir = PathBuf::from(&env.manager_dir.path);
+        let mut settings = env.settings.clone();
+        let paths_before = (settings.data_dir(), settings.game_dir(), settings.active_profile.clone());
         change(&mut settings);
         settings.save(&dir)?;
-        Ok(self.refresh_environment())
+        if (settings.data_dir(), settings.game_dir(), settings.active_profile.clone()) != paths_before {
+            return Ok(self.refresh_environment());
+        }
+        env.settings = settings;
+        *self.environment.write_safe() = Some(env.clone());
+        Ok(env)
     }
 
     /// The Mod DB service for the current manager folder, with offline mode from settings.

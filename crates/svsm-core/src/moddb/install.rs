@@ -350,6 +350,9 @@ fn replace_file(plan: &InstallPlan, existing: &Path, archive: &Path, cache: &Cac
     }
 }
 
+/// Largest total size a folder mod may unpack to.
+const MAX_UNPACKED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
 fn replace_folder(existing: &Path, archive: &Path) -> CoreResult<PathBuf> {
     let parent = existing.parent().ok_or_else(|| other(existing, "no parent folder"))?;
     let name = existing.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -357,6 +360,11 @@ fn replace_folder(existing: &Path, archive: &Path) -> CoreResult<PathBuf> {
     let result = (|| {
         let file = std::fs::File::open(archive).map_err(|e| CoreError::io(archive, e))?;
         let mut zip = zip::ZipArchive::new(file).map_err(|e| other(archive, e.to_string()))?;
+        // Refuse zip bombs: no real mod unpacks to anywhere near this.
+        let unpacked: u64 = (0..zip.len()).filter_map(|i| zip.by_index_raw(i).ok().map(|f| f.size())).sum();
+        if unpacked > MAX_UNPACKED_BYTES {
+            return Err(other(archive, "The archive unpacks to more than 2 GB, so it wasn't installed."));
+        }
         zip.extract(&staging).map_err(|e| other(&staging, e.to_string()))?;
         // A single top-level folder and no files means the payload is inside it.
         let entries: Vec<_> = std::fs::read_dir(&staging).map_err(|e| CoreError::io(&staging, e))?.flatten().collect();
