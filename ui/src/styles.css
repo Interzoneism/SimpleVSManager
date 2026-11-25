@@ -970,3 +970,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .drag-ghost-icon { width: 28px; height: 28px; flex: none; border-radius: 6px; object-fit: cover; }
 .drag-ghost-icon.placeholder { display: inline-flex; align-items: center; justify-content: center; background: var(--palette-interactive-surface); color: var(--palette-grey); }
 body.pointer-dragging, body.pointer-dragging * { cursor: grabbing !important; user-select: none; }
+.modlist-quick-actions { display: flex; gap: 6px; align-items: center; padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--border); }
+.modlist-quick-actions select { max-width: 220px; }
+.modlist-quick-actions .ui-icon { width: 15px; height: 15px; margin-right: 5px; }

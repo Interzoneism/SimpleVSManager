@@ -4,6 +4,7 @@ import type { InstalledMod, Os, UpdateProgress } from "../../bindings";
 import {
   useDeleteMods,
   useModDb,
+  useModlists,
   useMods,
   useModsChangedListener,
   useOpenModWebsite,
@@ -28,6 +29,9 @@ import {
 import { ModTable, ROW_SIZES, type RowSize } from "./ModTable";
 import { ModDetails } from "./ModDetails";
 import { UpdateDialog } from "./UpdateDialog";
+import { SaveModlistDialog } from "../modlists/SaveModlistDialog";
+import { LoadModlistDialog } from "../modlists/LoadModlistDialog";
+import type { ModlistSummary } from "../../bindings";
 import { Icon, type IconName } from "../../components/Icon";
 import { SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
@@ -73,6 +77,11 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   // Snapshot of the mods in the update dialog (keys change when an update renames a file).
   const [dialogMods, setDialogMods] = useState<InstalledMod[] | null>(null);
   const [progress, setProgress] = useState<Map<string, string>>(new Map());
+  const modlists = useModlists();
+  const [savingModlist, setSavingModlist] = useState(false);
+  const [loadingModlist, setLoadingModlist] = useState<ModlistSummary | null>(null);
+  const [modlistFlash, setModlistFlash] = useState<string | null>(null);
+  const loadable = (modlists.data ?? []).filter((m) => m.kind !== "backup" && !m.error);
 
   // Check the Mod DB once per session, after the first scan.
   const checked = useRef(false);
@@ -228,6 +237,22 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
           ))}
         </div>
         <div className="header-spacer" />
+        <div className="modlist-quick-actions" role="group" aria-label="Modlists">
+          <select
+            aria-label="Load a modlist"
+            value=""
+            disabled={loadable.length === 0}
+            onChange={(e) => setLoadingModlist(loadable.find((m) => m.id === e.target.value) ?? null)}
+          >
+            <option value="">{loadable.length ? "Load a modlist…" : "No saved modlists"}</option>
+            {loadable.map((m) => (
+              <option key={m.id} value={m.id}>{m.active ? `${m.name} (active)` : m.name}</option>
+            ))}
+          </select>
+          <button type="button" title="Save the enabled mods as a new modlist" onClick={() => setSavingModlist(true)}>
+            <Icon name="lists" />Save current mods…
+          </button>
+        </div>
         <span className={`muted small update-check-status${checking ? " checking" : ""}`} aria-live="polite">
           {checking
             ? "Checking the Mod DB…"
@@ -254,6 +279,12 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
           <Icon name="update" />Update all{updatable.length > 0 ? ` (${updatable.length})` : ""}
         </button>
       </div>
+      {modlistFlash && (
+        <p className="notice" role="status">
+          {modlistFlash}{" "}
+          <button type="button" className="link-button small" onClick={() => setModlistFlash(null)}>Dismiss</button>
+        </p>
+      )}
       <SplitWorkspace name="installed-mods">
         <div className="installed-main">
           {!mods.data.clientSettingsFound && (
@@ -310,6 +341,26 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
           onEditConfig={onEditConfig}
           onClose={() => setSelected(new Set())}
         />
+        {savingModlist && (
+          <SaveModlistDialog
+            existing={modlists.data ?? []}
+            onSaved={(s) => {
+              setSavingModlist(false);
+              setModlistFlash(`Saved "${s.name}" (${s.mods.length} mods). Find it on the Modlists page.`);
+            }}
+            onClose={() => setSavingModlist(false)}
+          />
+        )}
+        {loadingModlist && (
+          <LoadModlistDialog
+            os={os}
+            source={{ id: loadingModlist.id, file: null, online: null }}
+            kind={loadingModlist.kind}
+            title={loadingModlist.name}
+            onShowBackup={() => setLoadingModlist(null)}
+            onClose={() => setLoadingModlist(null)}
+          />
+        )}
         {dialogMods && (
           <UpdateDialog
             mods={dialogMods}
