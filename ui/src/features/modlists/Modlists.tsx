@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import type { LoadMode, ModlistKind, ModlistSource, ModlistSummary, Os } from "../../bindings";
 import {
@@ -15,39 +15,40 @@ import {
   useUnsubscribe,
 } from "../../api";
 import { formatAgo } from "../../lib/format";
-import { canQuickSwitch, filterModlists, kindLabel, SECTIONS, serverCommands, type QuickSwitchPreference } from "./modlistView";
+import { canQuickSwitch, filterModlists, kindLabel, serverCommands, type QuickSwitchPreference } from "./modlistView";
 import { SaveModlistDialog } from "./SaveModlistDialog";
 import { LoadModlistDialog } from "./LoadModlistDialog";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
+import { ModlistSection } from "./ModlistSection";
+import { useOnlineModlistSections, type OnlineModlistDialog } from "../online/useOnlineModlistSections";
 import { IconPicker, iconThemeClass, ModlistIcon } from "./ModlistIcon";
 import { CloseDetails, SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import type { IconName } from "../../components/Icon";
 import { useContextMenu } from "../../components/ContextMenu";
 
 type Dialog =
-  | { kind: "save"; as: "modlist" | "preset" }
+  | OnlineModlistDialog
+  | { kind: "save" }
   | { kind: "load"; source: ModlistSource; listKind: ModlistKind | null; title: string; mode?: LoadMode; quick?: boolean }
   | { kind: "group"; group: ModlistSummary | null; members: string[] }
   | { kind: "icon"; entry: ModlistSummary };
 
 interface Props {
   os: Os;
-  enabled: boolean;
+  offline: boolean;
   /** A .json/.pdf file dropped on the window, to load. */
   droppedFile: string | null;
   onDroppedFileHandled: () => void;
-  /** Select this entry (e.g. after following an online modlist). */
-  focusId?: string | null;
-  onFocusHandled?: () => void;
 }
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
-const kindIcons: Record<ModlistKind, IconName> = { group: "layers", modlist: "lists", preset: "settings", backup: "history" };
+const kindIcons: Record<ModlistKind, IconName> = { group: "layers", modlist: "lists", backup: "history" };
 
-/** The Modlists tab: modlists, presets, groups and backups in one place. */
-export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focusId, onFocusHandled }: Props) {
+type Selection = { kind: "local"; ids: string[] } | { kind: "online"; id: string };
+
+export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Props) {
   useModsChangedListener();
   const lists = useModlists();
   const del = useDeleteModlists();
@@ -61,10 +62,14 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   const updateMods = useUpdateModlistMods();
   const openMenu = useContextMenu();
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selection, setSelection] = useState<Selection>({ kind: "local", ids: [] });
+  const selected = selection.kind === "local" ? selection.ids : [];
+  const selectLocal = (ids: string[]) => setSelection({ kind: "local", ids });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<ModlistKind>>(new Set(["backup"]));
+  const [backupsCollapsed, setBackupsCollapsed] = useState(true);
+  const [revealId, setRevealId] = useState<string | null>(null);
+  const revealCard = useRef<HTMLButtonElement>(null);
   const [rememberedSwitch, setRememberedSwitch] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch", "review");
   const quickSwitchEnabled = rememberedSwitch === "keep-configs" || rememberedSwitch === "use-list-configs";
   // The config choice used when Quick switch is turned on again from the toolbar.
@@ -75,11 +80,11 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   };
 
   useEffect(() => {
-    if (droppedFile && enabled) {
+    if (droppedFile) {
       setDialog({ kind: "load", source: { id: null, file: droppedFile, online: null }, listKind: null, title: fileName(droppedFile) });
       onDroppedFileHandled();
     }
-  }, [droppedFile, enabled, onDroppedFileHandled]);
+  }, [droppedFile, onDroppedFileHandled]);
 
   useEffect(() => {
     if (!flash) return;
@@ -90,22 +95,20 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   const all = useMemo(() => lists.data ?? [], [lists.data]);
 
   useEffect(() => {
-    if (!focusId || !lists.data) return;
-    const entry = lists.data.find((m) => m.id === focusId);
-    if (entry) {
-      setCollapsed((c) => new Set([...c].filter((k) => k !== entry.kind)));
-      setSelected([focusId]);
+    if (revealId && revealCard.current) {
+      revealCard.current.scrollIntoView?.({ block: "nearest" });
+      revealCard.current.focus({ preventScroll: true });
+      setRevealId(null);
     }
-    onFocusHandled?.();
-  }, [focusId, lists.data, onFocusHandled]);
+  }, [all, revealId, search, backupsCollapsed]);
+
   const chosen = all.filter((m) => selected.includes(m.id));
   const error = del.error ?? importFile.error ?? exportList.error ?? resolve.error ?? openFolder.error ?? sync.error ?? unsubscribe.error ?? updateMods.error;
   const busy = del.isPending || resolve.isPending || exportList.isPending || sync.isPending || unsubscribe.isPending || updateMods.isPending;
-  const canUpdateMods = (entry: ModlistSummary) => (entry.kind === "modlist" || entry.kind === "preset") && !entry.subscription && !entry.error;
+  const canUpdateMods = (entry: ModlistSummary) => entry.kind === "modlist" && !entry.subscription && !entry.error;
 
   const doUpdateMods = async (entry: ModlistSummary) => {
-    const what = entry.kind === "preset" ? "which of your mods are on and off now" : "the mods you have enabled now";
-    const ok = await ask(`Replace the mods in "${entry.name}" with ${what}? The name, description and icon stay.`, {
+    const ok = await ask(`Replace the mods in "${entry.name}" with the mods you have enabled now? The name, description and icon stay.`, {
       title: "Update with enabled mods",
       okLabel: "Update",
       cancelLabel: "Cancel",
@@ -114,17 +117,32 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   };
 
   const select = (id: string, additive: boolean) =>
-    setSelected((prev) => (additive ? (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]) : [id]));
+    selectLocal(additive ? (selected.includes(id) ? selected.filter((p) => p !== id) : [...selected, id]) : [id]);
 
   const startLoad = (entry: ModlistSummary, mode?: LoadMode, quick = false) => {
     setDialog({ kind: "load", source: { id: entry.id, file: null, online: null }, listKind: entry.kind, title: entry.name, mode, quick });
   };
 
   const showEntry = (id: string) => {
-    const entry = all.find((m) => m.id === id);
-    if (entry) setCollapsed((c) => new Set([...c].filter((k) => k !== entry.kind)));
-    setSelected([id]);
+    if (id.startsWith("Backups/")) setBackupsCollapsed(false);
+    setSearch("");
+    selectLocal([id]);
+    setRevealId(id);
   };
+
+  const online = useOnlineModlistSections({
+    offline,
+    search,
+    selected: selection.kind === "online" ? selection.id : null,
+    onSelect: (id) => setSelection({ kind: "online", id }),
+    onDeselect: (id) => setSelection((previous) =>
+      previous.kind === "online" && previous.id === id ? { kind: "local", ids: [] } : previous,
+    ),
+    onShowLocal: showEntry,
+    onLoad: (id, title) => setDialog({ kind: "load", source: { id: null, file: null, online: id }, listKind: null, title }),
+    dialog: dialog?.kind === "publish" || dialog?.kind === "editPublished" ? dialog : null,
+    onDialogChange: setDialog,
+  });
 
   const remove = async (targets: ModlistSummary[]) => {
     const what = targets.length === 1 ? `"${targets[0].name}"` : `${targets.length} items`;
@@ -134,7 +152,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
       okLabel: "Delete",
       cancelLabel: "Cancel",
     });
-    if (ok) del.mutate(targets.map((t) => t.id), { onSuccess: () => setSelected([]) });
+    if (ok) del.mutate(targets.map((t) => t.id), { onSuccess: () => selectLocal([]) });
   };
 
   const doImport = async () => {
@@ -172,7 +190,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   const onCardMenu = (event: MouseEvent<HTMLButtonElement>, entry: ModlistSummary) => {
     const alreadySelected = selected.includes(entry.id);
     const targets = alreadySelected ? chosen : [entry];
-    if (!alreadySelected) setSelected([entry.id]);
+    if (!alreadySelected) selectLocal([entry.id]);
     if (targets.length > 1) {
       const members = targets.filter((item) => item.kind !== "group").map((item) => item.id);
       openMenu(event, "Selected modlist actions", [[
@@ -185,7 +203,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
     const quick = quickSwitchEnabled && canQuickSwitch(entry.kind);
     const cannotLoad = busy || !!entry.error;
     openMenu(event, `Actions for ${entry.name}`, [[
-      !entry.active && entry.kind !== "preset" && { label: quick ? "Quick switch" : "Switch to this…", disabled: cannotLoad, run: () => startLoad(entry, "replace", quick) },
+      !entry.active && { label: quick ? "Quick switch" : "Switch to this…", disabled: cannotLoad, run: () => startLoad(entry, "replace", quick) },
       { label: "Load…", disabled: cannotLoad, run: () => startLoad(entry) },
       canUpdateMods(entry) && { label: "Update with enabled mods…", disabled: busy, run: () => void doUpdateMods(entry) },
       entry.kind === "group" && { label: "Edit group…", disabled: busy, run: () => setDialog({ kind: "group", group: entry, members: [] }) },
@@ -199,13 +217,47 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
     ]]);
   };
 
-  if (!enabled) {
+  const saved = filterModlists(all, ["modlist", "group"], search).sort((a, b) => a.name.localeCompare(b.name));
+  const backups = filterModlists(all, ["backup"], search);
+  const hasDetails = chosen.length > 0 || !!online.details;
+  const card = (m: ModlistSummary) => {
+    const lines = [
+      m.group ? <>Group of <strong>{m.group.members.length}</strong> lists</>
+        : m.uploader ? <>By <strong>{m.uploader}</strong></>
+        : kindLabel(m.kind),
+      m.error ? "Can't be read" : <><strong>{m.mods.length}</strong> mod{m.mods.length === 1 ? "" : "s"}</>,
+      m.gameVersion ? `VS ${m.gameVersion}` : "Any game version",
+    ];
+    const facts = [
+      m.subscription && `Revision ${m.subscription.syncedRevision}`,
+      m.configCount > 0 && `${m.configCount} config${m.configCount === 1 ? "" : "s"}`,
+      m.group && m.group.conflicts.length > 0 && `${m.group.conflicts.length} to check`,
+      !m.active && m.downloadsNeeded > 0 && `${m.downloadsNeeded} to download`,
+    ].filter((fact): fact is string => !!fact);
     return (
-      <p className="empty-state">
-        The Vintage Story data folder wasn't found. Pick it on the <strong>Settings</strong> tab.
-      </p>
+      <ModlistCard
+        key={m.id}
+        buttonRef={m.id === revealId ? revealCard : undefined}
+        title={m.name}
+        icon={m.icon}
+        iconColor={m.iconColor}
+        kindIcon={kindIcons[m.kind]}
+        rows={lines}
+        facts={facts}
+        date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
+        badges={(m.active || m.subscription) && <>
+          {m.active && <span className="badge active-badge">Active</span>}
+          {m.subscription && <span className={`badge${m.subscription.updateAvailable ? " update-badge" : ""}`}>
+            {m.subscription.updateAvailable ? "Update available" : "Following"}
+          </span>}
+        </>}
+        selected={selected.includes(m.id)}
+        onSelect={(event) => select(m.id, event.ctrlKey || event.metaKey)}
+        onContextMenu={(event) => onCardMenu(event, m)}
+        onLoad={m.error ? undefined : () => startLoad(m)}
+      />
     );
-  }
+  };
 
   return (
     <SplitWorkspace name="modlists" widePane>
@@ -214,13 +266,13 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
           <input
             type="search"
             className="search"
-            placeholder="Search names, descriptions and mod ids"
+            placeholder="Search all modlists"
             aria-label="Search modlists"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <div className="header-spacer" />
-          <button type="button" className="primary" onClick={() => setDialog({ kind: "save", as: "modlist" })}>
+          <button type="button" className="primary" onClick={() => setDialog({ kind: "save" })}>
             Save current mods…
           </button>
           <button type="button" onClick={() => void doImport()} disabled={importFile.isPending}>Import file…</button>
@@ -253,83 +305,37 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
         {lists.isPending && <p className="empty-state">Loading modlists…</p>}
         {lists.isError && <p className="empty-state error-text">{lists.error.message}</p>}
         <div className="modlist-scroll">
-          {SECTIONS.map((section) => {
-            const rows = filterModlists(all, section.kind, search);
-            const isCollapsed = collapsed.has(section.kind) && !search;
-            return (
-              <section key={section.kind} className="modlist-section">
-                <button
-                  type="button"
-                  className="section-toggle"
-                  aria-expanded={!isCollapsed}
-                  onClick={() =>
-                    setCollapsed((c) => {
-                      const next = new Set(c);
-                      if (next.has(section.kind)) next.delete(section.kind);
-                      else next.add(section.kind);
-                      return next;
-                    })
-                  }
-                >
-                  {isCollapsed ? "▸" : "▾"} {section.title} <span className="muted small">({rows.length})</span>
-                </button>
-                {!isCollapsed &&
-                  (rows.length === 0 ? (
-                    <p className="muted small section-empty">{search ? "No matches." : section.empty}</p>
-                  ) : (
-                    <ul className="card-grid modlist-card-grid online-card-grid" aria-label={section.title}>
-                      {rows.map((m) => {
-                        const lines = [
-                          m.group ? <>Group of <strong>{m.group.members.length}</strong> lists</>
-                            : m.uploader ? <>By <strong>{m.uploader}</strong></>
-                            : kindLabel(m.kind),
-                          m.error ? "Can't be read" : <><strong>{m.mods.length}</strong> mod{m.mods.length === 1 ? "" : "s"}</>,
-                          m.gameVersion ? `VS ${m.gameVersion}` : "Any game version",
-                        ];
-                        const facts = [
-                          m.subscription && `Revision ${m.subscription.syncedRevision}`,
-                          m.configCount > 0 && `${m.configCount} config${m.configCount === 1 ? "" : "s"}`,
-                          m.group && m.group.conflicts.length > 0 && `${m.group.conflicts.length} to check`,
-                          !m.active && m.downloadsNeeded > 0 && `${m.downloadsNeeded} to download`,
-                        ].filter((fact): fact is string => !!fact);
-                        return (
-                          <ModlistCard
-                            key={m.id}
-                            title={m.name}
-                            icon={m.icon}
-                            iconColor={m.iconColor}
-                            kindIcon={kindIcons[m.kind]}
-                            rows={lines}
-                            facts={facts}
-                            date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
-                            badges={(m.active || m.subscription) && <>
-                              {m.active && <span className="badge active-badge">Active</span>}
-                              {m.subscription && <span className={`badge${m.subscription.updateAvailable ? " update-badge" : ""}`}>
-                                {m.subscription.updateAvailable ? "Update available" : "Following"}
-                              </span>}
-                            </>}
-                            selected={selected.includes(m.id)}
-                            onSelect={(event) => select(m.id, event.ctrlKey || event.metaKey)}
-                            onContextMenu={(event) => onCardMenu(event, m)}
-                            onLoad={m.error ? undefined : () => startLoad(m)}
-                          />
-                        );
-                      })}
-                    </ul>
-                  ))}
-              </section>
-            );
-          })}
+          {!lists.isPending && (
+            <ModlistSection
+              title="Saved modlists"
+              count={saved.length}
+              empty={saved.length ? undefined : search.trim() ? "No matches." : "Save your current mods, import a file, or create a group."}
+            >
+              {saved.map(card)}
+            </ModlistSection>
+          )}
+          {!lists.isPending && (
+            <ModlistSection
+              title="Backups"
+              count={backups.length}
+              collapsed={backupsCollapsed && !search.trim()}
+              onToggle={search.trim() ? undefined : () => setBackupsCollapsed(!backupsCollapsed)}
+              empty={backups.length ? undefined : search.trim() ? "No matches." : "Backups are saved automatically before loading a modlist or updating or deleting mods."}
+            >
+              {backups.map(card)}
+            </ModlistSection>
+          )}
+          {online.sections}
         </div>
       </div>
-      <aside className={`details${chosen.length === 0 ? " empty" : ""}`} aria-label="Modlist details">
-        {chosen.length > 0 && <CloseDetails onClose={() => setSelected([])} />}
-        {chosen.length === 0 && (
+      <aside className={`details${hasDetails ? "" : " empty"}`} aria-label="Modlist details">
+        {hasDetails && <CloseDetails onClose={() => selectLocal([])} />}
+        {!hasDetails && (
           <p className="muted">
-            Select a modlist to see what's in it. Double-click to load. Drop a modlist .json or .pdf on the window to
-            load it.
+            Select a modlist to see what's in it. Double-click a card or drop a modlist JSON or PDF here to load it.
           </p>
         )}
+        {online.details}
         {chosen.length > 1 && (
           <>
             <div className="details-header">
@@ -369,7 +375,6 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
       </aside>
       {dialog?.kind === "save" && (
         <SaveModlistDialog
-          initialKind={dialog.as}
           existing={all}
           onSaved={(s) => {
             setDialog(null);
@@ -428,6 +433,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
           onClose={() => setDialog(null)}
         />
       )}
+      {online.modal}
     </SplitWorkspace>
   );
 }
@@ -440,7 +446,6 @@ interface DetailsProps {
   onExport: (format: "json" | "pdf") => void;
   onCopy: () => void;
   onEditGroup: () => void;
-  /** Replace the mods with the enabled ones (modlists and presets that don't follow an online list). */
   onUpdateMods?: () => void;
   onChangeIcon: () => void;
   onDelete: () => void;
@@ -497,7 +502,7 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
         <dd className="small">{entry.id}</dd>
       </dl>
       <div className="details-actions">
-        {!entry.active && entry.kind !== "preset" && (
+        {!entry.active && (
             <button
               type="button"
               className="primary"
@@ -510,7 +515,6 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
         )}
         <button
           type="button"
-          className={entry.kind === "preset" && !entry.active ? "primary" : undefined}
           disabled={!!entry.error || busy}
           onClick={() => onLoad()}
         >

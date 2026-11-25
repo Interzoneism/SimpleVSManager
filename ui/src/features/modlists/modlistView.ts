@@ -6,19 +6,12 @@ export function canQuickSwitch(kind: ModlistKind | null) {
   return kind === "modlist" || kind === "group";
 }
 
-export const SECTIONS: { kind: ModlistKind; title: string; empty: string }[] = [
-  { kind: "modlist", title: "Modlists", empty: "Save your mods as a modlist to share it or switch back later." },
-  { kind: "group", title: "Groups", empty: "Combine several modlists into one. Select modlists and choose New group." },
-  { kind: "preset", title: "Presets", empty: "Presets remember which mods are on and off." },
-  { kind: "backup", title: "Backups", empty: "Saved automatically before a modlist is loaded or mods are updated or deleted." },
-];
-
-/** Entries of one kind matching a search (name, description, uploader or a mod id). */
-export function filterModlists(all: ModlistSummary[], kind: ModlistKind, search: string): ModlistSummary[] {
+/** Entries matching a search by name, description, uploader or mod ID. */
+export function filterModlists(all: ModlistSummary[], kinds: ModlistKind[], search: string): ModlistSummary[] {
   const q = search.trim().toLowerCase();
   return all.filter(
     (m) =>
-      m.kind === kind &&
+      kinds.includes(m.kind) &&
       (!q ||
         m.name.toLowerCase().includes(q) ||
         (m.description ?? "").toLowerCase().includes(q) ||
@@ -27,10 +20,8 @@ export function filterModlists(all: ModlistSummary[], kind: ModlistKind, search:
   );
 }
 
-/** Starting choice: presets only switch mods on/off, saved lists switch over (other mods go to
- * the mod library), outside files add to what's there. */
+/** Saved lists switch over by default. Imported files and online lists add to what's there. */
 export function defaultMode(kind: ModlistKind | null): LoadMode {
-  if (kind === "preset") return "statesOnly";
   if (kind === null) return "add";
   return "replace";
 }
@@ -52,13 +43,13 @@ export function describePlan(plan: ApplyPlan, configs: number, importConfigs: bo
   if (plan.changeVersion.length) lines.push(`Switch ${plural(plan.changeVersion.length, "mod")} to another version`);
   if (plan.remove.length) lines.push(`Put away ${plural(plan.remove.length, "mod")} that aren't in the list (kept in your mod library)`);
   if (plan.toggles) lines.push(`Turn ${plural(plan.toggles, "mod")} on or off`);
-  if (plan.disabledEntries) lines.push("Set which mods are disabled (older preset)");
+  if (plan.disabledEntries) lines.push("Set which mods are disabled");
   if (configs && importConfigs) lines.push(`Overwrite ${plural(configs, "config file")}`);
   return lines;
 }
 
 export function kindLabel(kind: ModlistKind): string {
-  return { modlist: "Modlist", preset: "Preset", backup: "Backup", group: "Group" }[kind];
+  return { modlist: "Modlist", backup: "Backup", group: "Group" }[kind];
 }
 
 /** Where a modlist's mod is: installed (at the wanted version), in the mod library, or neither. */

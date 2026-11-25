@@ -5,19 +5,17 @@ import { ModBrowser } from "./features/browser/ModBrowser";
 import { SetupOverview } from "./features/setup/SetupOverview";
 import { InstalledMods } from "./features/mods/InstalledMods";
 import { Modlists } from "./features/modlists/Modlists";
-import { OnlineModlists } from "./features/online/OnlineModlists";
 import { ConfirmMods } from "./features/usage/ConfirmMods";
 import { ConfigEditor } from "./features/configs/ConfigEditor";
 import { HelpDialog } from "./features/help/HelpDialog";
 import { Icon, type IconName } from "./components/Icon";
 import { useLayoutPreference } from "./components/SplitWorkspace";
 
-type Tab = "mods" | "modlists" | "online" | "browse" | "configs" | "settings";
+type Tab = "mods" | "modlists" | "browse" | "configs" | "settings";
 const pages: Record<Tab, { title: string; icon: IconName }> = {
   mods: { title: "Installed mods", icon: "library" },
   modlists: { title: "Modlists", icon: "lists" },
-  online: { title: "Community modlists", icon: "community" },
-  browse: { title: "Browse mods", icon: "compass" },
+  browse: { title: "Browse the Mod DB", icon: "compass" },
   configs: { title: "Mod configs", icon: "config" },
   settings: { title: "Settings", icon: "settings" },
 };
@@ -32,17 +30,11 @@ export default function App() {
   const openUrl = useOpenUrl();
   const [droppedFile, setDroppedFile] = useState<string | null>(null);
   const clearDropped = useCallback(() => setDroppedFile(null), []);
-  const [focusModlist, setFocusModlist] = useState<string | null>(null);
   const [configMod, setConfigMod] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
   const editConfig = useCallback((modId: string) => {
     setConfigMod(modId);
     setTab("configs");
-  }, []);
-  const clearFocus = useCallback(() => setFocusModlist(null), []);
-  const showLocal = useCallback((id: string) => {
-    setFocusModlist(id);
-    setTab("modlists");
   }, []);
 
   // Dropping a modlist (.json or .pdf) anywhere opens it on the Modlists tab.
@@ -99,15 +91,10 @@ export default function App() {
         </div>
         <nav id="app-navigation" className="sidebar-nav" aria-label="Main navigation">
           <div className="nav-group">
-            <span className="nav-heading">Library</span>
             <NavButton current={tab} value="mods" onSelect={setTab} />
             <NavButton current={tab} value="modlists" onSelect={setTab} />
-            <NavButton current={tab} value="configs" onSelect={setTab} />
-          </div>
-          <div className="nav-group">
-            <span className="nav-heading">Discover</span>
             <NavButton current={tab} value="browse" onSelect={setTab} />
-            <NavButton current={tab} value="online" onSelect={setTab} />
+            <NavButton current={tab} value="configs" onSelect={setTab} />
           </div>
           <div className="nav-group nav-bottom">
             <NavButton current={tab} value="settings" onSelect={setTab} />
@@ -184,14 +171,11 @@ export default function App() {
           {env.data && dataReady && tab === "modlists" && (
             <Modlists
               os={env.data.os}
-              enabled={dataReady}
+              offline={env.data.settings.offlineMode}
               droppedFile={droppedFile}
               onDroppedFileHandled={clearDropped}
-              focusId={focusModlist}
-              onFocusHandled={clearFocus}
             />
           )}
-          {env.data && dataReady && tab === "online" && <OnlineModlists os={env.data.os} enabled={dataReady} onShowLocal={showLocal} />}
           {env.data && dataReady && tab === "browse" && <ModBrowser enabled={dataReady} />}
           {env.data && dataReady && tab === "configs" && <ConfigEditor enabled={dataReady} focusMod={configMod} />}
           {env.data && tab === "settings" && <SetupOverview env={env.data} />}

@@ -1,4 +1,4 @@
-//! Modlists, presets, groups and automatic backups. Logic lives in `svsm_core::modlists`;
+//! Modlists, groups and automatic backups. Logic lives in `svsm_core::modlists`;
 //! running a load plan (downloads, installs, removals) happens here.
 
 use std::path::{Path, PathBuf};
@@ -40,7 +40,7 @@ pub(crate) fn snapshot_installed(state: &AppState, trigger: &str, extra_configs:
     }
     let env = state.environment();
     let meta = ModlistMeta { name: trigger.into(), game_version: env.game_version.clone(), ..Default::default() };
-    match store(state).snapshot(trigger, from_installed(&mods, meta, true, extra_configs)) {
+    match store(state).snapshot(trigger, from_installed(&mods, meta, extra_configs)) {
         Ok(id) => Some(id),
         Err(e) => {
             tracing::warn!("Could not save a backup of the installed mods: {e}");
@@ -49,7 +49,7 @@ pub(crate) fn snapshot_installed(state: &AppState, trigger: &str, extra_configs:
     }
 }
 
-/// (mod id, version) of every mod in every saved modlist, preset, group and backup.
+/// (mod id, version) of every mod in every saved modlist, group and backup.
 pub(crate) fn referenced_versions(state: &AppState) -> Vec<(String, String)> {
     store(state)
         .list()
@@ -92,7 +92,7 @@ pub async fn list_modlists(state: State<'_, AppState>) -> AppResult<Vec<ModlistS
     Ok(annotate(&state, store(&state).list()))
 }
 
-/// Moves modlists, presets, backups or groups to the system trash.
+/// Moves modlists, backups or groups to the system trash.
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_modlists(state: State<'_, AppState>, ids: Vec<String>) -> AppResult<Vec<ModlistSummary>> {
@@ -113,7 +113,7 @@ pub struct SaveDefaults {
     pub game_version: Option<String>,
     /// Config files in `ModConfig`, matched to installed mods where possible.
     pub configs: Vec<ConfigCandidate>,
-    /// Installed but disabled mods. Modlists leave them out (presets keep them, switched off).
+    /// Installed but disabled mods, which are excluded from new modlists.
     pub disabled_mods: Vec<DisabledMod>,
 }
 
@@ -164,8 +164,6 @@ pub struct ConfigChoice {
 #[derive(Debug, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveModlistRequest {
-    /// `modlist` (versions, exclusive) or `preset` (only on/off).
-    pub kind: ModlistKind,
     pub name: String,
     pub description: Option<String>,
     pub game_version: Option<String>,
@@ -193,66 +191,54 @@ fn build_from_installed(state: &AppState, req: &SaveModlistRequest) -> AppResult
         return Err(AppError::msg("Give it a name."));
     }
     let (data, _) = state.mod_roots()?;
-    let preset = req.kind == ModlistKind::Preset;
     let mut mods = installed(state);
-    // Modlists hold only the mods that are on (and their config files); presets keep the
-    // disabled ones, switched off.
-    let left_out = if preset { Vec::new() } else { disabled_mods(&mods) };
-    if !preset {
-        mods.retain(|m| m.is_active);
-    }
+    let left_out = disabled_mods(&mods);
+    mods.retain(|m| m.is_active);
     let gone = |id: &Option<String>| id.as_deref().is_some_and(|id| left_out.iter().any(|d| d.mod_id.eq_ignore_ascii_case(id)));
     let chosen: Vec<(String, Option<String>)> =
         req.configs.iter().filter(|c| !gone(&c.mod_id)).map(|c| (c.relative_path.clone(), c.mod_id.clone())).collect();
     let (configs, warnings) = configs::read_for_modlist(&data, &chosen);
     let s = store(state);
-    let replaced = || if req.overwrite { s.summary(&s.id_for_name(req.kind, name)).ok() } else { None };
+    let replaced = || if req.overwrite { s.summary(&s.id_for_name(ModlistKind::Modlist, name)).ok() } else { None };
     let meta = ModlistMeta {
         name: name.to_string(),
-        description: if preset { None } else { req.description.clone() },
+        description: req.description.clone(),
         icon: req.icon.clone().or_else(|| replaced().and_then(|e| e.icon)),
         icon_color: req.icon_color.clone().or_else(|| replaced().and_then(|e| e.icon_color)),
         version: None,
         game_version: req.game_version.clone().or_else(|| state.environment().game_version),
-        uploader: if preset { None } else { req.uploader.clone() },
+        uploader: req.uploader.clone(),
     };
-    Ok((from_installed(&mods, meta, !preset, configs), warnings))
+    Ok((from_installed(&mods, meta, configs), warnings))
 }
 
-/// Saves the installed mods as a modlist (`Modlists/`) or preset (`Presets/`).
+/// Saves the enabled mods as a modlist.
 #[tauri::command]
 #[specta::specta]
 pub async fn save_modlist(state: State<'_, AppState>, request: SaveModlistRequest) -> AppResult<SaveResult> {
-    if !matches!(request.kind, ModlistKind::Modlist | ModlistKind::Preset) {
-        return Err(AppError::msg("Only modlists and presets can be saved here."));
-    }
     let (list, warnings) = build_from_installed(&state, &request)?;
     let s = store(&state);
-    let id = s.save(request.kind, request.name.trim(), &list, request.overwrite)?;
+    let id = s.save(ModlistKind::Modlist, request.name.trim(), &list, request.overwrite)?;
     Ok(SaveResult { saved: s.summary(&id)?, warnings })
 }
 
-/// Replaces a saved modlist's mods with the installed ones: the enabled mods with their versions
-/// for a modlist, every mod with its on/off state for a preset. Name, description and icon stay,
-/// and config files are kept for mods that are still in it.
+/// Replaces a saved modlist's mods with the current enabled mods and their versions.
+/// The name, description, icon and configs for retained mods stay.
 #[tauri::command]
 #[specta::specta]
 pub async fn update_modlist_mods(state: State<'_, AppState>, id: String) -> AppResult<ModlistSummary> {
     let s = store(&state);
     let loaded = s.load(&id)?;
-    if !matches!(loaded.kind, ModlistKind::Modlist | ModlistKind::Preset) {
-        return Err(AppError::msg("Only modlists and presets can be updated with your mods."));
+    if loaded.kind != ModlistKind::Modlist {
+        return Err(AppError::msg("Only saved modlists can be updated with your mods."));
     }
     let mut list = loaded.modlist;
     if list.online_subscription.is_some() {
         return Err(AppError::msg("This modlist follows an online modlist. Stop following it first, or it would be replaced by the next update."));
     }
-    let preset = loaded.kind == ModlistKind::Preset;
     let mut mods = installed(&state);
-    if !preset {
-        mods.retain(|m| m.is_active);
-    }
-    let fresh = from_installed(&mods, ModlistMeta { name: "x".into(), ..Default::default() }, !preset, Vec::new());
+    mods.retain(|m| m.is_active);
+    let fresh = from_installed(&mods, ModlistMeta { name: "x".into(), ..Default::default() }, Vec::new());
     if fresh.entries().is_empty() {
         return Err(AppError::msg("No mods are enabled, so the modlist would be empty."));
     }
@@ -272,7 +258,7 @@ pub async fn update_modlist_mods(state: State<'_, AppState>, id: String) -> AppR
     Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
 }
 
-/// Sets (or clears with `null`) the card icon of a modlist, preset, backup or group.
+/// Sets (or clears with `null`) the card icon of a modlist, backup or group.
 #[tauri::command]
 #[specta::specta]
 pub async fn set_modlist_icon(state: State<'_, AppState>, id: String, icon: Option<String>, color: Option<String>) -> AppResult<ModlistSummary> {

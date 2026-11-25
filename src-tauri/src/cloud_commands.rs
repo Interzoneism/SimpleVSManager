@@ -413,7 +413,7 @@ pub async fn edit_published_modlist(state: State<'_, AppState>, request: EditPub
 /// The enabled installed mods as a modlist (exact versions), like saving a modlist.
 fn current_mods(state: &AppState, meta: modlists::ModlistMeta) -> AppResult<Modlist> {
     let mods: Vec<_> = state.mods.read().expect("mods lock poisoned").mods.iter().filter(|m| m.is_active).cloned().collect();
-    let list = modlists::from_installed(&mods, meta, true, Vec::new());
+    let list = modlists::from_installed(&mods, meta, Vec::new());
     if list.entries().is_empty() {
         return Err(AppError::msg("No mods are enabled, so there's nothing to publish."));
     }

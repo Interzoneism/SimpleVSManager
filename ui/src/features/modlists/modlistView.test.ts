@@ -28,18 +28,19 @@ const summary = (over: Partial<ModlistSummary>): ModlistSummary => ({
 const emptyPlan: ApplyPlan = { install: [], changeVersion: [], remove: [], states: [], disabledEntries: null, skipped: [], toggles: 0 };
 
 describe("modlist view helpers", () => {
-  it("filters by kind and text, including mod ids", () => {
+  it("searches saved modlists and groups together", () => {
     const all = [
       summary({ id: "1", name: "Hardcore", mods: [{ modId: "carryon", version: "1.0", isActive: true }] }),
-      summary({ id: "2", name: "Cozy", kind: "preset" }),
+      summary({ id: "2", name: "Cozy", kind: "group" }),
+      summary({ id: "3", name: "Backup", kind: "backup" }),
     ];
-    expect(filterModlists(all, "modlist", "").map((m) => m.id)).toEqual(["1"]);
-    expect(filterModlists(all, "modlist", "CARRY").map((m) => m.id)).toEqual(["1"]);
-    expect(filterModlists(all, "modlist", "cozy")).toEqual([]);
+    expect(filterModlists(all, ["modlist", "group"], "").map((m) => m.id)).toEqual(["1", "2"]);
+    expect(filterModlists(all, ["modlist", "group"], "CARRY").map((m) => m.id)).toEqual(["1"]);
+    expect(filterModlists(all, ["modlist", "group"], "cozy").map((m) => m.id)).toEqual(["2"]);
   });
 
   it("picks safe default load modes", () => {
-    expect(defaultMode("preset")).toBe("statesOnly");
+    expect(defaultMode("group")).toBe("replace");
     expect(defaultMode("backup")).toBe("replace");
     expect(defaultMode("modlist")).toBe("replace");
     expect(defaultMode(null)).toBe("add");

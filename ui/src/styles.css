@@ -107,14 +107,6 @@ input::placeholder { color: var(--palette-grey); opacity: 1; }
 .app-icon { flex: none; width: 28px; height: 28px; object-fit: contain; }
 .sidebar-nav { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; padding: 12px 2px 2px; }
 .nav-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
-.nav-heading {
-  padding: 0 8px 4px;
-  color: var(--palette-grey);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-}
 .nav-bottom { margin-top: auto; }
 button.nav-button {
   justify-content: flex-start;
@@ -137,7 +129,7 @@ button.nav-button {
   background: var(--selection);
 }
 .app-version { padding: 10px 10px 0; color: var(--palette-grey); font-size: 11px; }
-.sidebar-collapsed :is(.brand-name, .nav-heading, .nav-button span, .app-version) { display: none; }
+.sidebar-collapsed :is(.brand-name, .nav-button span, .app-version) { display: none; }
 .sidebar-collapsed :is(.nav-button, .brand) { justify-content: center; padding-inline: 0; }
 
 .app-content { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -566,9 +558,10 @@ button.library-stat[aria-pressed="true"] {
 .disabled-mods-note ul { margin: 4px 0 0; padding-left: 18px; max-height: 120px; overflow-y: auto; }
 .modlist-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .modlist-section { margin-bottom: 16px; }
-.section-toggle { background: transparent; border: 0; padding: 4px 0; font-weight: 600; color: var(--palette-white); }
+.modlist-section-title { margin: 4px 0 8px; font-size: 14px; font-weight: 600; color: var(--palette-white); }
+.section-toggle { background: transparent; border: 0; padding: 0; font: inherit; color: inherit; }
 .section-toggle:hover:not(:disabled) { background: transparent; }
-.section-empty { margin: 2px 0 8px 18px; }
+.section-empty { margin: 2px 0 8px; }
 .modlist-rows {
   list-style: none; margin: 0; padding: 0;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
@@ -591,22 +584,18 @@ button.library-stat[aria-pressed="true"] {
 }
 .modlist-card-item { display: flex; min-width: 0; }
 .modlist-card { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; min-height: 0; }
-.modlist-card > .card-title { width: 100%; }
-.modlist-card-row { display: flex; gap: 12px; align-items: stretch; flex: 1; min-width: 0; min-height: 64px; }
-.modlist-card .card-stats { line-height: 1.4; }
+.modlist-card > .card-title { width: 100%; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modlist-card-icon {
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
   align-self: flex-start;
   color: var(--accent);
   background: var(--selection);
 }
-.modlist-card-icon .nerd-icon { font-size: 30px; }
-.modlist-card-icon.icon-settings { color: var(--palette-text-link); }
-.modlist-card-icon.icon-history { color: var(--palette-grey); background: var(--palette-interactive-surface); }
-.modlist-card-icon .ui-icon { width: 28px; height: 28px; }
+.modlist-card-icon .nerd-icon { font-size: 38px; }
+.modlist-card-icon .ui-icon { width: 34px; height: 34px; }
 .modlist-card-badges { display: flex; flex-wrap: wrap; gap: 4px; }
 .modlist-card-badges .badge { margin: 0; }
 .quick-switch-option {
@@ -637,7 +626,6 @@ button.library-stat[aria-pressed="true"] {
   background: var(--palette-base-surface-shadowed); border: 1px solid var(--palette-bevel-shadow); border-radius: 3px;
   padding: 5px 8px; font: inherit; color: var(--palette-text-primary); resize: vertical;
 }
-.radio-row { display: flex; flex-direction: column; gap: 4px; }
 input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .config-picker h3 { font-size: 13px; color: var(--palette-white); margin: 14px 0 4px; }
 .check-list { list-style: none; margin: 4px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
@@ -751,7 +739,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
   .json-leaf { display: flex; flex-wrap: wrap; }
   .json-leaf input[type="text"] { min-width: 0; max-width: 100%; }
 }
-.online-section-title { margin: 4px 0 8px; font-size: 14px; font-weight: 600; color: var(--palette-white); }
 
 /* Modlist icon colors (muted tile + glyph pairs). Ids are stored with the modlist. */
 .icon-theme-sage.icon-theme-sage { background: #34423a; color: #a9c5a4; }
@@ -777,17 +764,11 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .icon-swatch-default { background: var(--selection); color: var(--accent); }
 .icon-swatch.selected { border-color: var(--palette-white); }
 
-/* Online modlist cards: same size in every row; facts as lines; icon at the bottom left. */
-/* Every card is the same height without stretching: one-line title, fixed-height foot. */
-.online-card-grid .card-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modlist-card-lines { display: flex; flex-direction: column; gap: 2px; color: var(--palette-text-secondary, var(--palette-grey)); }
 .modlist-card-lines > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modlist-card-foot { display: flex; align-items: center; gap: 12px; height: 76px; min-width: 0; }
 /* Same space above and below the icon: card padding = gap under the title. */
-.online-card-grid .modlist-card { gap: 14px; padding: 14px; }
-.modlist-card-foot .modlist-card-icon { width: 76px; height: 76px; }
-.modlist-card-foot .modlist-card-icon .nerd-icon { font-size: 38px; }
-.modlist-card-foot .modlist-card-icon .ui-icon { width: 34px; height: 34px; }
+.modlist-card-grid .modlist-card { gap: 14px; padding: 14px; }
 .modlist-card-foot-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .modlist-card-foot-line { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
 .modlist-card-foot-line > .muted { overflow: hidden; text-overflow: ellipsis; }
@@ -872,7 +853,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .lightbox-bar { display: flex; align-items: center; gap: 12px; color: #fff; }
 .lightbox-bar button { min-width: 36px; }
 
-/* --- Mod details window (Browse mods), laid out like a mod page on the Mod DB --- */
+/* --- Mod details window (Browse the Mod DB), laid out like a mod page on the Mod DB --- */
 .browse-page { flex-direction: column; }
 .mod-window-backdrop {
   position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center;

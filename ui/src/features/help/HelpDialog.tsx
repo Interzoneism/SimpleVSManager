@@ -19,22 +19,17 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "Modlists",
     body: [
-      "Save your current mods as a modlist (exact versions, can be shared) or a preset (only which mods are on).",
+      "Save your enabled mods with their exact versions. Saved modlists also includes groups and copies of online modlists.",
       "Switch to a modlist and your Mods folder ends up with exactly that list. Other mods go to your mod library, so switching back needs no download.",
       "Enable Quick switch in the review to reuse your config-file choice for saved modlists and groups. Use Load to open the review, or turn off Quick switch from the Modlists toolbar.",
       "Groups combine several modlists. Backups are saved automatically before a modlist loads and before updates or deletes.",
       "Export a modlist as PDF or JSON; Simple VS Manager 2.3 can load both. Drop a .json or .pdf on the window to load it.",
-    ],
-  },
-  {
-    title: "Community modlists",
-    body: [
-      "Modlists other players published. Load one, save a copy, or follow it to get its updates.",
+      "Load modlists other players published, save a copy, or follow one to get its updates.",
       "Publish your own to five cloud slots under your player name.",
     ],
   },
   {
-    title: "Browse mods",
+    title: "Browse the Mod DB",
     body: ["Search every mod on mods.vintagestory.at and install with one click. The whole catalogue is cached, so search is instant."],
   },
   {

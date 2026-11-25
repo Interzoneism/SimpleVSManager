@@ -1,7 +1,6 @@
 //! Modlist files in the manager folder, shared with Simple VS Manager 2.x:
 //!
 //! * `Modlists/` (and its `Rebuilt/` subfolder): modlists and `.svsmgroup` groups,
-//! * `Presets/`: presets (modlists without metadata or versions),
 //! * `Backups/`: modlists the app saves by itself before it changes your mods.
 //!
 //! Every entry is addressed by an id: its path relative to the manager folder with `/`
@@ -18,7 +17,6 @@ use crate::error::{CoreError, CoreResult};
 use crate::moddb::cache::sanitize_file_name;
 
 pub const MODLISTS_DIR: &str = "Modlists";
-pub const PRESETS_DIR: &str = "Presets";
 pub const BACKUPS_DIR: &str = "Backups";
 /// Automatic backups kept (2.x kept 10).
 pub const MAX_BACKUPS: usize = 10;
@@ -28,7 +26,6 @@ pub const MAX_BACKUPS: usize = 10;
 #[serde(rename_all = "camelCase")]
 pub enum ModlistKind {
     Modlist,
-    Preset,
     Backup,
     Group,
 }
@@ -37,7 +34,6 @@ impl ModlistKind {
     fn dir(self) -> &'static str {
         match self {
             ModlistKind::Modlist | ModlistKind::Group => MODLISTS_DIR,
-            ModlistKind::Preset => PRESETS_DIR,
             ModlistKind::Backup => BACKUPS_DIR,
         }
     }
@@ -185,7 +181,6 @@ impl ModlistStore {
         let kind = match parts[0] {
             MODLISTS_DIR if has_ext(&path, GROUP_EXTENSION) && parts.len() == 2 => ModlistKind::Group,
             MODLISTS_DIR if has_ext(&path, "json") => ModlistKind::Modlist,
-            PRESETS_DIR if has_ext(&path, "json") && parts.len() == 2 => ModlistKind::Preset,
             BACKUPS_DIR if has_ext(&path, "json") && parts.len() == 2 => ModlistKind::Backup,
             _ => return Err(bad()),
         };
@@ -212,20 +207,18 @@ impl ModlistStore {
         for sub in scan(self.dir(ModlistKind::Modlist), true) {
             scan(sub, false);
         }
-        scan(self.dir(ModlistKind::Preset), false);
         scan(self.dir(ModlistKind::Backup), false);
         out.into_iter().filter(|p| self.id_for(p).is_some()).collect()
     }
 
-    /// Every modlist, preset, backup and group, newest first within each kind.
+    /// Saved modlists and groups by name, followed by the newest backups.
     pub fn list(&self) -> Vec<ModlistSummary> {
         let mut out: Vec<ModlistSummary> = self.files().iter().map(|p| self.summarize(p)).collect();
         out.sort_by(|a, b| {
             let order = |k: ModlistKind| match k {
                 ModlistKind::Group => 0,
                 ModlistKind::Modlist => 1,
-                ModlistKind::Preset => 2,
-                ModlistKind::Backup => 3,
+                ModlistKind::Backup => 2,
             };
             order(a.kind).cmp(&order(b.kind)).then_with(|| match a.kind {
                 ModlistKind::Backup => b.modified_ms.partial_cmp(&a.modified_ms).unwrap_or(std::cmp::Ordering::Equal),
@@ -356,14 +349,13 @@ impl ModlistStore {
     pub fn id_for_name(&self, kind: ModlistKind, name: &str) -> String {
         let ext = if kind == ModlistKind::Group { GROUP_EXTENSION } else { "json" };
         let fallback = match kind {
-            ModlistKind::Preset => "Preset",
             ModlistKind::Group => "Modlist group",
             _ => "Modlist",
         };
         format!("{}/{}.{ext}", kind.dir(), sanitize_file_name(name, fallback))
     }
 
-    /// Saves a modlist or preset. Refuses to replace an existing file unless `overwrite`.
+    /// Saves a modlist or backup. Refuses to replace an existing file unless `overwrite`.
     pub fn save(&self, kind: ModlistKind, name: &str, modlist: &Modlist, overwrite: bool) -> CoreResult<String> {
         if kind == ModlistKind::Group {
             return Err(other(Path::new(name), "Use save_group for groups."));
@@ -377,11 +369,11 @@ impl ModlistStore {
         Ok(id)
     }
 
-    /// Writes `modlist` over an existing modlist or preset file (same id, same place).
+    /// Writes `modlist` over an existing modlist file (same id, same place).
     pub fn overwrite(&self, id: &str, modlist: &Modlist) -> CoreResult<()> {
         let (path, kind) = self.resolve(id)?;
-        if !matches!(kind, ModlistKind::Modlist | ModlistKind::Preset) {
-            return Err(other(&path, "Only modlists and presets can be changed this way."));
+        if kind != ModlistKind::Modlist {
+            return Err(other(&path, "Only modlists can be changed this way."));
         }
         if !path.is_file() {
             return Err(other(&path, "That modlist no longer exists."));
@@ -528,9 +520,8 @@ mod tests {
         assert_eq!(s.resolve("Modlists/a.json").unwrap().1, ModlistKind::Modlist);
         assert_eq!(s.resolve("Modlists/Rebuilt/a.json").unwrap().1, ModlistKind::Modlist);
         assert_eq!(s.resolve("Modlists/g.svsmgroup").unwrap().1, ModlistKind::Group);
-        assert_eq!(s.resolve("Presets/p.json").unwrap().1, ModlistKind::Preset);
         assert_eq!(s.resolve("Backups/b.json").unwrap().1, ModlistKind::Backup);
-        for bad in ["../x.json", "Modlists/../../x.json", "Other/a.json", "Modlists/a.txt", "Presets/sub/a.json", "Modlists/a\\..\\b.json", "Modlists//a.json", "Modlists/c:x.json"] {
+        for bad in ["../x.json", "Modlists/../../x.json", "Other/a.json", "Modlists/a.txt", "Presets/p.json", "Modlists/a\\..\\b.json", "Modlists//a.json", "Modlists/c:x.json"] {
             assert!(s.resolve(bad).is_err(), "{bad}");
         }
     }
@@ -542,14 +533,16 @@ mod tests {
         let id = s.save(ModlistKind::Modlist, "My: list", &list("My: list", &["a", "b"]), false).unwrap();
         assert_eq!(id, "Modlists/My_ list.json");
         assert!(s.save(ModlistKind::Modlist, "My: list", &list("x", &[]), false).is_err());
-        s.save(ModlistKind::Preset, "Quick", &list("Quick", &["a"]), false).unwrap();
+        let legacy = t.path().join("Presets");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("Quick.json"), r#"{"mods":[{"modId":"a"}]}"#).unwrap();
         std::fs::create_dir_all(t.path().join("Modlists/Rebuilt")).unwrap();
         std::fs::write(t.path().join("Modlists/Rebuilt/old.json"), r#"{"mods":[{"modId":"z"}]}"#).unwrap();
         std::fs::write(t.path().join("Modlists/broken.json"), "{").unwrap();
 
         let all = s.list();
         let names: Vec<_> = all.iter().map(|e| (e.kind, e.name.as_str())).collect();
-        assert_eq!(names, [(ModlistKind::Modlist, "broken"), (ModlistKind::Modlist, "My: list"), (ModlistKind::Modlist, "old"), (ModlistKind::Preset, "Quick")]);
+        assert_eq!(names, [(ModlistKind::Modlist, "broken"), (ModlistKind::Modlist, "My: list"), (ModlistKind::Modlist, "old")]);
         assert!(all[0].error.is_some());
         assert_eq!(all[1].mods.len(), 2);
         assert_eq!(s.load(&id).unwrap().modlist.entries().len(), 2);
@@ -567,11 +560,15 @@ mod tests {
         b_list.mods.as_mut().unwrap()[0].version = Some("2.0.0".into());
         let b = s.save(ModlistKind::Modlist, "B", &b_list, false).unwrap();
         let g_path = t.path().join("Modlists/G.svsmgroup");
+        let legacy = t.path().join("Presets/Old.json");
+        std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+        std::fs::write(&legacy, r#"{"mods":[{"modId":"legacy"}]}"#).unwrap();
         let def = GroupDefinition {
             name: Some("G".into()),
             members: vec![
                 groups::create_reference(&g_path, &s.resolve(&a).unwrap().0),
                 groups::create_reference(&g_path, &s.resolve(&b).unwrap().0),
+                groups::create_reference(&g_path, &legacy),
                 "gone.json".into(),
             ],
             ..Default::default()
@@ -579,12 +576,13 @@ mod tests {
         let g = s.save_group(None, &def).unwrap();
         assert_eq!(g, "Modlists/G.svsmgroup");
         let loaded = s.load(&g).unwrap();
-        assert_eq!(loaded.modlist.entries().len(), 3);
+        assert_eq!(loaded.modlist.entries().len(), 4);
         assert_eq!(loaded.conflicts.len(), 1);
         let sum = s.summary(&g).unwrap();
         let view = sum.group.unwrap();
-        assert_eq!(view.members.iter().map(|m| m.missing).collect::<Vec<_>>(), [false, false, true]);
+        assert_eq!(view.members.iter().map(|m| m.missing).collect::<Vec<_>>(), [false, false, false, true]);
         assert_eq!(view.members[0].id.as_deref(), Some("Modlists/A.json"));
+        assert_eq!(view.members[2].id, None);
 
         // Rename moves the file.
         let renamed = s.save_group(Some(&g), &GroupDefinition { name: Some("H".into()), ..def }).unwrap();

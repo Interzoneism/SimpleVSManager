@@ -17,10 +17,10 @@ catalogue locally (the API has no paging) and installs mods; one size-capped cac
 downloaded versions; manager update notice. 2.x skips, exclusions and related settings are
 imported once.
 
-**M3 (Modlists):** a Modlists tab with modlists, presets, groups and automatic backups in one
-list (all the 2.3.0 JSON format; `Presets/`, `Modlists/` incl. `Rebuilt/`, `Backups/` are shared with
-2.x). Save the installed mods as a modlist (versions, details, chosen config files) or preset (on/off
-only). One load flow for every source (saved entry, imported file, dropped .json/.pdf): preview of
+**M3 (Modlists):** the Modlists tab shows saved modlists and groups together, alongside automatic
+backups and online modlists. Save enabled mods with versions, details and chosen config files.
+Legacy preset files can still be imported or read through an existing group. One load flow for
+every source (saved entry, imported file, dropped .json/.pdf, online modlist): preview of
 what changes, then "Only this list's mods" (installs, version switches, other mods to the trash),
 "Add to my mods", or "Just switch mods on and off". A backup of the current mods (and any config
 files about to be overwritten) is saved first; backups are also made before updates and deletes
@@ -34,12 +34,12 @@ break, so several versions side by side aren't safe even when some are disabled)
 version lives in the mod library (`Temp Cache/Cached Mods`, the 2.x cache layout). "Switch to"
 a modlist puts mods that aren't in it into the library instead of the trash and takes what it
 needs from the library first, so switching back and forth is local and works offline. The
-library's size limit never deletes a version that a saved modlist, preset, group or backup uses.
+library's size limit never deletes a version that a saved modlist, group or backup uses.
 The Modlists tab marks the list that matches the installed mods as Active and shows how many
 mods a list would still have to download. Folder mods and loose .cs/.dll files can't go into
 the library and still go to the trash.
 
-**M4 (Cloud and community):** an Online tab with the public modlists of every player (2.x's
+**M4 (Cloud and community):** the Modlists tab shows your published modlists and public modlists from other players (2.x's
 Firebase project; public reads need no sign-in), search/sort, hide a modlist or all from an
 author, Load straight from the cloud, Save a copy, or Follow: a followed copy on the Modlists tab
 shows "Update" when the author publishes a new revision and "Get the update" replaces it
@@ -51,7 +51,7 @@ Cloud identity: reads 2.x's `firebase-auth.json` and never changes it (refreshed
 `svsm3-firebase-session.json`), restores it from `%LOCALAPPDATA%/SVSM Backup` when missing, and
 never creates a second account when the existing one can't sign in. Identities still on the old
 cloud project can browse and follow, but publishing and reports need the move to the new project.
-"Move my cloud identity" (Online tab) does that move like 2.3.0: it copies the player's
+"Move my cloud identity" (Modlists tab) does that move like 2.3.0: it copies the player's
 old-project slots to the new project, keeps the old identity as `firebase-auth.legacy.json` (and
 the SVSM Backup copy likewise), and puts everything back if any step fails.
 
@@ -66,7 +66,7 @@ Not ported (cut list): developer profiles, the palette editor, debug log viewers
 logging toggles, "Delete all Simple VS Manager files".
 
 What it writes: `clientsettings.json` (only `disabledMods`, with a `.bkp` of the previous file),
-its own `svsm3-settings.json` in the manager folder, modlist/preset/group/backup files in `Modlists/`, `Presets/` and `Backups/`, config files in the data folder's `ModConfig` when a loaded modlist carries them, mods in the data folder's `Mods`, and caches
+its own `svsm3-settings.json` in the manager folder, modlists and groups in `Modlists/`, backups in `Backups/`, config files in the data folder's `ModConfig` when a loaded modlist carries them, mods in the data folder's `Mods`, and caches
 under `Temp Cache/` (`svsm3 Mod Database/`, `svsm3 Downloads/`, and `Cached Mods/`, which uses the
 2.x layout so both apps share it). The 2.x settings file is only read.
 

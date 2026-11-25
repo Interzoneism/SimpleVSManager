@@ -287,7 +287,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
             empty={all.length === 0 ? (
               <div className="empty-state">
                 <p>No mods installed yet.</p>
-                <button type="button" onClick={onBrowse}><Icon name="compass" />Browse mods</button>
+                <button type="button" onClick={onBrowse}><Icon name="compass" />Browse the Mod DB</button>
               </div>
             ) : (
               <div className="empty-state">

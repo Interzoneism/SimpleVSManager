@@ -29,7 +29,7 @@ pub enum ManagerDirKind {
 /// Resolves the manager folder.
 ///
 /// Windows keeps the WPF location (`%LOCALAPPDATA%\Simple VS Manager`) so both apps share
-/// modlists, presets and backups. macOS uses `~/Library/Application Support/Simple VS Manager`,
+/// modlists and backups. macOS uses `~/Library/Application Support/Simple VS Manager`,
 /// Linux uses `$XDG_DATA_HOME/simple-vs-manager`.
 pub fn resolve_manager_dir(host: &HostEnv) -> (PathBuf, ManagerDirKind) {
     if let Some(custom) = read_custom_folder_pointer(host) {

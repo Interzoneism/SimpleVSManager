@@ -325,7 +325,7 @@ async listModlists() : Promise<Result<ModlistSummary[], AppError>> {
 }
 },
 /**
- * Moves modlists, presets, backups or groups to the system trash.
+ * Moves modlists, backups or groups to the system trash.
  */
 async deleteModlists(ids: string[]) : Promise<Result<ModlistSummary[], AppError>> {
     try {
@@ -344,7 +344,7 @@ async modlistSaveDefaults() : Promise<Result<SaveDefaults, AppError>> {
 }
 },
 /**
- * Saves the installed mods as a modlist (`Modlists/`) or preset (`Presets/`).
+ * Saves the enabled mods as a modlist.
  */
 async saveModlist(request: SaveModlistRequest) : Promise<Result<SaveResult, AppError>> {
     try {
@@ -355,7 +355,7 @@ async saveModlist(request: SaveModlistRequest) : Promise<Result<SaveResult, AppE
 }
 },
 /**
- * Sets (or clears with `null`) the card icon of a modlist, preset, backup or group.
+ * Sets (or clears with `null`) the card icon of a modlist, backup or group.
  */
 async setModlistIcon(id: string, icon: string | null, color: string | null) : Promise<Result<ModlistSummary, AppError>> {
     try {
@@ -366,9 +366,8 @@ async setModlistIcon(id: string, icon: string | null, color: string | null) : Pr
 }
 },
 /**
- * Replaces a saved modlist's mods with the installed ones: the enabled mods with their versions
- * for a modlist, every mod with its on/off state for a preset. Name, description and icon stay,
- * and config files are kept for mods that are still in it.
+ * Replaces a saved modlist's mods with the current enabled mods and their versions.
+ * The name, description, icon and configs for retained mods stay.
  */
 async updateModlistMods(id: string) : Promise<Result<ModlistSummary, AppError>> {
     try {
@@ -1138,7 +1137,7 @@ export type ModSourceKind = "folder" | "zip" |
  * Loose `.dll` file: can't be managed without a modinfo.json.
  */
 "assembly"
-export type ModlistKind = "modlist" | "preset" | "backup" | "group"
+export type ModlistKind = "modlist" | "backup" | "group"
 /**
  * What the Mod DB and the mod library know about one mod of a modlist.
  */
@@ -1327,7 +1326,7 @@ uploader: string | null; gameVersion: string | null;
  */
 configs: ConfigCandidate[]; 
 /**
- * Installed but disabled mods. Modlists leave them out (presets keep them, switched off).
+ * Installed but disabled mods, which are excluded from new modlists.
  */
 disabledMods: DisabledMod[] }
 export type SaveGroupRequest = { 
@@ -1339,11 +1338,7 @@ id: string | null; name: string; description: string | null; version: string | n
  * Modlist ids (`Modlists/x.json`) or existing member references, in order.
  */
 members: string[] }
-export type SaveModlistRequest = { 
-/**
- * `modlist` (versions, exclusive) or `preset` (only on/off).
- */
-kind: ModlistKind; name: string; description: string | null; gameVersion: string | null; uploader: string | null; configs: ConfigChoice[]; 
+export type SaveModlistRequest = { name: string; description: string | null; gameVersion: string | null; uploader: string | null; configs: ConfigChoice[]; 
 /**
  * Replace an existing file with the same name.
  */

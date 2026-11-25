@@ -87,7 +87,6 @@ fn save_export_import_and_switch_states() {
     let saved = run(save_modlist(
         state.clone(),
         SaveModlistRequest {
-            kind: ModlistKind::Modlist,
             name: "Mine".into(),
             description: Some("desc".into()),
             game_version: None,
@@ -126,15 +125,15 @@ fn save_export_import_and_switch_states() {
     assert_eq!((imported.name.as_str(), imported.mods.len(), imported.config_count), ("Mine", 2, 1));
     assert!(run(export_modlist(state.clone(), imported.id.clone(), m.manager.join("x.exe").display().to_string(), ExportFormat::Json)).is_err());
 
-    // A preset that turns everything off, loaded as "just switch on and off".
-    let store = ModlistStore::new(&m.manager);
-    std::fs::create_dir_all(store.dir(ModlistKind::Preset)).unwrap();
+    // A legacy file loaded as "just switch on and off".
+    let legacy = m.manager.join("Presets/Off.json");
+    std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
     std::fs::write(
-        store.dir(ModlistKind::Preset).join("Off.json"),
+        &legacy,
         r#"{"name":"Off","mods":[{"modId":"carryon","isActive":false},{"modId":"handytweaks","isActive":true},{"modId":"notinstalled","isActive":true}]}"#,
     )
     .unwrap();
-    let source = ModlistSource { id: Some("Presets/Off.json".into()), file: None, online: None };
+    let source = ModlistSource { id: None, file: Some(legacy.display().to_string()), online: None };
     let preview = run(preview_modlist(state.clone(), source.clone(), LoadMode::StatesOnly)).unwrap();
     assert_eq!(preview.plan.toggles, 2);
     assert!(preview.plan.install.is_empty());
@@ -196,7 +195,6 @@ fn switching_between_lists_uses_the_library_offline() {
         run(save_modlist(
             state.clone(),
             SaveModlistRequest {
-                kind: ModlistKind::Modlist,
                 name: name.into(),
                 description: None,
                 game_version: None,

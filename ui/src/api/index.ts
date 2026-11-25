@@ -408,7 +408,7 @@ export function useOpenUrl() {
   return useMutation({ mutationFn: (url: string) => unwrap(commands.openUrl(url)) });
 }
 
-// --- Modlists, presets, groups, backups -------------------------------------------------------
+// --- Modlists, groups, backups -------------------------------------------------------
 
 export function useModlists() {
   return useQuery({ queryKey: queryKeys.modlists, queryFn: () => unwrap(commands.listModlists()) });
