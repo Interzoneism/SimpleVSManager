@@ -92,8 +92,12 @@ function FileEditor({ path }: { path: string }) {
   const [mode, setMode] = useState<"tree" | "text">("tree");
   const [search, setSearch] = useState("");
 
+  // Load each read once. The page stays mounted between visits and effects re-run when it is
+  // shown again; an unchanged file keeps the same data object, so unsaved edits survive.
+  const loaded = useRef<typeof file.data>(undefined);
   useEffect(() => {
-    if (!file.data) return;
+    if (!file.data || loaded.current === file.data) return;
+    loaded.current = file.data;
     setText(file.data.document.text);
     setTree(file.data.document.tree ? (JSON.parse(file.data.document.tree) as Json) : null);
     if (!file.data.document.tree) setMode("text");
