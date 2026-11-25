@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-type Action = { label: string; run: () => void | Promise<void>; disabled?: boolean; danger?: boolean };
+/** `checked` makes a checkbox item; `keepOpen` leaves the menu open after it (for toggling several). */
+type Action = { label: string; run: () => void | Promise<void>; disabled?: boolean; danger?: boolean; checked?: boolean; keepOpen?: boolean };
 type Groups = (Action | false | undefined)[][];
 type OpenMenu = (event: ReactMouseEvent<HTMLElement>, label: string, groups: Groups) => void;
 type Menu = {
@@ -131,7 +132,15 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
   }, [error]);
 
   const activate = async (action: Action) => {
-    close(true);
+    if (action.keepOpen) {
+      // Flip the shown state right away; the real state comes from `run`.
+      setMenu((m) => m && {
+        ...m,
+        groups: m.groups.map((g) => g.map((a) => (a === action && a.checked !== undefined ? { ...a, checked: !a.checked } : a))),
+      });
+    } else {
+      close(true);
+    }
     try {
       await action.run();
     } catch (cause) {
@@ -166,9 +175,11 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
           {menu.groups.map((group, index) => (
             <div role="group" className="context-menu-group" key={index}>
               {group.map((action) => (
-                <button key={action.label} type="button" role="menuitem" tabIndex={-1}
-                  className={action.danger ? "danger" : undefined}
+                <button key={action.label} type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} tabIndex={-1}
+                  aria-checked={action.checked}
+                  className={[action.danger && "danger", action.checked !== undefined && "menu-check"].filter(Boolean).join(" ") || undefined}
                   disabled={action.disabled} onClick={() => void activate(action)}>
+                  {action.checked !== undefined && <span className="menu-check-mark" aria-hidden>{action.checked ? "✓" : ""}</span>}
                   {action.label}
                 </button>
               ))}

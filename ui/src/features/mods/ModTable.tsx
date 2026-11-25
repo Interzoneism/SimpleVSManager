@@ -1,9 +1,12 @@
-import { useEffect, useRef, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { InstalledMod, Os } from "../../bindings";
 import { iconUrl } from "../../lib/iconUrl";
 import { canToggleMod, latestShown, modStatus, modTags, statusLabel, type DbIndex, type SortDirection, type SortKey } from "./modView";
 import { formatDate } from "../../lib/format";
+import { useLayoutPreference } from "../../components/SplitWorkspace";
+import { useContextMenu } from "../../components/ContextMenu";
+import { COLUMN_DEFS, DEFAULT_LAYOUT, gridFor, parseLayout, setWidth, toggleHidden, visibleColumns, type ColumnId, type ColumnLayout } from "./columns";
 
 const HEADER_HEIGHT = 42;
 
@@ -15,17 +18,6 @@ export const ROW_SIZES: Record<RowSize, { row: number; icon: number; label: stri
   large: { row: 88, icon: 66, label: "Large" },
 };
 
-const COLUMNS: { key: SortKey | null; label: string; className: string }[] = [
-  { key: null, label: "", className: "col-active" },
-  { key: "name", label: "Name", className: "col-name" },
-  { key: "version", label: "Version", className: "col-version" },
-  { key: "latest", label: "Latest", className: "col-latest" },
-  { key: "authors", label: "Authors", className: "col-authors" },
-  { key: "tags", label: "Tags", className: "col-tags" },
-  { key: "side", label: "Side", className: "col-side" },
-  { key: "modified", label: "Modified", className: "col-modified" },
-  { key: "status", label: "Status", className: "col-status" },
-];
 
 interface Props {
   os: Os;
@@ -64,6 +56,117 @@ export function ModTable(props: Props) {
 
   useEffect(() => virtualizer.measure(), [rowHeight, virtualizer]);
 
+  const [savedLayout, setSavedLayout] = useLayoutPreference<string>("installed-columns", JSON.stringify(DEFAULT_LAYOUT));
+  const layout = parseLayout(savedLayout);
+  const saveLayout = (next: ColumnLayout) => setSavedLayout(JSON.stringify(next));
+  // While dragging a column edge: the live width, saved on release.
+  const [drag, setDrag] = useState<{ id: ColumnId; width: number } | null>(null);
+  const shownLayout = drag ? setWidth(layout, drag.id, drag.width) : layout;
+  const columns = visibleColumns(shownLayout);
+  const grid = gridFor(shownLayout);
+  const openMenu = useContextMenu();
+
+  const onHeaderMenu = (event: MouseEvent<HTMLDivElement>) => {
+    let current = layout;
+    openMenu(event, "Columns", [
+      COLUMN_DEFS.filter((d) => d.hideable).map((d) => ({
+        label: d.label,
+        checked: !layout.hidden.includes(d.id),
+        keepOpen: true,
+        run: () => {
+          current = toggleHidden(current, d.id);
+          saveLayout(current);
+        },
+      })),
+      [{ label: "Reset columns", run: () => saveLayout(DEFAULT_LAYOUT) }],
+    ]);
+  };
+
+  const startResize = (e: ReactPointerEvent<HTMLSpanElement>, id: ColumnId, width: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    handle.setPointerCapture?.(e.pointerId);
+    const startX = e.clientX;
+    let latest = width;
+    const move = (ev: PointerEvent) => {
+      latest = width + ev.clientX - startX;
+      setDrag({ id, width: latest });
+    };
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      setDrag(null);
+      if (latest !== width) saveLayout(setWidth(layout, id, latest));
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  };
+
+  const cell = (id: ColumnId, mod: InstalledMod): ReactNode => {
+    switch (id) {
+      case "active":
+        return (
+          <div key={id} className="cell col-active" role="gridcell">
+            <input
+              type="checkbox"
+              aria-label={`${mod.isActive ? "Disable" : "Enable"} ${mod.name}`}
+              checked={mod.isActive}
+              disabled={props.busy || !canToggleMod(mod)}
+              onClick={(e) => e.stopPropagation()}
+              onChange={() => props.onToggleActive(mod)}
+            />
+          </div>
+        );
+      case "name":
+        return (
+          <div key={id} className="cell col-name" role="gridcell" title={mod.sourcePath}>
+            <button type="button" className="mod-name-button" aria-haspopup="menu">
+              {mod.iconKey ? (
+                <img className="mod-icon" src={iconUrl(props.os, mod.iconKey)} alt="" loading="lazy" />
+              ) : (
+                <span className="mod-icon placeholder" aria-hidden>
+                  {mod.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span className="mod-name">
+                <span className="mod-title">{mod.name}</span>
+                <span className="mod-id">{mod.modId}</span>
+              </span>
+            </button>
+          </div>
+        );
+      case "version":
+        return <div key={id} className="cell col-version" role="gridcell">{mod.version ?? "—"}</div>;
+      case "latest":
+        return <LatestCell key={id} mod={mod} db={props.db} progress={props.progress.get(mod.key)} busy={props.busy} onUpdate={props.onUpdate} />;
+      case "authors":
+        return (
+          <div key={id} className="cell col-authors" role="gridcell" title={mod.authors.join(", ")}>
+            {mod.authors.join(", ")}
+          </div>
+        );
+      case "tags":
+        return <TagsCell key={id} tags={modTags(props.db, mod)} />;
+      case "side":
+        return <div key={id} className="cell col-side" role="gridcell">{mod.side ?? ""}</div>;
+      case "modified":
+        return (
+          <div key={id} className="cell col-modified" role="gridcell" title={mod.modifiedMs != null ? new Date(mod.modifiedMs).toLocaleString() : undefined}>
+            {formatDate(mod.modifiedMs)}
+          </div>
+        );
+      case "status":
+        return (
+          <div key={id} className="cell col-status" role="gridcell" title={mod.error ?? mod.loadError ?? undefined}>
+            <span className="mod-status">{statusLabel(mod)}</span>
+          </div>
+        );
+    }
+  };
+
   const onRowClick = (e: React.MouseEvent, mod: InstalledMod) => {
     const multi = e.ctrlKey || e.metaKey;
     if (e.shiftKey && anchor.current) {
@@ -96,19 +199,34 @@ export function ModTable(props: Props) {
   };
 
   return (
-    <div className={`mod-table rows-${props.rowSize}`} style={{ "--mod-icon-size": `${size.icon}px` } as CSSProperties} role="grid" aria-label="Installed mods" aria-rowcount={mods.length + 1} tabIndex={0} onKeyDown={onKeyDown}>
+    <div className={`mod-table rows-${props.rowSize}${drag ? " resizing" : ""}`} style={{ "--mod-icon-size": `${size.icon}px`, "--table-columns": grid.template, "--table-min-width": `${grid.minWidth}px` } as CSSProperties} role="grid" aria-label="Installed mods" aria-rowcount={mods.length + 1} tabIndex={0} onKeyDown={onKeyDown}>
       <div className="mod-scroll" ref={scrollRef}>
-        <div className="mod-row mod-header" role="row" aria-rowindex={1} style={{ height: HEADER_HEIGHT }}>
-          {COLUMNS.map((c) => (
-            <div key={c.label || "active"} role="columnheader" className={`cell ${c.className}`}
-              aria-sort={props.sortKey === c.key ? (props.sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-              {c.key ? (
-                <button type="button" className="sort-button" onClick={() => props.onSort(c.key!)}>
+        <div className="mod-row mod-header" role="row" aria-rowindex={1} style={{ height: HEADER_HEIGHT }} onContextMenu={onHeaderMenu} title="Right-click to choose columns">
+          {columns.map((c) => (
+            <div key={c.id} role="columnheader" className={`cell col-${c.id}`}
+              aria-sort={c.sort && props.sortKey === c.sort ? (props.sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+              {c.sort ? (
+                <button type="button" className="sort-button" onClick={() => props.onSort(c.sort!)}>
                   {c.label}
-                  {props.sortKey === c.key && <span aria-hidden>{props.sortDirection === "asc" ? " ▲" : " ▼"}</span>}
+                  {props.sortKey === c.sort && <span aria-hidden>{props.sortDirection === "asc" ? " ▲" : " ▼"}</span>}
                 </button>
               ) : (
-                <span className="sr-only">Active</span>
+                <span className="sr-only">{c.label}</span>
+              )}
+              {c.resizable && (
+                <span
+                  className={`col-resize${drag?.id === c.id ? " dragging" : ""}`}
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={`Resize ${c.label} column`}
+                  title="Drag to resize, double-click to reset"
+                  onPointerDown={(e) => startResize(e, c.id, c.current)}
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    saveLayout(setWidth(layout, c.id, null));
+                  }}
+                />
               )}
             </div>
           ))}
@@ -138,50 +256,7 @@ export function ModTable(props: Props) {
                     props.onRowMenu(e, mod);
                   }}
                 >
-                  <div className="cell col-active" role="gridcell">
-                    <input
-                      type="checkbox"
-                      aria-label={`${mod.isActive ? "Disable" : "Enable"} ${mod.name}`}
-                      checked={mod.isActive}
-                      disabled={props.busy || !canToggleMod(mod)}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={() => props.onToggleActive(mod)}
-                    />
-                  </div>
-                  <div className="cell col-name" role="gridcell" title={mod.sourcePath}>
-                    <button type="button" className="mod-name-button" aria-haspopup="menu">
-                      {mod.iconKey ? (
-                        <img className="mod-icon" src={iconUrl(props.os, mod.iconKey)} alt="" loading="lazy" />
-                      ) : (
-                        <span className="mod-icon placeholder" aria-hidden>
-                          {mod.name.slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
-                      <span className="mod-name">
-                        <span className="mod-title">{mod.name}</span>
-                        <span className="mod-id">{mod.modId}</span>
-                      </span>
-                    </button>
-                  </div>
-                  <div className="cell col-version" role="gridcell">{mod.version ?? "—"}</div>
-                  <LatestCell
-                    mod={mod}
-                    db={props.db}
-                    progress={props.progress.get(mod.key)}
-                    busy={props.busy}
-                    onUpdate={props.onUpdate}
-                  />
-                  <div className="cell col-authors" role="gridcell" title={mod.authors.join(", ")}>
-                    {mod.authors.join(", ")}
-                  </div>
-                  <TagsCell tags={modTags(props.db, mod)} />
-                  <div className="cell col-side" role="gridcell">{mod.side ?? ""}</div>
-                  <div className="cell col-modified" role="gridcell" title={mod.modifiedMs != null ? new Date(mod.modifiedMs).toLocaleString() : undefined}>
-                    {formatDate(mod.modifiedMs)}
-                  </div>
-                  <div className="cell col-status" role="gridcell" title={mod.error ?? mod.loadError ?? undefined}>
-                    <span className="mod-status">{statusLabel(mod)}</span>
-                  </div>
+                  {columns.map((c) => cell(c.id, mod))}
                 </div>
               );
             })}

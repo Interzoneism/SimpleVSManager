@@ -13,6 +13,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
       "The Latest column shows updates from the Mod DB for your game version. Update all skips mods you left out.",
       "Delete moves a mod to the Recycle Bin / Trash. Older versions stay in your mod library for rollback.",
       "Drag the divider to resize a pane, or focus it and use the arrow keys. Double-click the divider to reset its width.",
+      "Right-click the column titles to choose which columns show. Drag the edge of a column title to resize it; double-click the edge to reset it.",
     ],
   },
   {

@@ -327,11 +327,17 @@ button.library-stat[aria-pressed="true"] {
 }
 .mod-scroll { flex: 1; min-height: 0; overflow: auto; }
 .mod-table-body { position: relative; min-width: var(--table-min-width, 880px); }
+.mod-header .cell { position: relative; overflow: visible; }
+.col-resize { position: absolute; top: 6px; bottom: 6px; right: -4px; width: 8px; z-index: 2; cursor: col-resize; touch-action: none; }
+.col-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; border-radius: 1px; background: var(--border); }
+.col-resize:hover::after, .col-resize.dragging::after { background: var(--accent); }
+.mod-table.resizing, .mod-table.resizing * { cursor: col-resize !important; user-select: none; }
+.context-menu .menu-check-mark { display: inline-block; width: 1.2em; }
 
 .mod-row {
   display: grid;
   min-width: var(--table-min-width, 880px);
-  grid-template-columns: var(--table-columns, 38px minmax(170px, 3fr) 76px 88px minmax(96px, 1.4fr) minmax(90px, 1.2fr) 70px 96px minmax(100px, 1fr));
+  grid-template-columns: var(--table-columns);
   align-items: center;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
@@ -373,23 +379,6 @@ button.library-stat[aria-pressed="true"] {
 .status-disabled .col-name, .status-disabled .col-version, .status-disabled .col-authors { color: var(--palette-grey); }
 .status-disabled .mod-icon { opacity: 0.5; }
 .status-error .col-status, .status-problem .col-status { color: var(--palette-error); }
-
-@container (max-width: 1000px) {
-  .mod-scroll { --table-min-width: 790px; --table-columns: 38px minmax(170px, 3fr) 76px 88px minmax(96px, 1.4fr) 70px 96px minmax(100px, 1fr); }
-  .mod-row .col-tags { display: none; }
-}
-@container (max-width: 860px) {
-  .mod-scroll { --table-min-width: 690px; --table-columns: 38px minmax(170px, 3fr) 76px 88px minmax(96px, 1.4fr) 70px minmax(100px, 1fr); }
-  .mod-row .col-modified { display: none; }
-}
-@container (max-width: 740px) {
-  .mod-scroll { --table-min-width: 580px; --table-columns: 36px minmax(148px, 2fr) 72px 82px minmax(80px, 1fr) minmax(132px, 1fr); }
-  .mod-row .col-side { display: none; }
-}
-@container (max-width: 615px) {
-  .mod-scroll { --table-min-width: 458px; --table-columns: 36px minmax(140px, 2fr) 70px 80px minmax(132px, 1fr); }
-  .mod-row .col-authors { display: none; }
-}
 
 /* --- Details pane --- */
 .details {
