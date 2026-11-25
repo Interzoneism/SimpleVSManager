@@ -86,7 +86,7 @@ pub fn detect_environment_with(host: &HostEnv, settings: &Settings, mut warnings
     let legacy = match legacy_config::load(&manager_dir) {
         Ok(l) => l,
         Err(e) => {
-            warnings.push(format!("Could not read the Simple VS Manager 2.x settings: {e}"));
+            warnings.push(format!("Could not read the settings of your earlier Simple VS Manager version: {e}"));
             None
         }
     };
@@ -107,7 +107,7 @@ pub fn detect_environment_with(host: &HostEnv, settings: &Settings, mut warnings
         other => {
             if let Some(p) = other {
                 warnings.push(format!(
-                    "The data folder saved by Simple VS Manager 2.x no longer exists: {}",
+                    "The data folder from your earlier Simple VS Manager settings no longer exists: {}",
                     p.display()
                 ));
             }
@@ -133,7 +133,7 @@ pub fn detect_environment_with(host: &HostEnv, settings: &Settings, mut warnings
             None => {
                 if let Some(p) = &legacy_game {
                     warnings.push(format!(
-                        "No Vintage Story executable in the game folder saved by Simple VS Manager 2.x: {}",
+                        "No Vintage Story executable in the game folder from your earlier Simple VS Manager settings: {}",
                         p.display()
                     ));
                 }

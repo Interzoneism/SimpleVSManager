@@ -13,7 +13,7 @@ import { copyText, useContextMenu } from "../../components/ContextMenu";
 
 const SOURCE_LABELS: Record<PathSource, string> = {
   userSetting: "Chosen by you",
-  legacyConfig: "From Simple VS Manager 2.x",
+  legacyConfig: "From your earlier Simple VS Manager settings",
   customPointer: "Custom folder (CustomConfigFolder.txt)",
   detected: "Detected",
   default: "Default location",
@@ -67,12 +67,6 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
         <dd>{env.gameVersion ?? "version unknown"}</dd>
         <dt>System</dt>
         <dd>{OS_LABELS[env.os]}</dd>
-        {env.legacyProfile && (
-          <>
-            <dt>2.x profile</dt>
-            <dd>{env.legacyProfile}</dd>
-          </>
-        )}
       </dl>
 
       {env.warnings.length > 0 && (

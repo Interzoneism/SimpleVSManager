@@ -47,7 +47,7 @@ const env: DetectedEnvironment = {
   gameExecutable: null,
   gameVersion: "1.21.5",
   legacyProfile: null,
-  warnings: ["The data folder saved by Simple VS Manager 2.x no longer exists: /gone"],
+  warnings: ["The data folder from your earlier Simple VS Manager settings no longer exists: /gone"],
 };
 
 test("shows detected folders, version, warnings and settings", () => {

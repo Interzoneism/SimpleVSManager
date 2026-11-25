@@ -190,7 +190,7 @@ export function AppearanceSettings({ env }: { env: DetectedEnvironment }) {
           <option value="darkVs">Dark VS</option>
           <option value="dark">Dark</option>
           <option value="light">Light</option>
-          {hasCustom && <option value="custom">Your 2.x colors</option>}
+          {hasCustom && <option value="custom">Your earlier colors</option>}
         </select>
       </div>
       <label className="checkbox-row">
