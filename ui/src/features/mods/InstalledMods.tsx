@@ -108,7 +108,8 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   const updateCount = all.filter((m) => db.get(m.key)?.update).length;
   const enabledCount = all.filter((m) => m.isActive).length;
   const selectedMods = all.filter((m) => selected.has(m.key));
-  const busy = setActive.isPending || deleteMods.isPending || updateMods.isPending;
+  // Toggling doesn't lock the table: toggles are queued and shown right away.
+  const busy = deleteMods.isPending || updateMods.isPending;
   const actionError = setActive.error ?? deleteMods.error ?? updateMods.error ?? reveal.error ?? website.error;
 
   const onSort = (key: SortKey) => {

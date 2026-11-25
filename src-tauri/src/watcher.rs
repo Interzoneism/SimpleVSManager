@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use notify_debouncer_full::notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 use crate::events::ModsChanged;
@@ -23,15 +23,24 @@ impl ModWatcher {
         let data_dir_c = data_dir.clone();
         let mut debouncer = new_debouncer(Duration::from_millis(600), None, move |result: DebounceEventResult| {
             let Ok(events) = result else { return };
-            let relevant = events.iter().any(|e| {
-                !e.kind.is_access()
-                    && e.paths.iter().any(|p| {
-                        // Events from the data folder only matter for clientsettings.json.
-                        p.parent() != Some(data_dir_c.as_path())
-                            || p.file_name().is_some_and(|n| n == svsm_core::clientsettings::FILE_NAME)
-                    })
-            });
-            if relevant {
+            let is_settings_file = |p: &std::path::Path| {
+                p.parent() == Some(data_dir_c.as_path())
+                    && p.file_name().is_some_and(|n| n == svsm_core::clientsettings::FILE_NAME)
+            };
+            let paths: Vec<&std::path::Path> = events
+                .iter()
+                .filter(|e| !e.kind.is_access())
+                .flat_map(|e| e.paths.iter().map(|p| p.as_path()))
+                // Events from the data folder only matter for clientsettings.json.
+                .filter(|p| p.parent() != Some(data_dir_c.as_path()) || is_settings_file(p))
+                .collect();
+            if paths.is_empty() {
+                return;
+            }
+            // Our own save of clientsettings.json already returned a fresh list.
+            let own_write = paths.iter().all(|p| is_settings_file(p))
+                && app.try_state::<crate::state::AppState>().is_some_and(|s| s.is_own_settings_write());
+            if !own_write {
                 let _ = ModsChanged.emit(&app);
             }
         })?;

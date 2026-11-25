@@ -38,6 +38,9 @@ pub struct AppState {
     /// Serialises update/install runs.
     pub update_lock: tokio::sync::Mutex<()>,
     pub cancel_updates: AtomicBool,
+    /// Until when the watcher ignores clientsettings.json changes, because we wrote it
+    /// ourselves and already returned the rescanned list.
+    pub own_settings_write_until: Mutex<Option<std::time::Instant>>,
 }
 
 impl AppState {
@@ -59,6 +62,7 @@ impl AppState {
             cloud: Mutex::new(None),
             update_lock: tokio::sync::Mutex::new(()),
             cancel_updates: AtomicBool::new(false),
+            own_settings_write_until: Mutex::new(None),
         }
     }
 
@@ -74,6 +78,16 @@ impl AppState {
             return env;
         }
         self.refresh_environment()
+    }
+
+    /// Call after saving clientsettings.json ourselves: the watcher's echo of that save
+    /// would only rescan again and make the list refresh twice.
+    pub fn note_own_settings_write(&self) {
+        *self.own_settings_write_until.lock().expect("watch lock poisoned") = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+    }
+
+    pub fn is_own_settings_write(&self) -> bool {
+        self.own_settings_write_until.lock().expect("watch lock poisoned").is_some_and(|t| std::time::Instant::now() < t)
     }
 
     pub fn manager_dir(&self) -> PathBuf {

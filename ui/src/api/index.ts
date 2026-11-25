@@ -109,10 +109,25 @@ export function useMods(enabled: boolean) {
   });
 }
 
-function useModListMutation<A>(fn: (arg: A) => Promise<Result<ModList, AppError>>) {
+function useModListMutation<A>(
+  fn: (arg: A) => Promise<Result<ModList, AppError>>,
+  optimistic?: (list: ModList, arg: A) => ModList,
+) {
   const client = useQueryClient();
   return useMutation({
+    // Changes to the mod list run one after another, so an older result never lands last.
+    scope: { id: "mod-list" },
     mutationFn: (arg: A) => unwrap(fn(arg)),
+    onMutate: async (arg: A) => {
+      if (!optimistic) return undefined;
+      await client.cancelQueries({ queryKey: queryKeys.mods });
+      const previous = client.getQueryData<ModList>(queryKeys.mods);
+      if (previous) client.setQueryData(queryKeys.mods, optimistic(previous, arg));
+      return { previous };
+    },
+    onError: (_e, _arg, context) => {
+      if (context?.previous) client.setQueryData(queryKeys.mods, context.previous);
+    },
     onSuccess: (list) => {
       client.setQueryData(queryKeys.mods, list);
       void client.invalidateQueries({ queryKey: queryKeys.moddb });
@@ -122,8 +137,15 @@ function useModListMutation<A>(fn: (arg: A) => Promise<Result<ModList, AppError>
   });
 }
 
+/** Shows the new on/off state right away; the backend's rescan then confirms it. */
 export const useSetModsActive = () =>
-  useModListMutation<{ keys: string[]; active: boolean }>(({ keys, active }) => commands.setModsActive(keys, active));
+  useModListMutation<{ keys: string[]; active: boolean }>(
+    ({ keys, active }) => commands.setModsActive(keys, active),
+    (list, { keys, active }) => {
+      const set = new Set(keys);
+      return { ...list, mods: list.mods.map((m) => (set.has(m.key) && !m.error ? { ...m, isActive: active } : m)) };
+    },
+  );
 export const useDeleteMods = () => useModListMutation<string[]>((keys) => commands.deleteMods(keys));
 
 export function useRevealMod() {
@@ -179,6 +201,9 @@ export function useModDb(modsStamp: number) {
     queryKey: [...queryKeys.moddb, modsStamp],
     queryFn: () => unwrap(commands.moddbStatus("cacheOnly")),
     enabled: modsStamp > 0,
+    // Keep showing the last summary while a new scan's one loads, so Latest, Tags and the
+    // update buttons don't blink every time a mod is toggled.
+    placeholderData: (prev) => prev,
   });
 }
 

@@ -200,6 +200,7 @@ pub async fn set_mods_active(state: State<'_, AppState>, keys: Vec<String>, acti
         }
         if changed {
             settings.save()?;
+            state.note_own_settings_write();
         }
     }
     state.rescan()?;
