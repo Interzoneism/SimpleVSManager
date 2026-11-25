@@ -65,6 +65,12 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   const [collapsed, setCollapsed] = useState<Set<ModlistKind>>(new Set(["backup"]));
   const [rememberedSwitch, setRememberedSwitch] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch", "review");
   const quickSwitchEnabled = rememberedSwitch === "keep-configs" || rememberedSwitch === "use-list-configs";
+  // The config choice used when Quick switch is turned on again from the toolbar.
+  const [lastSwitchConfigs, setLastSwitchConfigs] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch-configs", "keep-configs");
+  const rememberSwitch = (p: QuickSwitchPreference) => {
+    if (p !== "review") setLastSwitchConfigs(p);
+    setRememberedSwitch(p);
+  };
 
   useEffect(() => {
     if (droppedFile && enabled) {
@@ -212,11 +218,21 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
             New group…
           </button>
           <button type="button" onClick={() => openFolder.mutate("modlists")}>Open folder</button>
-          {quickSwitchEnabled && (
-            <button type="button" className="link-button small" onClick={() => setRememberedSwitch("review")}>
-              Turn off Quick switch
-            </button>
-          )}
+          <label
+            className="checkbox toolbar-toggle"
+            title={
+              lastSwitchConfigs === "use-list-configs"
+                ? "Switch to a modlist in one step, without the review dialog. Config files from the modlist are used."
+                : "Switch to a modlist in one step, without the review dialog. Your own config files are kept."
+            }
+          >
+            <input
+              type="checkbox"
+              checked={quickSwitchEnabled}
+              onChange={(e) => setRememberedSwitch(e.target.checked ? lastSwitchConfigs : "review")}
+            />
+            Quick switch
+          </label>
         </div>
         {flash && <p className="notice" role="status">{flash}</p>}
         {error && <p className="notice error-text">{error.message}</p>}
@@ -352,7 +368,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
           quickSwitch={dialog.source.id && canQuickSwitch(dialog.listKind) ? {
             start: !!dialog.quick && quickSwitchEnabled,
             preference: quickSwitchEnabled ? rememberedSwitch : "review",
-            onRemember: setRememberedSwitch,
+            onRemember: rememberSwitch,
             onDone: () => {
               setDialog(null);
               setFlash(`Switched to "${dialog.title}".`);
@@ -429,6 +445,7 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
           </button>
           {entry.name}
           <span className="badge">{kindLabel(entry.kind)}</span>
+          {entry.active && <span className="badge active-badge" title="Your installed mods match this list">Active</span>}
         </h2>
       </div>
       {entry.error && <p className="notice error-text">{entry.error}</p>}
@@ -457,10 +474,7 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
         <dd className="small">{entry.id}</dd>
       </dl>
       <div className="details-actions">
-        {entry.active ? (
-          <span className="ok-text small active-note">Your mods match this list</span>
-        ) : (
-          entry.kind !== "preset" && (
+        {!entry.active && entry.kind !== "preset" && (
             <button
               type="button"
               className="primary"
@@ -470,7 +484,6 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
             >
               {onQuickSwitch ? "Quick switch" : "Switch to this…"}
             </button>
-          )
         )}
         <button
           type="button"
