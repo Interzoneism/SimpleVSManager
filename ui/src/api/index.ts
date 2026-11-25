@@ -24,6 +24,7 @@ import {
   type MorePreferences,
   type ProfileChange,
   type DetailsEdit,
+  type PublishCurrentRequest,
   type ReportRequest,
   type Result,
   type UpdateProgress,
@@ -467,6 +468,9 @@ export const usePublishModlist = () =>
   useCloudMutation((r: { id: string; slot: string; replaces: string | null }) => unwrap(commands.publishModlist(r)));
 export const useEditPublished = () =>
   useCloudMutation((r: { registryId: string; edit: DetailsEdit }) => unwrap(commands.editPublishedModlist(r)));
+export const usePublishCurrent = () =>
+  useCloudMutation((r: PublishCurrentRequest) => unwrap(commands.publishCurrentMods(r)));
+export const useUpdatePublished = () => useCloudMutation((registryId: string) => unwrap(commands.updatePublishedMods(registryId)));
 export const useDeleteCloudSlot = () => useCloudMutation((slot: string) => unwrap(commands.deleteCloudSlot(slot)));
 export const useAcknowledgeNotices = () =>
   useCloudMutation((ids: string[]) => unwrap(commands.acknowledgeSubscriberNotices(ids)));

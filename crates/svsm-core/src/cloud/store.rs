@@ -576,13 +576,19 @@ impl<'a> CloudStore<'a> {
     /// Changes the details of one of the player's published modlists (a new revision with the
     /// same mods and configs). Fails if it isn't in one of the player's slots.
     pub async fn edit_details(&self, identity: &PlayerIdentity, registry_id: &str, edit: &DetailsEdit) -> CloudResult<WriteResult> {
+        let (slot, content) = self.own_content(identity, registry_id).await?;
+        self.publish(identity, &slot, &edit.apply(&content), Some(registry_id)).await
+    }
+
+    /// The slot and published content of one of the player's online modlists.
+    pub async fn own_content(&self, identity: &PlayerIdentity, registry_id: &str) -> CloudResult<(String, Value)> {
         let slots = self.read_slots(identity).await?;
         let (slot, node) = SLOTS
             .iter()
             .find_map(|slot| slots.get(*slot).filter(|n| s(n, "registryId").as_deref() == Some(registry_id)).map(|n| (*slot, n)))
             .ok_or_else(|| CloudError::Invalid("That modlist isn't one of yours.".into()))?;
         let content = node.get("content").filter(|c| c.is_object()).ok_or_else(|| CloudError::Invalid("That online modlist is empty.".into()))?;
-        self.publish(identity, slot, &edit.apply(content), Some(registry_id)).await
+        Ok((slot.to_string(), content.clone()))
     }
 
     /// Removes a slot and its public copy (subscribers keep their local copies).

@@ -8,13 +8,15 @@ import {
   useHideOnline,
   useMoveCloudIdentity,
   useOnlineModlists,
+  useDeleteCloudSlot,
   useSaveOnlineCopy,
+  useUpdatePublished,
 } from "../../api";
 import { formatAgo } from "../../lib/format";
 import { LoadModlistDialog } from "../modlists/LoadModlistDialog";
 import { ModCards } from "../modlists/ModCards";
 import { ModlistCard } from "../modlists/ModlistCard";
-import { PublishDialog } from "./PublishDialog";
+import { PublishNewDialog } from "./PublishNewDialog";
 import { filterOnline, splitOwn, type OnlineSort } from "./onlineView";
 import { EditPublishedDialog } from "./EditPublishedDialog";
 import { iconThemeClass, ModlistIcon } from "../modlists/ModlistIcon";
@@ -44,7 +46,9 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
   const [sort, setSort] = useState<OnlineSort>("newest");
   const [selected, setSelected] = useState<string | null>(null);
   const [load, setLoad] = useState<{ source: ModlistSource; title: string } | null>(null);
-  const [publishing, setPublishing] = useState(false);
+  const [publishing, setPublishing] = useState<string | null>(null);
+  const updateMods = useUpdatePublished();
+  const delSlot = useDeleteCloudSlot();
   const [editing, setEditing] = useState<OnlineEntry | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -54,8 +58,38 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
   const current = all.find((e) => e.entry.registryId === selected) ?? null;
   const hiddenCount = (listing.data?.hiddenModlists ?? 0) + (listing.data?.hiddenAuthors ?? 0);
   const notices = slots.data?.newSubscribers ?? [];
-  const error = hide.error ?? copy.error ?? ack.error ?? move.error;
-  const busy = copy.isPending || hide.isPending;
+  const error = hide.error ?? copy.error ?? ack.error ?? move.error ?? updateMods.error ?? delSlot.error;
+  const busy = copy.isPending || hide.isPending || updateMods.isPending || delSlot.isPending;
+  const slotList = slots.data?.slots ?? [];
+  const freeSlots = slotList.filter((s) => !s).length;
+  const firstFree = slotList.findIndex((s) => !s);
+  const slotOf = (registryId: string) => {
+    const i = slotList.findIndex((s) => s?.info.registryId === registryId);
+    return i >= 0 ? `slot${i + 1}` : null;
+  };
+
+  const doUpdate = async ({ entry, subscribers }: OnlineEntry) => {
+    const ok = await ask(
+      `Replace the mods in "${entry.name ?? "this modlist"}" with the mods you have enabled now? The name, description and icon stay.` +
+        (subscribers ? ` If the mods changed, your ${subscribers} follower${subscribers === 1 ? "" : "s"} will see an update.` : ""),
+      { title: "Update online modlist", okLabel: "Update", cancelLabel: "Cancel" },
+    );
+    if (!ok) return;
+    updateMods.mutate(entry.registryId, {
+      onSuccess: (s) =>
+        setFlash(s.revision > entry.revision ? `Updated "${entry.name}" to revision ${s.revision}.` : `"${entry.name}" already has these mods; nothing changed.`),
+    });
+  };
+
+  const doDelete = async ({ entry, subscribers }: OnlineEntry) => {
+    const slot = slotOf(entry.registryId);
+    if (!slot) return;
+    const ok = await ask(
+      `Delete "${entry.name ?? "this modlist"}" from the cloud?${subscribers ? ` ${subscribers} follower${subscribers === 1 ? "" : "s"} keep their copies, but get no more updates.` : ""} This can't be undone.`,
+      { title: "Delete online modlist", kind: "warning", okLabel: "Delete", cancelLabel: "Cancel" },
+    );
+    if (ok) delSlot.mutate(slot, { onSuccess: () => { setSelected(null); setFlash(`Deleted "${entry.name}" from the cloud.`); } });
+  };
 
   const startLoad = ({ entry }: OnlineEntry) =>
     setLoad({ source: { id: null, file: null, online: entry.registryId }, title: entry.name ?? "Online modlist" });
@@ -78,7 +112,9 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
       !localId && { label: "Follow", disabled: busy || mine, run: () => saveCopy(list, true) },
       !localId && { label: "Save a copy", disabled: busy, run: () => saveCopy(list, false) },
     ], [
+      mine && { label: "Update with my enabled mods…", disabled: busy || !canPublish, run: () => void doUpdate(list) },
       mine && { label: "Edit details…", disabled: busy || !canPublish, run: () => setEditing(list) },
+      mine && { label: "Delete from the cloud…", disabled: busy || !canPublish || !slotOf(entry.registryId), danger: true, run: () => void doDelete(list) },
       !mine && { label: "Hide modlist", disabled: busy, run: () => hideList(list) },
     ]]);
   };
@@ -157,15 +193,6 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
           )}
           <div className="header-spacer" />
           <button type="button" disabled={listing.isFetching} onClick={() => void listing.refetch()}>Refresh</button>
-          <button
-            type="button"
-            className="primary"
-            disabled={!canPublish}
-            title={canPublish ? "Share one of your modlists" : status.data?.playerProblem ?? "Publishing isn't available yet"}
-            onClick={() => setPublishing(true)}
-          >
-            Publish…
-          </button>
         </div>
         {status.data?.legacyIdentity && (
           <p className="notice warn-text">
@@ -195,15 +222,28 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
           {listing.isSuccess && visible.length === 0 && (
             <p className="empty-state">{search.trim() ? "No modlists match your search." : "No community modlists to show."}</p>
           )}
-          {own.mine.length > 0 && (
+          {(own.mine.length > 0 || (canPublish && firstFree >= 0)) && (
             <section className="modlist-section">
               <h3 className="online-section-title">Your published modlists <span className="muted small">({own.mine.length})</span></h3>
-              <ul className="card-grid modlist-card-grid online-card-grid" aria-label="Your published modlists">{own.mine.map(card)}</ul>
+              <ul className="card-grid modlist-card-grid online-card-grid" aria-label="Your published modlists">
+                {own.mine.map(card)}
+                {canPublish && firstFree >= 0 && !search.trim() && (
+                  <li className="modlist-card-item">
+                    <button type="button" className="mod-card modlist-card publish-card" onClick={() => setPublishing(`slot${firstFree + 1}`)}>
+                      <span className="publish-card-plus" aria-hidden="true">+</span>
+                      <span className="publish-card-text">
+                        <strong>Publish a modlist</strong>
+                        <span className="muted small">{freeSlots} of 5 slots free</span>
+                      </span>
+                    </button>
+                  </li>
+                )}
+              </ul>
             </section>
           )}
           {(own.mine.length === 0 || own.others.length > 0) && (
             <section className="modlist-section">
-              {own.mine.length > 0 && (
+              {(own.mine.length > 0 || (canPublish && firstFree >= 0)) && (
                 <h3 className="online-section-title">Community modlists <span className="muted small">({own.others.length})</span></h3>
               )}
               <ul className="card-grid modlist-card-grid online-card-grid" aria-label="Online modlists">{own.others.map(card)}</ul>
@@ -224,6 +264,8 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
             onShowLocal={onShowLocal}
             onHide={() => hideList(current)}
             onEdit={canPublish ? () => setEditing(current) : undefined}
+            onUpdate={canPublish ? () => void doUpdate(current) : undefined}
+            onDelete={canPublish && slotOf(current.entry.registryId) ? () => void doDelete(current) : undefined}
             onHideAuthor={() => current.entry.uploader && hide.mutate({ author: current.entry.uploader }, { onSuccess: () => setSelected(null) })}
           />
         )}
@@ -232,7 +274,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
         <LoadModlistDialog os={os} source={load.source} kind={null} title={load.title} onShowBackup={onShowLocal} onClose={() => setLoad(null)} />
       )}
       {editing && <EditPublishedDialog list={editing} onDone={(msg) => setFlash(msg)} onClose={() => setEditing(null)} />}
-      {publishing && <PublishDialog onClose={() => setPublishing(false)} onDone={(msg) => setFlash(msg)} />}
+      {publishing && <PublishNewDialog slot={publishing} freeSlots={freeSlots} onClose={() => setPublishing(null)} onDone={(msg) => setFlash(msg)} />}
     </SplitWorkspace>
   );
 }
@@ -247,9 +289,12 @@ interface DetailsProps {
   onHideAuthor: () => void;
   /** Edit your own published modlist (when publishing is possible). */
   onEdit?: () => void;
+  /** Replace the mods of your own published modlist with your enabled mods. */
+  onUpdate?: () => void;
+  onDelete?: () => void;
 }
 
-function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHideAuthor, onEdit }: DetailsProps) {
+function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHideAuthor, onEdit, onUpdate, onDelete }: DetailsProps) {
   const e = entry.entry;
   return (
     <>
@@ -272,7 +317,10 @@ function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHid
       </dl>
       <div className="details-actions">
         <button type="button" className="primary" disabled={busy} onClick={onLoad}>Load…</button>
-        {entry.localId ? (
+        {entry.mine && onUpdate && (
+          <button type="button" disabled={busy} title="Replace its mods with the mods you have enabled now" onClick={onUpdate}>Update</button>
+        )}
+        {entry.mine ? null : entry.localId ? (
           <button type="button" onClick={() => onShowLocal(entry.localId!)}>Show my copy</button>
         ) : (
           <>
@@ -283,6 +331,7 @@ function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHid
           </>
         )}
         {entry.mine && onEdit && <button type="button" disabled={busy} onClick={onEdit}>Edit details…</button>}
+        {entry.mine && onDelete && <button type="button" className="danger" disabled={busy} onClick={onDelete}>Delete…</button>}
         {!entry.mine && (
           <>
             <button type="button" disabled={busy} onClick={onHide}>Hide</button>

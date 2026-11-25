@@ -498,6 +498,30 @@ async editPublishedModlist(request: EditPublishedRequest) : Promise<Result<SlotI
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Publishes the enabled installed mods as a new online modlist in an empty slot.
+ */
+async publishCurrentMods(request: PublishCurrentRequest) : Promise<Result<SlotInfo, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("publish_current_mods", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Replaces the mods of one of the player's online modlists with the enabled installed mods.
+ * Name, description and icon stay; config files are kept for mods that are still in it. A new
+ * revision (and a note to followers) only when the mods actually changed.
+ */
+async updatePublishedMods(registryId: string) : Promise<Result<SlotInfo, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_published_mods", { registryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async modReports(modId: string, version: string) : Promise<Result<VoteSummary, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("mod_reports", { modId, version }) };
@@ -1170,6 +1194,11 @@ modUsageTracking: boolean | null }
  */
 export type Profile = { name: string; gameDirectory: string | null; dataDirectory: string | null; targetGameVersion: string | null }
 export type ProfileChange = { action: "switch"; name: string } | { action: "rename"; from: string; to: string } | { action: "delete"; name: string }
+export type PublishCurrentRequest = { 
+/**
+ * An empty slot (`slot1`..`slot5`).
+ */
+slot: string; name: string; description: string | null; icon: string | null; iconColor: string | null }
 export type PublishRequest = { 
 /**
  * Local modlist to publish.

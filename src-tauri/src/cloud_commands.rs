@@ -410,6 +410,91 @@ pub async fn edit_published_modlist(state: State<'_, AppState>, request: EditPub
     slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Saved, but the slot couldn't be read back."))
 }
 
+/// The enabled installed mods as a modlist (exact versions), like saving a modlist.
+fn current_mods(state: &AppState, meta: modlists::ModlistMeta) -> AppResult<Modlist> {
+    let mods: Vec<_> = state.mods.read().expect("mods lock poisoned").mods.iter().filter(|m| m.is_active).cloned().collect();
+    let list = modlists::from_installed(&mods, meta, true, Vec::new());
+    if list.entries().is_empty() {
+        return Err(AppError::msg("No mods are enabled, so there's nothing to publish."));
+    }
+    Ok(list)
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishCurrentRequest {
+    /// An empty slot (`slot1`..`slot5`).
+    pub slot: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub icon_color: Option<String>,
+}
+
+/// Publishes the enabled installed mods as a new online modlist in an empty slot.
+#[tauri::command]
+#[specta::specta]
+pub async fn publish_current_mods(state: State<'_, AppState>, request: PublishCurrentRequest) -> AppResult<SlotInfo> {
+    let me = player(&state)?;
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err(AppError::msg("Give it a name."));
+    }
+    let meta = modlists::ModlistMeta {
+        name: name.to_string(),
+        description: request.description.clone(),
+        icon: request.icon.clone(),
+        icon_color: request.icon_color.clone(),
+        version: None,
+        game_version: state.environment().game_version,
+        uploader: Some(me.name.clone()),
+    };
+    let list = current_mods(&state, meta)?;
+    if let Some(word) = validator::find_blocked([list.name.as_deref(), list.description.as_deref(), Some(me.name.as_str())].into_iter().flatten()) {
+        return Err(AppError::msg(format!("Online modlists can't contain \"{word}\". Change the name or description first.")));
+    }
+    let content: Value = serde_json::from_str(&modlists::to_json(&list)).map_err(|e| AppError::msg(e.to_string()))?;
+    let auth = state.cloud_auth()?;
+    let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
+    let written = cloud.publish(&me, &request.slot, &content, None).await.map_err(err)?;
+    let slots = cloud.my_slots(&me).await.map_err(err)?;
+    slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Published, but the slot couldn't be read back."))
+}
+
+/// Replaces the mods of one of the player's online modlists with the enabled installed mods.
+/// Name, description and icon stay; config files are kept for mods that are still in it. A new
+/// revision (and a note to followers) only when the mods actually changed.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_published_mods(state: State<'_, AppState>, registry_id: String) -> AppResult<SlotInfo> {
+    let me = player(&state)?;
+    let auth = state.cloud_auth()?;
+    let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
+    let (slot, mut content) = cloud.own_content(&me, &registry_id).await.map_err(err)?;
+    let fresh = current_mods(&state, modlists::ModlistMeta { name: "x".into(), ..Default::default() })?;
+    let ids: HashSet<String> = fresh.entries().iter().filter_map(|m| m.id()).map(str::to_ascii_lowercase).collect();
+    let fresh: Value = serde_json::from_str(&modlists::to_json(&fresh)).map_err(|e| AppError::msg(e.to_string()))?;
+    let map = content.as_object_mut().ok_or_else(|| AppError::msg("That online modlist is damaged."))?;
+    for key in ["mods", "includeModStatus", "includeModVersions", "exclusive"] {
+        match fresh.get(key) {
+            Some(v) => map.insert(key.into(), v.clone()),
+            None => map.remove(key),
+        };
+    }
+    map.remove("disabledEntries");
+    // Old 2.x lists keep one config inline per mod; the new mod entries don't have them.
+    if let Some(Value::Array(configs)) = map.get_mut("configurations") {
+        configs.retain(|c| c.get("modId").and_then(Value::as_str).is_some_and(|id| ids.contains(&id.to_ascii_lowercase())));
+    }
+    if let Some(game) = state.environment().game_version {
+        map.insert("gameVersion".into(), Value::String(game));
+        map.remove("vsVersion");
+    }
+    let written = cloud.publish(&me, &slot, &content, Some(&registry_id)).await.map_err(err)?;
+    let slots = cloud.my_slots(&me).await.map_err(err)?;
+    slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Updated, but the slot couldn't be read back."))
+}
+
 /// Deletes one of the player's online modlists. Subscribers keep their local copies.
 #[tauri::command]
 #[specta::specta]

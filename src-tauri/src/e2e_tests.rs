@@ -307,6 +307,64 @@ fn follow_update_and_publish_against_a_fake_cloud() {
 }
 
 #[test]
+fn publish_and_update_current_mods_against_a_fake_cloud() {
+    use mockito::Matcher;
+    let mut server = mockito::Server::new();
+    let m = machine_with(Some(svsm_core::cloud::CloudConfig::for_tests(&server.url())));
+    let state = m.app.state::<AppState>();
+    run(list_modlists(state.clone())).unwrap(); // scans the installed mods
+    std::fs::create_dir_all(&m.manager).unwrap();
+    std::fs::write(
+        m.manager.join("firebase-auth.json"),
+        r#"{"idToken":"tok","refreshToken":"r","expirationUtc":"2999-01-01T00:00:00Z","userId":"fb1"}"#,
+    )
+    .unwrap();
+    server.mock("GET", "/db/owners/PlayerUid_1.json").match_query(Matcher::Any).with_body("\"fb1\"").create();
+    let slots = r#"{"slot2":{"registryId":"rid","revision":3,"content":{"name":"Mine","description":"keep me","icon":"md-sword","mods":[{"modId":"gone","version":"1.0.0"}],
+        "configurations":[{"modId":"carryon","fileName":"CarryOn.json","content":"{}"},{"modId":"gone","fileName":"Gone.json","content":"{}"}]}}}"#;
+    server.mock("GET", "/db/users/PlayerUid_1.json").match_query(Matcher::Any).with_body(slots).create();
+
+    // Update: enabled mods replace the old ones (handytweaks is disabled), details and the
+    // config of a mod that's still there stay, and it's a new revision.
+    let update = server
+        .mock("PATCH", "/db/.json")
+        .match_query(Matcher::Any)
+        .match_body(Matcher::AllOf(vec![
+            Matcher::Regex("/users/PlayerUid_1/slot2".into()),
+            Matcher::Regex("\"modId\":\"carryon\"".into()),
+            Matcher::Regex("\"description\":\"keep me\"".into()),
+            Matcher::Regex("\"icon\":\"md-sword\"".into()),
+            Matcher::Regex("CarryOn.json".into()),
+            Matcher::Regex(r#""revision":4\.0"#.into()),
+        ]))
+        .with_body("{}")
+        .expect(1)
+        .create();
+    let _ = run(crate::cloud_commands::update_published_mods(state.clone(), "rid".into()));
+    update.assert();
+    assert!(run(crate::cloud_commands::update_published_mods(state.clone(), "not-mine".into())).is_err());
+
+    // Publishing the current mods into an empty slot; a used slot is refused.
+    let publish = server
+        .mock("PATCH", "/db/.json")
+        .match_query(Matcher::Any)
+        .match_body(Matcher::AllOf(vec![Matcher::Regex("/users/PlayerUid_1/slot1".into()), Matcher::Regex("\"name\":\"Fresh\"".into())]))
+        .with_body("{}")
+        .expect(1)
+        .create();
+    let request = |slot: &str| crate::cloud_commands::PublishCurrentRequest {
+        slot: slot.into(),
+        name: "Fresh".into(),
+        description: None,
+        icon: None,
+        icon_color: Some("sage".into()),
+    };
+    let _ = run(crate::cloud_commands::publish_current_mods(state.clone(), request("slot1")));
+    publish.assert();
+    assert!(run(crate::cloud_commands::publish_current_mods(state.clone(), request("slot2"))).is_err());
+}
+
+#[test]
 fn data_backups_configs_and_profiles() {
     let m = machine();
     let state = m.app.state::<AppState>();
