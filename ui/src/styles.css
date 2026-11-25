@@ -880,7 +880,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
   animation: mod-window-fade 120ms ease-out;
 }
 .mod-window {
-  display: flex; flex-direction: column; width: min(880px, 100%); max-height: 100%; overflow: hidden;
+  display: flex; flex-direction: column; width: min(1320px, 100%); max-height: 100%; overflow: hidden;
   background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55); outline: none;
   animation: mod-window-rise 140ms ease-out;
@@ -890,7 +890,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .mod-window-scroll { overflow-y: auto; min-height: 0; flex: 1; }
 .mod-window-hero {
   position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;
-  aspect-ratio: 16 / 9; max-height: min(50vh, 470px); width: 100%; background: #0b0d0c;
+  aspect-ratio: 16 / 9; max-height: min(55vh, 640px); width: 100%; background: #0b0d0c;
 }
 .mod-window-hero img.main { position: relative; max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; }
 .mod-window-hero.has-shots img.main { cursor: zoom-in; }
