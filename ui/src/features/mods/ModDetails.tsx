@@ -22,18 +22,21 @@ interface Props {
   onInstallVersion: (mod: InstalledMod, version: string) => void;
   onEditConfig?: (modId: string) => void;
   onClose: () => void;
+  /** Shown at the top of the panel, whatever is selected (modlist save/load). */
+  toolbar?: React.ReactNode;
 }
 
 /** Right-hand pane: one mod's details, or batch actions for several. */
-export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete, onUpdate, onInstallVersion, onEditConfig, onClose }: Props) {
+export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete, onUpdate, onInstallVersion, onEditConfig, onClose, toolbar }: Props) {
   const prefs = useUpdatePreferences();
   const reveal = useRevealMod();
   const website = useOpenModWebsite();
 
   if (mods.length === 0) {
     return (
-      <aside className="details empty" aria-label="Mod details">
-        <div>
+      <aside className={`details empty${toolbar ? " with-toolbar" : ""}`} aria-label="Mod details">
+        {toolbar}
+        <div className="details-empty-text">
           <span className="empty-icon"><Icon name="panel" /></span>
           <h2>Mod details</h2>
           <p className="muted">Select a mod to see its versions, dependencies, and settings.</p>
@@ -49,6 +52,7 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
     const ids = mods.map((m) => m.modId).filter(Boolean);
     return (
       <aside className="details">
+        {toolbar}
         <DetailsHeader title={`${mods.length} mods selected`} onClose={onClose} />
         <div className="details-actions">
           <button type="button" disabled={busy} onClick={() => onSetActive(manageable, true)}>Enable all</button>
@@ -59,10 +63,10 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
             </button>
           )}
           <button type="button" disabled={prefs.isPending} onClick={() => prefs.mutate({ updateExcluded: { modIds: ids, on: true } })}>
-            Leave out of Update all
+            Leave out of Manage updates
           </button>
           <button type="button" disabled={prefs.isPending} onClick={() => prefs.mutate({ updateExcluded: { modIds: ids, on: false } })}>
-            Include in Update all
+            Include in Manage updates
           </button>
           <button type="button" className="danger" disabled={busy} onClick={() => onDelete(mods)}>Delete…</button>
         </div>
@@ -84,6 +88,7 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
 
   return (
     <aside className="details mod-details">
+      {toolbar}
       <CloseDetails onClose={onClose} />
       <header className="mod-details-head">
         {mod.iconKey ? (
@@ -291,7 +296,7 @@ function ModDbPanel(props: {
           onChange={(e) => prefs.mutate({ updateExcluded: { modIds: [mod.modId], on: !e.target.checked } })}
         />
         <span>
-          Include in "Update all"
+          Include in "Manage updates"
           <span className="muted small">Turn off to keep this version when you update everything.</span>
         </span>
       </label>

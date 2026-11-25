@@ -207,78 +207,6 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
           </button>
         ))}
       </div>
-      <div className="mods-toolbar wrap library-toolbar">
-        <label className="search-field">
-          <Icon name="search" />
-          <input
-            type="search"
-            className="search"
-            placeholder="Search mods"
-            aria-label="Search installed mods"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </label>
-        <span className="muted small results-count" aria-live="polite">
-          {visible.length === all.length ? "" : `${visible.length} of ${all.length} mods`}
-        </span>
-        <div className="segmented row-size" role="group" aria-label="Row size">
-          {(Object.keys(ROW_SIZES) as RowSize[]).map((key) => (
-            <button
-              key={key}
-              type="button"
-              className="small"
-              title={`${ROW_SIZES[key].label} rows`}
-              aria-pressed={rowSize === key}
-              onClick={() => setRowSize(key)}
-            >
-              {ROW_SIZES[key].label[0]}
-            </button>
-          ))}
-        </div>
-        <div className="header-spacer" />
-        <div className="modlist-quick-actions" role="group" aria-label="Modlists">
-          <select
-            aria-label="Load a modlist"
-            value=""
-            disabled={loadable.length === 0}
-            onChange={(e) => setLoadingModlist(loadable.find((m) => m.id === e.target.value) ?? null)}
-          >
-            <option value="">{loadable.length ? "Load a modlist…" : "No saved modlists"}</option>
-            {loadable.map((m) => (
-              <option key={m.id} value={m.id}>{m.active ? `${m.name} (active)` : m.name}</option>
-            ))}
-          </select>
-          <button type="button" title="Save the enabled mods as a new modlist" onClick={() => setSavingModlist(true)}>
-            <Icon name="lists" />Save current mods…
-          </button>
-        </div>
-        <span className={`muted small update-check-status${checking ? " checking" : ""}`} aria-live="polite">
-          {checking
-            ? "Checking the Mod DB…"
-            : dbState?.offline
-              ? "Offline mode"
-              : lastChecked > 0
-                ? `Checked ${formatAgo(lastChecked)}`
-                : ""}
-        </span>
-        <button
-          type="button"
-          disabled={checking || busy || dbState?.offline}
-          title={dbState?.offline ? "Offline mode is on (Settings)" : "Look up every mod on the Mod DB now"}
-          onClick={() => refreshDb.mutate("force")}
-        >
-          <Icon name="refresh" />Check for updates
-        </button>
-        <button
-          type="button"
-          className="primary"
-          disabled={updatable.length === 0 || busy}
-          onClick={() => setDialogMods(all.filter((m) => updatable.includes(m.key)))}
-        >
-          <Icon name="update" />Update all{updatable.length > 0 ? ` (${updatable.length})` : ""}
-        </button>
-      </div>
       {modlistFlash && (
         <p className="notice" role="status">
           {modlistFlash}{" "}
@@ -287,6 +215,62 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
       )}
       <SplitWorkspace name="installed-mods">
         <div className="installed-main">
+          <div className="mods-toolbar wrap library-toolbar">
+            <label className="search-field">
+              <Icon name="search" />
+              <input
+                type="search"
+                className="search"
+                placeholder="Search mods"
+                aria-label="Search installed mods"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
+            <span className="muted small results-count" aria-live="polite">
+              {visible.length === all.length ? "" : `${visible.length} of ${all.length} mods`}
+            </span>
+            <div className="segmented row-size" role="group" aria-label="Row size">
+              {(Object.keys(ROW_SIZES) as RowSize[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="small"
+                  title={`${ROW_SIZES[key].label} rows`}
+                  aria-pressed={rowSize === key}
+                  onClick={() => setRowSize(key)}
+                >
+                  {ROW_SIZES[key].label[0]}
+                </button>
+              ))}
+            </div>
+            <div className="header-spacer" />
+            <span className={`muted small update-check-status${checking ? " checking" : ""}`} aria-live="polite">
+              {checking
+                ? "Checking the Mod DB…"
+                : dbState?.offline
+                  ? "Offline mode"
+                  : lastChecked > 0
+                    ? `Checked ${formatAgo(lastChecked)}`
+                    : ""}
+            </span>
+            <button
+              type="button"
+              disabled={checking || busy || dbState?.offline}
+              title={dbState?.offline ? "Offline mode is on (Settings)" : "Look up every mod on the Mod DB now"}
+              onClick={() => refreshDb.mutate("force")}
+            >
+              <Icon name="refresh" />Check for updates
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={updatable.length === 0 || busy}
+              onClick={() => setDialogMods(all.filter((m) => updatable.includes(m.key)))}
+            >
+              <Icon name="update" />Manage updates{updatable.length > 0 ? ` (${updatable.length})` : ""}
+            </button>
+          </div>
           {!mods.data.clientSettingsFound && (
             <p className="notice">
               clientsettings.json wasn't found in the data folder. Start the game once so it creates it; until then
@@ -340,6 +324,24 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
           onInstallVersion={(m, version) => installVersions([{ key: m.key, version }])}
           onEditConfig={onEditConfig}
           onClose={() => setSelected(new Set())}
+          toolbar={
+              <div className="details-toolbar modlist-quick-actions" role="group" aria-label="Modlists">
+                <select
+                  aria-label="Load a modlist"
+                  value=""
+                  disabled={loadable.length === 0}
+                  onChange={(e) => setLoadingModlist(loadable.find((m) => m.id === e.target.value) ?? null)}
+                >
+                  <option value="">{loadable.length ? "Load a modlist…" : "No saved modlists"}</option>
+                  {loadable.map((m) => (
+                    <option key={m.id} value={m.id}>{m.active ? `${m.name} (active)` : m.name}</option>
+                  ))}
+                </select>
+                <button type="button" title="Save the enabled mods as a new modlist" onClick={() => setSavingModlist(true)}>
+                  <Icon name="lists" />Save current mods…
+                </button>
+              </div>
+          }
         />
         {savingModlist && (
           <SaveModlistDialog
