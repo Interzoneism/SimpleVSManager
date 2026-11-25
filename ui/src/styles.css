@@ -707,3 +707,4 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
   .json-leaf { display: flex; flex-wrap: wrap; }
   .json-leaf input[type="text"] { min-width: 0; max-width: 100%; }
 }
+.online-section-title { margin: 4px 0 8px; font-size: 14px; font-weight: 600; color: var(--palette-white); }

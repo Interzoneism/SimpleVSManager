@@ -15,7 +15,9 @@ import { LoadModlistDialog } from "../modlists/LoadModlistDialog";
 import { ModCards } from "../modlists/ModCards";
 import { ModlistCard } from "../modlists/ModlistCard";
 import { PublishDialog } from "./PublishDialog";
-import { filterOnline, type OnlineSort } from "./onlineView";
+import { filterOnline, splitOwn, type OnlineSort } from "./onlineView";
+import { EditPublishedDialog } from "./EditPublishedDialog";
+import { ModlistIcon } from "../modlists/ModlistIcon";
 import { CloseDetails, SplitWorkspace } from "../../components/SplitWorkspace";
 import { useContextMenu } from "../../components/ContextMenu";
 
@@ -43,10 +45,12 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [load, setLoad] = useState<{ source: ModlistSource; title: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [editing, setEditing] = useState<OnlineEntry | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   const all = useMemo(() => listing.data?.entries ?? [], [listing.data]);
   const visible = useMemo(() => filterOnline(all, search, sort), [all, search, sort]);
+  const own = useMemo(() => splitOwn(visible), [visible]);
   const current = all.find((e) => e.entry.registryId === selected) ?? null;
   const hiddenCount = (listing.data?.hiddenModlists ?? 0) + (listing.data?.hiddenAuthors ?? 0);
   const notices = slots.data?.newSubscribers ?? [];
@@ -74,6 +78,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
       !localId && { label: "Follow", disabled: busy || mine, run: () => saveCopy(list, true) },
       !localId && { label: "Save a copy", disabled: busy, run: () => saveCopy(list, false) },
     ], [
+      mine && { label: "Edit details…", disabled: busy || !canPublish, run: () => setEditing(list) },
       !mine && { label: "Hide modlist", disabled: busy, run: () => hideList(list) },
     ]]);
   };
@@ -93,6 +98,34 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
             : "Moved. You had no published modlists on the old project.",
         ),
     });
+  };
+
+  const card = (list: OnlineEntry) => {
+    const { entry, mine, subscribed, subscribers } = list;
+    const facts = [
+      entry.uploader ?? "Unknown author",
+      `${entry.mods.length} mod${entry.mods.length === 1 ? "" : "s"}`,
+      entry.gameVersion && `VS ${entry.gameVersion}`,
+      entry.version && `v${entry.version}`,
+      subscribers > 0 && `${subscribers} following`,
+    ].filter((fact): fact is string => !!fact);
+    return (
+      <ModlistCard
+        key={entry.registryId}
+        title={entry.name ?? "Unnamed modlist"}
+        icon={entry.icon}
+        kindIcon="community"
+        facts={facts}
+        date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
+        badges={(mine || subscribed) && <>
+          {mine && <span className="badge">Yours</span>}
+          {subscribed && <span className="badge active-badge">Following</span>}
+        </>}
+        selected={selected === entry.registryId}
+        onSelect={() => setSelected(entry.registryId)}
+        onContextMenu={(event) => onCardMenu(event, list)}
+      />
+    );
   };
 
   if (!enabled) {
@@ -164,35 +197,20 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
           {listing.isSuccess && visible.length === 0 && (
             <p className="empty-state">{search.trim() ? "No modlists match your search." : "No community modlists to show."}</p>
           )}
-          <ul className="card-grid modlist-card-grid" aria-label="Online modlists">
-            {visible.map((list) => {
-              const { entry, mine, subscribed, subscribers } = list;
-              const facts = [
-                entry.uploader ?? "Unknown author",
-                `${entry.mods.length} mod${entry.mods.length === 1 ? "" : "s"}`,
-                entry.gameVersion && `VS ${entry.gameVersion}`,
-                entry.version && `v${entry.version}`,
-                subscribers > 0 && `${subscribers} following`,
-              ].filter((fact): fact is string => !!fact);
-              return (
-                <ModlistCard
-                  key={entry.registryId}
-                  title={entry.name ?? "Unnamed modlist"}
-                  icon={entry.icon}
-                  kindIcon="community"
-                  facts={facts}
-                  date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
-                  badges={(mine || subscribed) && <>
-                    {mine && <span className="badge">Yours</span>}
-                    {subscribed && <span className="badge active-badge">Following</span>}
-                  </>}
-                  selected={selected === entry.registryId}
-                  onSelect={() => setSelected(entry.registryId)}
-                  onContextMenu={(event) => onCardMenu(event, list)}
-                />
-              );
-            })}
-          </ul>
+          {own.mine.length > 0 && (
+            <section className="modlist-section">
+              <h3 className="online-section-title">Your published modlists <span className="muted small">({own.mine.length})</span></h3>
+              <ul className="card-grid modlist-card-grid" aria-label="Your published modlists">{own.mine.map(card)}</ul>
+            </section>
+          )}
+          {(own.mine.length === 0 || own.others.length > 0) && (
+            <section className="modlist-section">
+              {own.mine.length > 0 && (
+                <h3 className="online-section-title">Community modlists <span className="muted small">({own.others.length})</span></h3>
+              )}
+              <ul className="card-grid modlist-card-grid" aria-label="Online modlists">{own.others.map(card)}</ul>
+            </section>
+          )}
         </div>
       </div>
       <aside className={`details${current ? "" : " empty"}`} aria-label="Community modlist details">
@@ -207,6 +225,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
             onCopy={(follow) => saveCopy(current, follow)}
             onShowLocal={onShowLocal}
             onHide={() => hideList(current)}
+            onEdit={canPublish ? () => setEditing(current) : undefined}
             onHideAuthor={() => current.entry.uploader && hide.mutate({ author: current.entry.uploader }, { onSuccess: () => setSelected(null) })}
           />
         )}
@@ -214,6 +233,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
       {load && (
         <LoadModlistDialog os={os} source={load.source} kind={null} title={load.title} onShowBackup={onShowLocal} onClose={() => setLoad(null)} />
       )}
+      {editing && <EditPublishedDialog list={editing} onDone={(msg) => setFlash(msg)} onClose={() => setEditing(null)} />}
       {publishing && <PublishDialog onClose={() => setPublishing(false)} onDone={(msg) => setFlash(msg)} />}
     </SplitWorkspace>
   );
@@ -227,14 +247,19 @@ interface DetailsProps {
   onShowLocal: (id: string) => void;
   onHide: () => void;
   onHideAuthor: () => void;
+  /** Edit your own published modlist (when publishing is possible). */
+  onEdit?: () => void;
 }
 
-function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHideAuthor }: DetailsProps) {
+function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHideAuthor, onEdit }: DetailsProps) {
   const e = entry.entry;
   return (
     <>
       <div className="details-header">
-        <h2>{e.name ?? "Unnamed modlist"}</h2>
+        <h2>
+          <span className="details-icon-button" aria-hidden="true"><ModlistIcon icon={e.icon} fallback="community" /></span>
+          {e.name ?? "Unnamed modlist"}
+        </h2>
       </div>
       {e.description && <p className="description">{e.description}</p>}
       <dl className="details-facts">
@@ -260,6 +285,7 @@ function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHid
             <button type="button" disabled={busy} onClick={() => onCopy(false)}>Save a copy</button>
           </>
         )}
+        {entry.mine && onEdit && <button type="button" disabled={busy} onClick={onEdit}>Edit details…</button>}
         {!entry.mine && (
           <>
             <button type="button" disabled={busy} onClick={onHide}>Hide</button>

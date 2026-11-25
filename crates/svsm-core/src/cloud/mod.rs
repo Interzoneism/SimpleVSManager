@@ -14,7 +14,7 @@ pub mod votes;
 use std::time::Duration;
 
 pub use auth::{Authenticator, Session};
-pub use store::{CloudStore, PlayerIdentity, RegistryEntry, SlotInfo, SubscriptionSnapshot};
+pub use store::{CloudStore, DetailsEdit, PlayerIdentity, RegistryEntry, SlotInfo, SubscriptionSnapshot};
 
 /// Where the cloud lives. Firebase web API keys are public client keys by design; access is
 /// controlled by the database rules (`firebase.rules.json` in SVSM-Dev).

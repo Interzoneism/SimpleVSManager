@@ -90,6 +90,44 @@ pub struct SubscriptionSnapshot {
     pub mine: HashSet<String>,
 }
 
+/// Changes to a published modlist's details. `None` leaves a field as it is; an empty string
+/// clears it. The name can't be changed (followers know the list by it).
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct DetailsEdit {
+    pub description: Option<String>,
+    pub version: Option<String>,
+    pub game_version: Option<String>,
+    pub icon: Option<String>,
+}
+
+impl DetailsEdit {
+    /// The published content with these changes applied.
+    pub fn apply(&self, content: &Value) -> Value {
+        let mut map = content.as_object().cloned().unwrap_or_default();
+        let set = |map: &mut Map<String, Value>, key: &str, value: Option<String>| {
+            if let Some(v) = value {
+                let v = v.trim().to_string();
+                if v.is_empty() {
+                    map.remove(key);
+                } else {
+                    map.insert(key.into(), Value::String(v));
+                }
+            }
+        };
+        set(&mut map, "description", self.description.clone());
+        set(&mut map, "version", self.version.clone());
+        if self.game_version.is_some() {
+            map.remove("vsVersion");
+            set(&mut map, "gameVersion", self.game_version.clone());
+        }
+        let icon = self.icon.as_ref().map(|i| crate::modlists::clean_icon(Some(i)).unwrap_or_default());
+        set(&mut map, "icon", icon);
+        Value::Object(map)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct WriteResult {
     pub registry_id: String,
@@ -517,6 +555,18 @@ impl<'a> CloudStore<'a> {
         Ok(WriteResult { registry_id, slot: slot.to_string(), revision: rev })
     }
 
+    /// Changes the details of one of the player's published modlists (a new revision with the
+    /// same mods and configs). Fails if it isn't in one of the player's slots.
+    pub async fn edit_details(&self, identity: &PlayerIdentity, registry_id: &str, edit: &DetailsEdit) -> CloudResult<WriteResult> {
+        let slots = self.read_slots(identity).await?;
+        let (slot, node) = SLOTS
+            .iter()
+            .find_map(|slot| slots.get(*slot).filter(|n| s(n, "registryId").as_deref() == Some(registry_id)).map(|n| (*slot, n)))
+            .ok_or_else(|| CloudError::Invalid("That modlist isn't one of yours.".into()))?;
+        let content = node.get("content").filter(|c| c.is_object()).ok_or_else(|| CloudError::Invalid("That online modlist is empty.".into()))?;
+        self.publish(identity, slot, &edit.apply(content), Some(registry_id)).await
+    }
+
     /// Removes a slot and its public copy (subscribers keep their local copies).
     pub async fn delete_slot(&self, identity: &PlayerIdentity, slot: &str) -> CloudResult<()> {
         if !SLOTS.contains(&slot) {
@@ -657,6 +707,47 @@ mod tests {
         assert!(rt.block_on(store.publish(&me(), "slot2", &content, Some("other"))).is_err());
         assert!(rt.block_on(store.publish(&me(), "slot9", &content, None)).is_err());
         assert!(!with_uploader(&content, &me()).as_object().unwrap().contains_key("onlineSubscription"));
+    }
+
+    #[test]
+    fn details_edits_keep_name_and_mods() {
+        let content = json!({"name": "Mine", "description": "old", "vsVersion": "1.20", "version": "1", "mods": [{"modId": "x"}]});
+        let edit = DetailsEdit { description: Some(" new ".into()), version: Some("".into()), game_version: Some("1.21".into()), icon: Some("md-sword".into()) };
+        let out = edit.apply(&content);
+        assert_eq!(out, json!({"name": "Mine", "description": "new", "gameVersion": "1.21", "icon": "md-sword", "mods": [{"modId": "x"}]}));
+        let untouched = DetailsEdit::default().apply(&content);
+        assert_eq!(untouched, content);
+        let bad_icon = DetailsEdit { icon: Some("<x>".into()), ..Default::default() }.apply(&out);
+        assert!(bad_icon.get("icon").is_none());
+    }
+
+    #[test]
+    fn editing_details_publishes_a_new_revision() {
+        let (mut server, t, auth) = setup();
+        let store = CloudStore::new(&auth, CloudConfig::for_tests(&server.url()), t.path()).unwrap();
+        server.mock("GET", "/db/owners/abc_def_1.json").match_query(Matcher::Any).with_body("\"fb1\"").create();
+        server
+            .mock("GET", "/db/users/abc_def_1.json")
+            .match_query(Matcher::Any)
+            .with_body(r#"{"slot3":{"registryId":"rid","content":{"name":"Mine","description":"old","mods":[{"modId":"x"}]},"revision":4}}"#)
+            .create();
+        let patch = server
+            .mock("PATCH", "/db/.json")
+            .match_query(Matcher::Any)
+            .match_body(Matcher::AllOf(vec![
+                Matcher::Regex(r#""/users/abc_def_1/slot3":\{"#.into()),
+                Matcher::Regex(r#""description":"new""#.into()),
+                Matcher::Regex(r#""name":"Mine""#.into()),
+                Matcher::Regex(r#""revision":5\.0"#.into()),
+            ]))
+            .with_body("{}")
+            .expect(1)
+            .create();
+        let rt = rt();
+        let edit = DetailsEdit { description: Some("new".into()), ..Default::default() };
+        assert_eq!(rt.block_on(store.edit_details(&me(), "rid", &edit)).unwrap().revision, 5.0);
+        patch.assert();
+        assert!(rt.block_on(store.edit_details(&me(), "someone-else", &edit)).is_err());
     }
 
     #[test]

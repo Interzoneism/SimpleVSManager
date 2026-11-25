@@ -486,6 +486,18 @@ async deleteCloudSlot(slot: string) : Promise<Result<null, AppError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Changes the description, version, game version or icon of one of the player's published
+ * modlists. The name stays as it is.
+ */
+async editPublishedModlist(request: EditPublishedRequest) : Promise<Result<SlotInfo, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("edit_published_modlist", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async modReports(modId: string, version: string) : Promise<Result<VoteSummary, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("mod_reports", { modId, version }) };
@@ -788,6 +800,11 @@ export type Dependency = { modId: string;
  * Minimum version, `*` or empty for any.
  */
 version: string }
+/**
+ * Changes to a published modlist's details. `None` leaves a field as it is; an empty string
+ * clears it. The name can't be changed (followers know the list by it).
+ */
+export type DetailsEdit = { description: string | null; version: string | null; gameVersion: string | null; icon: string | null }
 export type DetectedEnvironment = { os: Os; settings: Settings; managerDir: DetectedPath; dataDir: DetectedPath | null; gameDir: DetectedPath | null; gameExecutable: string | null; gameVersion: string | null; 
 /**
  * Name of the active profile in the WPF config, if one was found.
@@ -799,6 +816,7 @@ legacyProfile: string | null;
 warnings: string[] }
 export type DetectedPath = { path: string; source: PathSource; exists: boolean }
 export type DisabledMod = { modId: string; name: string }
+export type EditPublishedRequest = { registryId: string; edit: DetailsEdit }
 export type ExportFormat = "json" | "pdf"
 export type FlagChange = { modIds: string[]; on: boolean }
 export type GroupConflict = { modId: string; choices: ConflictChoice[]; 

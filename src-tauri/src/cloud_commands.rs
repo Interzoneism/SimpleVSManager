@@ -10,7 +10,7 @@ use tauri::State;
 use svsm_core::clientsettings::ClientSettings;
 use svsm_core::cloud::store::SLOTS;
 use svsm_core::cloud::votes::{VoteOption, VoteSummary, Votes};
-use svsm_core::cloud::{validator, CloudStore, PlayerIdentity, RegistryEntry, SlotInfo};
+use svsm_core::cloud::{validator, CloudStore, DetailsEdit, PlayerIdentity, RegistryEntry, SlotInfo};
 use svsm_core::modlists::{self, Modlist, ModlistKind, ModlistStore, ModlistSummary, OnlineSubscription};
 use svsm_core::settings::set_flag;
 
@@ -382,6 +382,31 @@ pub async fn publish_modlist(state: State<'_, AppState>, request: PublishRequest
     let written = cloud.publish(&me, &request.slot, &content, request.replaces.as_deref()).await.map_err(err)?;
     let slots = cloud.my_slots(&me).await.map_err(err)?;
     slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Published, but the slot couldn't be read back."))
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct EditPublishedRequest {
+    pub registry_id: String,
+    pub edit: DetailsEdit,
+}
+
+/// Changes the description, version, game version or icon of one of the player's published
+/// modlists. The name stays as it is.
+#[tauri::command]
+#[specta::specta]
+pub async fn edit_published_modlist(state: State<'_, AppState>, request: EditPublishedRequest) -> AppResult<SlotInfo> {
+    let me = player(&state)?;
+    let e = &request.edit;
+    let texts = [e.description.as_deref(), e.version.as_deref(), e.game_version.as_deref()];
+    if let Some(word) = validator::find_blocked(texts.into_iter().flatten()) {
+        return Err(AppError::msg(format!("Online modlists can't contain \"{word}\". Change the description first.")));
+    }
+    let auth = state.cloud_auth()?;
+    let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
+    let written = cloud.edit_details(&me, &request.registry_id, e).await.map_err(err)?;
+    let slots = cloud.my_slots(&me).await.map_err(err)?;
+    slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Saved, but the slot couldn't be read back."))
 }
 
 /// Deletes one of the player's online modlists. Subscribers keep their local copies.

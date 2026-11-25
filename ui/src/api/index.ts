@@ -23,6 +23,7 @@ import {
   type BackupProgress,
   type MorePreferences,
   type ProfileChange,
+  type DetailsEdit,
   type ReportRequest,
   type Result,
   type UpdateProgress,
@@ -461,6 +462,8 @@ export const useSyncSubscription = () => useCloudMutation((id: string) => unwrap
 export const useUnsubscribe = () => useCloudMutation((id: string) => unwrap(commands.unsubscribe(id)));
 export const usePublishModlist = () =>
   useCloudMutation((r: { id: string; slot: string; replaces: string | null }) => unwrap(commands.publishModlist(r)));
+export const useEditPublished = () =>
+  useCloudMutation((r: { registryId: string; edit: DetailsEdit }) => unwrap(commands.editPublishedModlist(r)));
 export const useDeleteCloudSlot = () => useCloudMutation((slot: string) => unwrap(commands.deleteCloudSlot(slot)));
 export const useAcknowledgeNotices = () =>
   useCloudMutation((ids: string[]) => unwrap(commands.acknowledgeSubscriberNotices(ids)));

@@ -69,6 +69,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             cloud_commands::acknowledge_subscriber_notices,
             cloud_commands::publish_modlist,
             cloud_commands::delete_cloud_slot,
+            cloud_commands::edit_published_modlist,
             cloud_commands::mod_reports,
             cloud_commands::submit_mod_report,
             cloud_commands::check_play_sessions,
