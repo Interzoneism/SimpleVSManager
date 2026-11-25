@@ -19,6 +19,11 @@ export function formatDate(ms: number | null | undefined): string {
   return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+export function formatDateTime(ms: number | null | undefined): string {
+  if (ms == null) return "";
+  return new Date(ms).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 /** "5 minutes ago", "3 hours ago", or a date. */
 export function formatAgo(ms: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));

@@ -4,7 +4,7 @@ test("default layout shows every column, name takes the spare room", () => {
   expect(visibleColumns(DEFAULT_LAYOUT).map((c) => c.id)).toEqual(["active", "name", "version", "latest", "authors", "tags", "side", "modified", "status"]);
   const g = gridFor(DEFAULT_LAYOUT);
   expect(g.template.startsWith("38px minmax(220px, 1fr) 80px")).toBe(true);
-  expect(g.minWidth).toBe(38 + 220 + 80 + 92 + 130 + 120 + 70 + 100 + 120);
+  expect(g.minWidth).toBe(38 + 220 + 80 + 92 + 130 + 120 + 70 + 150 + 120);
 });
 
 test("hide, resize and round-trip", () => {

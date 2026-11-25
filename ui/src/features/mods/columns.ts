@@ -23,7 +23,7 @@ export const COLUMN_DEFS: ColumnDef[] = [
   { id: "authors", label: "Authors", sort: "authors", width: 130, min: 50, hideable: true, resizable: true },
   { id: "tags", label: "Tags", sort: "tags", width: 120, min: 50, hideable: true, resizable: true },
   { id: "side", label: "Side", sort: "side", width: 70, min: 44, hideable: true, resizable: true },
-  { id: "modified", label: "Modified", sort: "modified", width: 100, min: 60, hideable: true, resizable: true },
+  { id: "modified", label: "Modified", sort: "modified", width: 150, min: 60, hideable: true, resizable: true },
   { id: "status", label: "Status", sort: "status", width: 120, min: 60, hideable: true, resizable: true },
 ];
 

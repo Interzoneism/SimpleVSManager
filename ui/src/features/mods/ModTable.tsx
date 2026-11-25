@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { InstalledMod, Os } from "../../bindings";
 import { iconUrl } from "../../lib/iconUrl";
 import { canToggleMod, latestShown, modStatus, modTags, statusLabel, type DbIndex, type SortDirection, type SortKey } from "./modView";
-import { formatDate } from "../../lib/format";
+import { formatDateTime } from "../../lib/format";
 import { useLayoutPreference } from "../../components/SplitWorkspace";
 import { useContextMenu } from "../../components/ContextMenu";
 import { COLUMN_DEFS, DEFAULT_LAYOUT, gridFor, parseLayout, setWidth, toggleHidden, visibleColumns, type ColumnId, type ColumnLayout } from "./columns";
@@ -155,7 +155,7 @@ export function ModTable(props: Props) {
       case "modified":
         return (
           <div key={id} className="cell col-modified" role="gridcell" title={mod.modifiedMs != null ? new Date(mod.modifiedMs).toLocaleString() : undefined}>
-            {formatDate(mod.modifiedMs)}
+            {formatDateTime(mod.modifiedMs)}
           </div>
         );
       case "status":
