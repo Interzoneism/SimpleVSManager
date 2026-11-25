@@ -1,6 +1,7 @@
 import { Activity, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useAppInfo, useEnvironment, useLaunchGame, useManagerUpdate, useOpenUrl } from "./api";
+import { BuilderToggle } from "./features/browser/ModlistBuilder";
 import { ModBrowser } from "./features/browser/ModBrowser";
 import { SetupOverview } from "./features/setup/SetupOverview";
 import { InstalledMods } from "./features/mods/InstalledMods";
@@ -174,6 +175,7 @@ export default function App() {
         <main className="app-main" ref={main}>
           <div className="page-heading">
             <h1>{pages[tab].title}</h1>
+            {tab === "browse" && dataReady && <BuilderToggle />}
           </div>
           {env.isPending && <p className="empty-state">Looking for Vintage Story…</p>}
           {env.isError && <p className="empty-state error-text">Detection failed: {env.error.message}</p>}

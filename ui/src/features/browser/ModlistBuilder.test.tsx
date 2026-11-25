@@ -5,6 +5,7 @@ import { commands } from "../../bindings";
 import { forgetAll } from "../../lib/pageMemory";
 import { builder, emptyState, getBuilder, isDirty, resetBuilderForTests, signature, sortedEntries, type BuilderEntry } from "./builderStore";
 import { ModBrowser } from "./ModBrowser";
+import { BuilderToggle } from "./ModlistBuilder";
 
 // Node's own (disabled) localStorage hides jsdom's: use simple in-memory ones.
 vi.hoisted(() => {
@@ -94,6 +95,7 @@ function renderBrowser() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
+      <BuilderToggle />
       <ModBrowser enabled />
     </QueryClientProvider>,
   );

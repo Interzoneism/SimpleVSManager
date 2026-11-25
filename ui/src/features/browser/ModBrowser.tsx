@@ -198,22 +198,6 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
             <input type="checkbox" checked={query.hideInstalled} onChange={(e) => set("hideInstalled", e.target.checked)} />
             Hide installed
           </label>
-          <div className="header-spacer" />
-          {page && (
-            <span className="muted small">
-              {formatCount(page.total)} mods · list from {formatAgo(page.fetchedMs)}
-            </span>
-          )}
-          <button
-            type="button"
-            className={`builder-toggle${b.open ? " active" : ""}`}
-            aria-pressed={b.open}
-            title={b.open ? "Hide the modlist builder (your list is kept)" : "Build a modlist by dragging mods into it"}
-            onClick={() => builder.setOpen(!b.open)}
-          >
-            <Icon name="lists" />
-            Modlist builder{b.entries.length > 0 && <span className="count-badge">{b.entries.length}</span>}
-          </button>
           <button
             type="button"
             disabled={refresh.isPending || offline}
@@ -222,6 +206,11 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
           >
             {refresh.isPending ? "Refreshing…" : "Refresh"}
           </button>
+          {page && (
+            <span className="muted small">
+              {formatCount(page.total)} mods · list from {formatAgo(page.fetchedMs)}
+            </span>
+          )}
         </div>
         {(results.error ?? refresh.error) && (
           <p className="notice error-text">

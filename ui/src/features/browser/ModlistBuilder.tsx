@@ -10,6 +10,7 @@ import { useRememberedScroll } from "../../lib/pageMemory";
 import { formatCount } from "../../lib/format";
 import { builder, isDirty, resumeLookups, sortedEntries, useBuilder, type BuilderEntry, type BuilderSortKey } from "./builderStore";
 import { Logo } from "./ModBrowser";
+import { Icon } from "../../components/Icon";
 
 type BuilderColumn = "name" | "version" | "author" | "side" | "downloads";
 
@@ -23,6 +24,23 @@ export const BUILDER_COLUMNS: TableColumnDef<BuilderColumn, BuilderSortKey>[] = 
 
 const HEADER_HEIGHT = 36;
 const ROW_HEIGHT = 46;
+
+/** Opens and closes the builder. Sits at the top right of the page, above the panel. */
+export function BuilderToggle() {
+  const b = useBuilder();
+  return (
+    <button
+      type="button"
+      className={`builder-toggle${b.open ? " active" : ""}`}
+      aria-pressed={b.open}
+      title={b.open ? "Hide the modlist builder (your list is kept)" : "Build a modlist by dragging mods into it"}
+      onClick={() => builder.setOpen(!b.open)}
+    >
+      <Icon name="lists" />
+      Modlist builder{b.entries.length > 0 && <span className="count-badge">{b.entries.length}</span>}
+    </button>
+  );
+}
 
 /** Saved modlists the builder can edit: not backups, groups, or copies that follow an online list. */
 export const editableLists = (lists: ModlistSummary[] | undefined) =>
