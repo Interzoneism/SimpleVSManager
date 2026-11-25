@@ -1,5 +1,6 @@
 //! `svsm://localhost/icon/<key>` serves mod icons from memory, so they never travel as JSON.
 
+use svsm_core::sync::RwLockExt as _;
 use tauri::http::{header, Request, Response, StatusCode};
 use tauri::{Manager, UriSchemeContext, Wry};
 
@@ -11,7 +12,7 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, request: Request<Vec<u8>>) -> Resp
         return not_found();
     };
     let state = ctx.app_handle().state::<AppState>();
-    let bytes = state.mods.read().expect("mods lock poisoned").icons.get(key).cloned();
+    let bytes = state.mods.read_safe().icons.get(key).cloned();
     match bytes {
         Some(b) => Response::builder()
             .status(StatusCode::OK)

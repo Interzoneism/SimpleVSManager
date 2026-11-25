@@ -21,5 +21,7 @@ specta = { version = "=2.0.0-rc.22", features = ["derive"] }
 codegen-units = 1
 lto = true
 opt-level = "s"
-panic = "abort"
+# Unwind (not abort): a bug in one command then fails that call and is written to the log,
+# instead of closing the app without a trace.
+panic = "unwind"
 strip = true

@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+/// Names of the macOS app bundle. "Vintage Story.app" is a guess; harmless if it doesn't exist.
+pub const MAC_BUNDLE_NAMES: &[&str] = &["Vintagestory.app", "Vintage Story.app"];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "lowercase")]
@@ -35,10 +38,12 @@ impl Os {
         // Bundle name with a space is a guess; harmless if it doesn't exist.
         let mac_bundle_spaced: PathBuf =
             ["Vintage Story.app", "Contents", "MacOS", "Vintagestory"].iter().collect();
+        // The game folder is the bundle itself.
+        let in_bundle: PathBuf = ["Contents", "MacOS", "Vintagestory"].iter().collect();
         match self {
-            Os::Windows => vec![windows, unix, mac_bundle, mac_bundle_spaced],
-            Os::Macos => vec![mac_bundle, mac_bundle_spaced, unix, windows],
-            Os::Linux => vec![unix, windows, mac_bundle, mac_bundle_spaced],
+            Os::Windows => vec![windows, unix, in_bundle, mac_bundle, mac_bundle_spaced],
+            Os::Macos => vec![in_bundle, mac_bundle, mac_bundle_spaced, unix, windows],
+            Os::Linux => vec![unix, windows, in_bundle, mac_bundle, mac_bundle_spaced],
         }
     }
 
@@ -64,9 +69,16 @@ impl Os {
                 }
             }
             Os::Macos => {
-                out.push(PathBuf::from("/Applications"));
+                // The bundle is the game folder. Never `/Applications` itself: everything
+                // inside it would be searched.
+                let mut roots = vec![PathBuf::from("/Applications")];
                 if let Some(h) = &host.home {
-                    out.push(h.join("Applications"));
+                    roots.push(h.join("Applications"));
+                }
+                for root in roots {
+                    for bundle in MAC_BUNDLE_NAMES {
+                        out.push(root.join(bundle));
+                    }
                 }
             }
             Os::Linux => {
@@ -85,6 +97,16 @@ impl Os {
             }
         }
         out
+    }
+
+    /// Where v3 keeps the pointer to a moved manager folder: a fixed per-user place, never next
+    /// to the executable (read-only for installed apps, AppImages and signed macOS bundles).
+    pub fn manager_pointer_file(self, host: &crate::HostEnv) -> Option<PathBuf> {
+        const NAME: &str = "simple-vs-manager-folder.txt";
+        match self {
+            Os::Macos => host.home.as_ref().map(|h| h.join("Library").join("Preferences").join(NAME)),
+            _ => host.config_dir.as_ref().or(host.home.as_ref()).map(|d| d.join(NAME)),
+        }
     }
 
     /// Extra places the game's data folder can live besides `<config dir>/VintagestoryData`.

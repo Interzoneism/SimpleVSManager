@@ -33,6 +33,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock", "s
 uuid = { version = "1.26.1", features = ["v4"] }
 sha2 = "0.10"
 serde_norway = "0.9.42"
+sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
 
 [dev-dependencies]
 mockito = "1.7.2"

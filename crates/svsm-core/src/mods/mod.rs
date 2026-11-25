@@ -54,3 +54,85 @@ mod delete_tests {
         assert!(outside.exists());
     }
 }
+
+/// Splits `name.immbackup` / `name.immbackup2` into `name`.
+fn parked_original(name: &str) -> Option<&str> {
+    let i = name.rfind(".immbackup")?;
+    let rest = &name[i + ".immbackup".len()..];
+    (i > 0 && rest.chars().all(|c| c.is_ascii_digit())).then(|| &name[..i])
+}
+
+/// `.name.svsm-extract` / `.name.svsm-extract2`: a staging folder of a folder-mod update.
+fn is_extract_staging(name: &str) -> bool {
+    name.starts_with('.') && name.rfind(".svsm-extract").is_some_and(|i| name[i + ".svsm-extract".len()..].chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Cleans up after an update that was interrupted (crash, power cut) in these mod folders:
+///
+/// * `X.immbackup` is the old version parked during an update. If `X` is missing, the new copy
+///   never landed, so the old one is put back. Otherwise the update finished and the parked
+///   copy goes to the trash.
+/// * `.X.svsm-extract` is a half-extracted folder mod, which the game would load next to the
+///   real one. It is removed.
+///
+/// Returns one line per fix, for the log. Never call it while an update is running.
+pub fn recover_interrupted_installs(dirs: &[std::path::PathBuf]) -> Vec<String> {
+    let mut fixed = Vec::new();
+    for dir in dirs {
+        let Ok(entries) = std::fs::read_dir(dir) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if let Some(original) = parked_original(&name) {
+                let target = dir.join(original);
+                if !target.exists() {
+                    match std::fs::rename(&path, &target) {
+                        Ok(()) => fixed.push(format!("Put back {} after an interrupted update", target.display())),
+                        Err(e) => fixed.push(format!("Could not put back {}: {e}", path.display())),
+                    }
+                } else if trash::delete(&path).is_ok() {
+                    fixed.push(format!("Moved the leftover {} to the trash", path.display()));
+                }
+            } else if is_extract_staging(&name) && path.is_dir() {
+                match std::fs::remove_dir_all(&path) {
+                    Ok(()) => fixed.push(format!("Removed the half-extracted {}", path.display())),
+                    Err(e) => fixed.push(format!("Could not remove {}: {e}", path.display())),
+                }
+            }
+        }
+    }
+    fixed
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn names() {
+        assert_eq!(parked_original("CarryOn.zip.immbackup"), Some("CarryOn.zip"));
+        assert_eq!(parked_original("CarryOn.zip.immbackup3"), Some("CarryOn.zip"));
+        assert_eq!(parked_original("CarryOn.zip.immbackupx"), None);
+        assert_eq!(parked_original(".immbackup"), None);
+        assert!(is_extract_staging(".mymod.svsm-extract"));
+        assert!(is_extract_staging(".mymod.svsm-extract2"));
+        assert!(!is_extract_staging("mymod.svsm-extract"));
+    }
+
+    #[test]
+    fn puts_back_parked_mods_and_removes_staging() {
+        let t = tempfile::tempdir().unwrap();
+        let mods = t.path().join("Mods");
+        std::fs::create_dir_all(mods.join(".folder.svsm-extract/inner")).unwrap();
+        std::fs::write(mods.join("Lost.zip.immbackup"), "old").unwrap();
+        std::fs::write(mods.join("Keep.zip"), "new").unwrap();
+        std::fs::write(mods.join("Other.zip"), "x").unwrap();
+        let fixed = recover_interrupted_installs(std::slice::from_ref(&mods));
+        assert_eq!(std::fs::read_to_string(mods.join("Lost.zip")).unwrap(), "old");
+        assert!(!mods.join("Lost.zip.immbackup").exists());
+        assert!(!mods.join(".folder.svsm-extract").exists());
+        assert_eq!(std::fs::read_to_string(mods.join("Keep.zip")).unwrap(), "new");
+        assert!(mods.join("Other.zip").exists());
+        assert_eq!(fixed.len(), 2, "{fixed:?}");
+    }
+}

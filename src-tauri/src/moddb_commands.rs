@@ -1,5 +1,6 @@
 //! Mod DB, updates, the version cache and the mod browser.
 
+use svsm_core::sync::{LockExt as _, RwLockExt as _};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -87,7 +88,7 @@ pub struct ModDbStatus {
 pub async fn moddb_status(state: State<'_, AppState>, mode: LookupMode) -> AppResult<ModDbStatus> {
     let db = state.moddb()?;
     let env = state.environment();
-    let mods = state.mods.read().expect("mods lock poisoned").mods.clone();
+    let mods = state.mods.read_safe().mods.clone();
     let ids = lookup_ids(&mods);
     let (found, error) = match mode {
         LookupMode::CacheOnly => (db.cached(&ids), None),
@@ -273,8 +274,7 @@ pub struct ModCacheStats {
 fn installed_versions(state: &AppState) -> Vec<(String, String)> {
     state
         .mods
-        .read()
-        .expect("mods lock poisoned")
+        .read_safe()
         .mods
         .iter()
         .filter_map(|m| Some((m.mod_id.clone(), m.version.clone()?)))
@@ -369,6 +369,7 @@ pub(crate) fn emit<R: tauri::Runtime>(app: &AppHandle<R>, key: &str, stage: Upda
 #[specta::specta]
 pub async fn update_mods(app: AppHandle, state: State<'_, AppState>, requests: Vec<UpdateRequest>) -> AppResult<UpdateReport> {
     let _run = state.update_lock.lock().await;
+    state.ensure_game_closed()?;
     state.cancel_updates.store(false, Ordering::Relaxed);
     let db = state.moddb()?;
     let env = state.environment();
@@ -386,7 +387,8 @@ pub async fn update_mods(app: AppHandle, state: State<'_, AppState>, requests: V
             emit(&app, &r.key, UpdateStage::Failed, None, Some("Cancelled.".into()));
             continue;
         }
-        let m = match state.find_mod(&r.key) {
+        // The game may have been started during a long run.
+        let m = match state.ensure_game_closed().and_then(|()| state.find_mod(&r.key)) {
             Ok(m) => m,
             Err(e) => {
                 emit(&app, &r.key, UpdateStage::Failed, None, Some(e.message.clone()));
@@ -543,7 +545,7 @@ pub(crate) async fn update_one<R: tauri::Runtime>(
         cache_replaced: env.settings.mod_cache_limit_mb > 0,
     };
     let result = {
-        let _guard = state.mods_lock.lock().expect("mods lock poisoned");
+        let _guard = state.mods_lock.lock_safe();
         let r = moddb::install_archive(&plan, &archive, db.cached_mods());
         // Keep a disabled mod disabled under its new version.
         if r.is_ok() && !m.is_active {
@@ -587,7 +589,7 @@ pub(crate) async fn install_new<R: tauri::Runtime>(
         cache_replaced: false,
     };
     let r = {
-        let _guard = state.mods_lock.lock().expect("mods lock poisoned");
+        let _guard = state.mods_lock.lock_safe();
         moddb::install_archive(&plan, &archive, db.cached_mods())
     };
     if temporary {
@@ -603,6 +605,7 @@ pub(crate) async fn install_new<R: tauri::Runtime>(
 #[specta::specta]
 pub async fn install_mod(app: AppHandle, state: State<'_, AppState>, mod_id: String, version: Option<String>) -> AppResult<ModList> {
     let _run = state.update_lock.lock().await;
+    state.ensure_game_closed()?;
     state.cancel_updates.store(false, Ordering::Relaxed);
     let db = state.moddb()?;
     let env = state.environment();
@@ -692,7 +695,7 @@ pub async fn browse_mods(
         entries.retain(|e| ids.contains(&e.numeric_id));
     }
     let installed: HashSet<String> =
-        state.mods.read().expect("mods lock poisoned").mods.iter().map(|m| m.mod_id.to_ascii_lowercase()).collect();
+        state.mods.read_safe().mods.iter().map(|m| m.mod_id.to_ascii_lowercase()).collect();
     let settings = &env.settings;
     Ok(moddb::browse(
         &entries,

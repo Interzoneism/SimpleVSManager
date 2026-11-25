@@ -110,20 +110,55 @@ pub fn bindings_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../ui/src/bindings.ts")
 }
 
+/// Folder for the app's own log files, inside the manager folder.
+pub const APP_LOGS_DIR: &str = "Logs";
+
+/// Logs to stdout and to daily files in `<manager folder>/Logs` (a week is kept), and makes
+/// panics land in that file too, so a crash on a machine without a console leaves a trace.
+fn init_logging() {
+    use tracing_subscriber::layer::SubscriberExt as _;
+    use tracing_subscriber::Layer as _;
+    use tracing_subscriber::util::SubscriberInitExt as _;
+
+    // "Verbose logging" in settings turns on debug output (read once at start).
+    let host = svsm_core::HostEnv::current();
+    let (dir, _) = svsm_core::paths::resolve_manager_dir(&host);
+    let verbose = svsm_core::Settings::load(&dir).map(|s| s.verbose_logging).unwrap_or(false);
+    let filter = || {
+        tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| if verbose { "info,svsm_app=debug,svsm_core=debug".into() } else { "info".into() })
+    };
+    let file = tracing_appender::rolling::Builder::new()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("simple-vs-manager")
+        .filename_suffix("log")
+        .max_log_files(7)
+        .build(dir.join(APP_LOGS_DIR));
+    let registry = tracing_subscriber::registry().with(tracing_subscriber::fmt::layer().with_filter(filter()));
+    // Written synchronously, so the last lines before a crash are on disk.
+    match file {
+        Ok(appender) => registry
+            .with(tracing_subscriber::fmt::layer().with_ansi(false).with_writer(appender).with_filter(filter()))
+            .init(),
+        Err(e) => {
+            registry.init();
+            tracing::warn!("Could not open the log file in {}: {e}", dir.join(APP_LOGS_DIR).display());
+        }
+    }
+
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        tracing::error!("Crash: {info}
+{backtrace}");
+        previous(info);
+    }));
+    tracing::info!("Simple VS Manager {} starting on {:?}", env!("CARGO_PKG_VERSION"), host.os);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // "Verbose logging" in settings turns on debug output (read once at start).
-    let verbose = {
-        let host = svsm_core::HostEnv::current();
-        let (dir, _) = svsm_core::paths::resolve_manager_dir(&host);
-        svsm_core::Settings::load(&dir).map(|s| s.verbose_logging).unwrap_or(false)
-    };
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| if verbose { "info,svsm_app=debug,svsm_core=debug".into() } else { "info".into() }),
-        )
-        .init();
+    init_logging();
 
     let builder = specta_builder();
 

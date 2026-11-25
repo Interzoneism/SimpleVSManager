@@ -58,6 +58,8 @@ fn machine_with(cloud: Option<svsm_core::cloud::CloudConfig>) -> Machine {
         vintage_story_env: None,
     };
     let mut state = AppState::with_host(host);
+    // Martin may have the real game open while tests run.
+    *state.game_probe.get_mut().unwrap() = std::sync::Arc::new(|| None);
     if let Some(c) = cloud {
         state.cloud_config = c;
     }
@@ -575,4 +577,23 @@ fn modlist_builder_fills_in_versions_it_looked_up() {
     let got: Vec<_> = out.iter().map(|m| (m.mod_id.as_deref().unwrap(), m.version.as_deref())).collect();
     // Pinned versions win; a version nobody knows stays empty.
     assert_eq!(got, [("a", Some("2.0.0")), ("b", Some("1.0.0")), ("c", None)]);
+}
+
+#[test]
+fn changes_are_blocked_while_the_game_runs() {
+    use svsm_core::sync::RwLockExt as _;
+    let m = machine();
+    let state = m.app.state::<AppState>();
+    let before = std::fs::read_to_string(m.data.join("clientsettings.json")).unwrap();
+    let key = key_of(&state, "carryon");
+    *state.game_probe.write_safe() = std::sync::Arc::new(|| Some(svsm_core::game_process::RunningGame { pid: 1, name: "Vintagestory.exe".into() }));
+    let err = run(crate::commands::set_mods_active(state.clone(), vec![key.clone()], false)).unwrap_err();
+    assert!(err.message.contains("Vintage Story is running"), "{}", err.message);
+    assert!(run(crate::commands::delete_mods(state.clone(), vec![key.clone()])).is_err());
+    let err = run(crate::m5_commands::restore_data_backup(m.app.handle().clone(), state.clone(), "x".into(), false)).unwrap_err();
+    assert!(err.message.contains("Vintage Story is running"), "{}", err.message);
+    assert!(m.data.join("Mods/CarryOn-1.14.0.zip").exists());
+    assert_eq!(std::fs::read_to_string(m.data.join("clientsettings.json")).unwrap(), before);
+    *state.game_probe.write_safe() = std::sync::Arc::new(|| None);
+    run(crate::commands::set_mods_active(state.clone(), vec![key], false)).unwrap();
 }

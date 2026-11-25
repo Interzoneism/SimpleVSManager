@@ -1,5 +1,6 @@
 //! Data folder backups, mod config files, game profiles and appearance.
 
+use svsm_core::sync::RwLockExt as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -82,6 +83,7 @@ pub async fn create_data_backup<R: tauri::Runtime>(app: AppHandle<R>, state: Sta
 #[specta::specta]
 pub async fn restore_data_backup<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, AppState>, id: String, safety: bool) -> AppResult<Option<BackupSummary>> {
     let _run = state.update_lock.lock().await;
+    state.ensure_game_closed()?;
     let safety_backup = if safety { Some(run_backup(&app, &state).await?) } else { None };
     let (data, _) = state.mod_roots()?;
     let b = data_backups(&state);
@@ -118,7 +120,7 @@ fn config_backup_dir(state: &AppState) -> PathBuf {
 #[specta::specta]
 pub async fn list_mod_configs(state: State<'_, AppState>) -> AppResult<Vec<ConfigCandidate>> {
     let (data, _) = state.mod_roots()?;
-    let mods = state.mods.read().expect("mods lock poisoned").mods.clone();
+    let mods = state.mods.read_safe().mods.clone();
     Ok(configs::candidates(&data, &mods, &configs::legacy_config_paths(&state.manager_dir())))
 }
 
@@ -182,7 +184,7 @@ pub async fn change_profile(state: State<'_, AppState>, change: ProfileChange) -
         return Err(AppError::msg(p));
     }
     // Folders may have changed: forget the old scan.
-    *state.mods.write().expect("mods lock poisoned") = Default::default();
+    *state.mods.write_safe() = Default::default();
     Ok(env)
 }
 

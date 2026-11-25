@@ -10,6 +10,7 @@ import {
   useDataBackups,
   useDeleteDataBackup,
   useMorePreferences,
+  useOpenKnownFolder,
   useRestoreDataBackup,
 } from "../../api";
 import { formatBytes } from "../../lib/format";
@@ -215,6 +216,7 @@ export function ModlistSettings() {
 
 export function AppearanceSettings({ env }: { env: DetectedEnvironment }) {
   const prefs = useMorePreferences();
+  const openFolder = useOpenKnownFolder();
   const s = env.settings;
   const hasCustom = Object.keys(s.customPalette).length > 0;
   return (
@@ -233,7 +235,12 @@ export function AppearanceSettings({ env }: { env: DetectedEnvironment }) {
         <input type="checkbox" checked={s.verboseLogging} onChange={(e) => prefs.mutate({ verboseLogging: e.target.checked })} />
         Detailed logging (for troubleshooting; takes effect at the next start)
       </label>
+      <div className="setting-row">
+        <button type="button" onClick={() => openFolder.mutate("appLogs")}>Open log folder</button>
+        <span className="muted small">The manager's own log files, to attach when you report a problem.</span>
+      </div>
       {prefs.isError && <p className="error-text small">{prefs.error.message}</p>}
+      {openFolder.isError && <p className="error-text small">{openFolder.error.message}</p>}
     </section>
   );
 }

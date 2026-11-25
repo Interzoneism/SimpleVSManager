@@ -25,6 +25,46 @@ const SAVES_STORE: &str = ".saves";
 const DATA: &str = "Data";
 const SAVES: &str = "Saves";
 const CACHE: &str = "Cache";
+/// Where a restore keeps the data folder's previous contents until the backup is in place.
+pub const RESTORE_STAGING: &str = ".svsm-restore-previous";
+
+/// Moves `names` from `staging` back into `data_dir`, then removes `staging` if it's empty.
+fn put_back(data_dir: &Path, staging: &Path, names: &[std::ffi::OsString]) {
+    for n in names {
+        if let Err(e) = std::fs::rename(staging.join(n), data_dir.join(n)) {
+            tracing::error!("Could not move {} back into the data folder: {e}", staging.join(n).display());
+        }
+    }
+    let _ = std::fs::remove_dir(staging);
+}
+
+/// Refuses to empty a folder that isn't a Vintage Story data folder: one without
+/// `clientsettings.json` (or at least `Mods` plus another folder the game makes), a folder
+/// holding the game itself, or a drive root. An empty or missing folder is fine.
+pub fn check_restore_target(data_dir: &Path) -> CoreResult<()> {
+    let mut entries = match std::fs::read_dir(data_dir) {
+        Ok(rd) => rd.flatten().peekable(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(io(data_dir, e)),
+    };
+    if entries.peek().is_none() {
+        return Ok(());
+    }
+    let refuse = |why: &str| Err(io(data_dir, format!("{why} Nothing was changed. Pick the right data folder under Folders.")));
+    if data_dir.parent().is_none() || data_dir.canonicalize().ok().is_some_and(|c| c.parent().is_none()) {
+        return refuse("This is a drive root, not a Vintage Story data folder.");
+    }
+    if crate::paths::find_game_executable(crate::platform::Os::Windows, data_dir).is_some() {
+        return refuse("This folder holds the game itself, not only its data.");
+    }
+    let game_dirs = ["Saves", "Logs", "ModConfig", "Playerdata", "Cache", "Backups", "Macros"];
+    let looks_right = data_dir.join("clientsettings.json").is_file()
+        || (data_dir.join("Mods").is_dir() && game_dirs.iter().any(|d| data_dir.join(d).is_dir()));
+    if !looks_right {
+        return refuse("This doesn't look like a Vintage Story data folder (there is no clientsettings.json).");
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
@@ -356,7 +396,12 @@ impl DataBackups {
     // --- Restoring ---------------------------------------------------------------------------
 
     /// Replaces the contents of `data_dir` with the backup (like 2.x: everything in the data
-    /// folder is removed first, including Cache). Make a backup of the current state first.
+    /// folder is replaced, including Cache). Make a backup of the current state first.
+    ///
+    /// Refuses a folder that doesn't look like a Vintage Story data folder. The current
+    /// contents are first moved aside into a staging folder inside `data_dir` (a rename, so
+    /// nothing is copied); if anything fails they are moved back, and they are only deleted
+    /// once the whole backup is in place.
     pub fn restore(&self, id: &str, data_dir: &Path, progress: Progress) -> CoreResult<()> {
         let (path, manifest) = self.find(id)?;
         // Check everything is there before touching the data folder.
@@ -365,24 +410,61 @@ impl DataBackups {
                 return Err(io(&self.store_path(s), format!("The save \"{}\" is missing from the backup store.", s.relative_path)));
             }
         }
+        check_restore_target(data_dir)?;
         let backup_root_canon = self.root.canonicalize().ok();
         std::fs::create_dir_all(data_dir).map_err(|e| io(data_dir, e))?;
+        let staging = data_dir.join(RESTORE_STAGING);
+        if staging.exists() {
+            return Err(io(
+                &staging,
+                "An earlier restore was interrupted. Its previous data is in this folder: move what you need back into the data folder, then delete it and try again.",
+            ));
+        }
+        let keep = |p: &Path| p == staging || backup_root_canon.as_ref().is_some_and(|r| p.canonicalize().ok().as_ref() == Some(r));
+        // 1. Move the current contents aside.
+        std::fs::create_dir_all(&staging).map_err(|e| io(&staging, e))?;
+        let mut moved: Vec<std::ffi::OsString> = Vec::new();
         for e in std::fs::read_dir(data_dir).map_err(|e| io(data_dir, e))?.flatten() {
             let p = e.path();
-            if backup_root_canon.as_ref().is_some_and(|r| p.canonicalize().ok().as_ref() == Some(r)) {
-                continue; // the backups themselves live in the data folder
+            if keep(&p) {
+                continue; // the backups themselves may live in the data folder
             }
-            let r = if p.is_dir() { std::fs::remove_dir_all(&p) } else { std::fs::remove_file(&p) };
-            r.map_err(|e| io(&p, e))?;
+            if let Err(err) = std::fs::rename(&p, staging.join(e.file_name())) {
+                put_back(data_dir, &staging, &moved);
+                return Err(io(&p, format!("{err}. Nothing was changed. Is Vintage Story still running?")));
+            }
+            moved.push(e.file_name());
         }
+        // 2. Unpack the backup; on failure clear the half-restored files and put things back.
+        match self.unpack(&path, &manifest, data_dir, progress) {
+            Ok(()) => {
+                if let Err(e) = std::fs::remove_dir_all(&staging) {
+                    tracing::warn!("Restored, but the previous data in {} could not be removed: {e}", staging.display());
+                }
+                Ok(())
+            }
+            Err(err) => {
+                for e in std::fs::read_dir(data_dir).into_iter().flatten().flatten() {
+                    let p = e.path();
+                    if !keep(&p) {
+                        let _ = if p.is_dir() { std::fs::remove_dir_all(&p) } else { std::fs::remove_file(&p) };
+                    }
+                }
+                put_back(data_dir, &staging, &moved);
+                Err(err)
+            }
+        }
+    }
+
+    fn unpack(&self, path: &Path, manifest: &Manifest, data_dir: &Path, progress: Progress) -> CoreResult<()> {
         let total = manifest.saves.iter().map(|s| s.size as u64).sum::<u64>() + 1;
         let mut done = 0u64;
         if path.is_dir() {
             copy_dir(&path.join(DATA), data_dir)?;
         } else {
-            let mut zip = zip::ZipArchive::new(std::fs::File::open(&path).map_err(|e| io(&path, e))?).map_err(|e| io(&path, e))?;
+            let mut zip = zip::ZipArchive::new(std::fs::File::open(path).map_err(|e| io(path, e))?).map_err(|e| io(path, e))?;
             for i in 0..zip.len() {
-                let mut entry = zip.by_index(i).map_err(|e| io(&path, e))?;
+                let mut entry = zip.by_index(i).map_err(|e| io(path, e))?;
                 let Some(name) = entry.enclosed_name() else { continue };
                 let Ok(rel) = name.strip_prefix(DATA) else { continue };
                 if rel.as_os_str().is_empty() {
@@ -631,6 +713,50 @@ mod tests {
         std::fs::remove_dir_all(b.root().join(SAVES_STORE)).unwrap();
         assert!(b.restore(&made.id, &d, &mut |_, _, _| {}).is_err());
         assert!(d.join("Mods/a.zip").exists(), "data folder untouched");
+    }
+
+    #[test]
+    fn refuses_folders_that_are_not_data_folders() {
+        let t = tempfile::tempdir().unwrap();
+        let d = data(t.path());
+        let b = DataBackups::new(&t.path().join("mgr"), None);
+        let made = b.create(&d, None, &mut |_, _, _| {}, &|| false).unwrap();
+        // A documents folder with a Mods folder in it is not enough.
+        let docs = t.path().join("Documents");
+        std::fs::create_dir_all(docs.join("Mods")).unwrap();
+        std::fs::write(docs.join("taxes.pdf"), "keep me").unwrap();
+        assert!(b.restore(&made.id, &docs, &mut |_, _, _| {}).is_err());
+        assert!(docs.join("taxes.pdf").exists());
+        // Nor is a portable game folder.
+        let game = t.path().join("Vintagestory");
+        std::fs::create_dir_all(&game).unwrap();
+        std::fs::write(game.join("clientsettings.json"), "{}").unwrap();
+        std::fs::write(game.join("Vintagestory.exe"), "exe").unwrap();
+        assert!(b.restore(&made.id, &game, &mut |_, _, _| {}).is_err());
+        assert!(game.join("Vintagestory.exe").exists());
+    }
+
+    #[test]
+    fn failed_restore_puts_the_previous_data_back() {
+        let t = tempfile::tempdir().unwrap();
+        let d = data(t.path());
+        let b = DataBackups::new(&t.path().join("mgr"), None);
+        // A 2.x folder backup whose save is listed as a folder but stored as a file: copying it fails.
+        let dir = b.root().join("2025-01-01-001");
+        std::fs::create_dir_all(dir.join("Data/Mods")).unwrap();
+        std::fs::write(dir.join("Data/Mods/other.zip"), "o").unwrap();
+        std::fs::create_dir_all(b.store()).unwrap();
+        std::fs::write(b.store().join("ABC.dir"), "not a folder").unwrap();
+        std::fs::write(
+            dir.join(MANIFEST),
+            r#"{"Id":"x","CreatedOnUtc":"2025-01-01T10:00:00Z","Saves":[{"RelativePath":"w","Hash":"ABC","IsDirectory":true,"Size":1}]}"#,
+        )
+        .unwrap();
+        assert!(b.restore("2025-01-01-001", &d, &mut |_, _, _| {}).is_err());
+        assert_eq!(std::fs::read_to_string(d.join("Mods/a.zip")).unwrap(), "zip");
+        assert_eq!(std::fs::read_to_string(d.join("Saves/one.vcdbs")).unwrap(), "save1");
+        assert!(!d.join("Mods/other.zip").exists());
+        assert!(!d.join(RESTORE_STAGING).exists());
     }
 
     #[test]

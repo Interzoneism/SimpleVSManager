@@ -77,13 +77,12 @@ fn candidate_files(game_path: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = CANDIDATES.iter().map(|c| game_path.join(c)).collect();
 
     // macOS app bundles: the assemblies' location inside the bundle isn't pinned down yet, so
-    // look a few levels into any *.app for VintagestoryAPI.dll.
-    if let Ok(entries) = std::fs::read_dir(game_path) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if p.extension().is_some_and(|e| e.eq_ignore_ascii_case("app")) && p.is_dir() {
-                find_named(&p, "VintagestoryAPI.dll", 4, &mut files);
-            }
+    // look a few levels into the game's bundle for VintagestoryAPI.dll. Only the game's own
+    // bundle names: a folder like /Applications holds many unrelated, huge bundles.
+    for bundle in crate::platform::MAC_BUNDLE_NAMES {
+        let p = game_path.join(bundle);
+        if p.is_dir() {
+            find_named(&p, "VintagestoryAPI.dll", 4, &mut files);
         }
     }
     if game_path.extension().is_some_and(|e| e.eq_ignore_ascii_case("app")) {

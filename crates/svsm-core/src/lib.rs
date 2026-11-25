@@ -10,6 +10,7 @@ pub mod cloud;
 pub mod environment;
 pub mod error;
 mod fsutil;
+pub mod game_process;
 pub mod game_version;
 pub mod host;
 pub mod legacy_config;
@@ -21,6 +22,7 @@ pub mod launch;
 pub mod platform;
 pub mod sessions;
 pub mod settings;
+pub mod sync;
 pub mod version;
 
 pub use environment::{detect_environment, detect_environment_with, DetectedEnvironment, DetectedPath, PathSource};

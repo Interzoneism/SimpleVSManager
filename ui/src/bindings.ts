@@ -1025,7 +1025,11 @@ isActive: boolean }
 /**
  * Which known folder to open. The frontend never passes raw paths to open.
  */
-export type KnownFolder = "manager" | "data" | "game" | "mods" | "logs" | "modlists" | "modConfig" | "dataBackups"
+export type KnownFolder = "manager" | "data" | "game" | "mods" | "logs" | "modlists" | "modConfig" | "dataBackups" | 
+/**
+ * The manager's own log files.
+ */
+"appLogs"
 export type LoadMode = 
 /**
  * Make the installed mods match the list: install missing mods, switch versions, set

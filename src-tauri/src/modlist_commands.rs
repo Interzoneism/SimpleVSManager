@@ -1,6 +1,7 @@
 //! Modlists, groups and automatic backups. Logic lives in `svsm_core::modlists`;
 //! running a load plan (downloads, installs, removals) happens here.
 
+use svsm_core::sync::{LockExt as _, RwLockExt as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
@@ -29,7 +30,7 @@ fn store(state: &AppState) -> ModlistStore {
 }
 
 fn installed(state: &AppState) -> Vec<InstalledMod> {
-    state.mods.read().expect("mods lock poisoned").mods.clone()
+    state.mods.read_safe().mods.clone()
 }
 
 /// Saves the installed mods as an automatic backup. Best effort: failures are only logged.
@@ -86,7 +87,7 @@ fn annotate(state: &AppState, mut lists: Vec<ModlistSummary>) -> Vec<ModlistSumm
 #[tauri::command]
 #[specta::specta]
 pub async fn list_modlists(state: State<'_, AppState>) -> AppResult<Vec<ModlistSummary>> {
-    if state.mods.read().expect("mods lock poisoned").mods.is_empty() {
+    if state.mods.read_safe().mods.is_empty() {
         let _ = state.rescan();
     }
     Ok(annotate(&state, store(&state).list()))
@@ -692,6 +693,7 @@ pub(crate) async fn run_apply<R: tauri::Runtime>(
     import_configs: bool,
 ) -> AppResult<ApplyReport> {
     let _run = state.update_lock.lock().await;
+    state.ensure_game_closed()?;
     state.cancel_updates.store(false, Ordering::Relaxed);
     let (list, _, _) = load_source(state, &source).await?;
     let (data, _) = state.mod_roots()?;
@@ -718,8 +720,8 @@ pub(crate) async fn run_apply<R: tauri::Runtime>(
     // 1. Take mods that aren't in the list out of the Mods folder (Replace), so new files can't
     //    collide with them. Zips go into the mod library for switching back; the rest to the trash.
     if !plan.remove.is_empty() {
-        let search_paths = state.mods.read().expect("mods lock poisoned").search_paths.clone();
-        let _guard = state.mods_lock.lock().expect("mods lock poisoned");
+        let search_paths = state.mods.read_safe().search_paths.clone();
+        let _guard = state.mods_lock.lock_safe();
         for r in &plan.remove {
             step += 1;
             progress(app, step, total, format!("Putting away {}", r.name));
@@ -804,8 +806,10 @@ pub(crate) async fn run_apply<R: tauri::Runtime>(
     step += 1;
     progress(app, step, total, "Switching mods on and off");
     state.rescan()?;
+    // The downloads can take minutes; the game may have been started meanwhile.
+    state.ensure_game_closed()?;
     {
-        let _guard = state.mods_lock.lock().expect("mods lock poisoned");
+        let _guard = state.mods_lock.lock_safe();
         let mods = installed(state);
         let mut cs = ClientSettings::load(&data)?;
         let mut changed = false;

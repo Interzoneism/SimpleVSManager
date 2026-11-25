@@ -1,5 +1,6 @@
 //! IPC commands. Keep these thin: validate input, call `svsm-core`, map errors.
 
+use svsm_core::sync::{LockExt as _, RwLockExt as _};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -93,6 +94,8 @@ pub enum KnownFolder {
     Modlists,
     ModConfig,
     DataBackups,
+    /// The manager's own log files.
+    AppLogs,
 }
 
 /// Opens one of the detected folders in the system file manager.
@@ -110,6 +113,11 @@ pub fn open_known_folder(app: AppHandle, state: State<'_, AppState>, folder: Kno
         KnownFolder::ModConfig => data.map(|d| d.join("ModConfig")),
         KnownFolder::DataBackups => {
             let dir = crate::m5_commands::data_backups(&state).root().to_path_buf();
+            let _ = std::fs::create_dir_all(&dir);
+            Some(dir)
+        }
+        KnownFolder::AppLogs => {
+            let dir = PathBuf::from(&env.manager_dir.path).join(crate::APP_LOGS_DIR);
             let _ = std::fs::create_dir_all(&dir);
             Some(dir)
         }
@@ -145,7 +153,7 @@ pub struct ModList {
 pub(crate) fn current_list(state: &AppState) -> AppResult<ModList> {
     let (data, _) = state.mod_roots()?;
     let found = ClientSettings::load(&data).map(|s| s.loaded_from_disk()).unwrap_or(false);
-    let snap = state.mods.read().expect("mods lock poisoned");
+    let snap = state.mods.read_safe();
     Ok(ModList {
         mods: snap.mods.clone(),
         search_paths: snap.search_paths.iter().map(|p| p.display().to_string()).collect(),
@@ -156,8 +164,8 @@ pub(crate) fn current_list(state: &AppState) -> AppResult<ModList> {
 
 fn restart_watcher(app: &AppHandle, state: &AppState) {
     let Ok((data, _)) = state.mod_roots() else { return };
-    let paths = state.mods.read().expect("mods lock poisoned").search_paths.clone();
-    let mut slot = state.watcher.lock().expect("watcher lock poisoned");
+    let paths = state.mods.read_safe().search_paths.clone();
+    let mut slot = state.watcher.lock_safe();
     let unchanged = slot
         .as_ref()
         .is_some_and(|w| w.watched.iter().filter(|p| **p != data).eq(paths.iter().filter(|p| p.is_dir())));
@@ -186,8 +194,9 @@ pub async fn list_mods(app: AppHandle, state: State<'_, AppState>) -> AppResult<
 #[tauri::command]
 #[specta::specta]
 pub async fn set_mods_active(state: State<'_, AppState>, keys: Vec<String>, active: bool) -> AppResult<ModList> {
+    state.ensure_game_closed()?;
     {
-        let _guard = state.mods_lock.lock().expect("mods lock poisoned");
+        let _guard = state.mods_lock.lock_safe();
         let (data, _) = state.mod_roots()?;
         let mut settings = ClientSettings::load(&data)?;
         let mut changed = false;
@@ -211,10 +220,11 @@ pub async fn set_mods_active(state: State<'_, AppState>, keys: Vec<String>, acti
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_mods(state: State<'_, AppState>, keys: Vec<String>) -> AppResult<ModList> {
+    state.ensure_game_closed()?;
     crate::modlist_commands::snapshot_installed(&state, "ModsDeleted", Vec::new());
     {
-        let _guard = state.mods_lock.lock().expect("mods lock poisoned");
-        let search_paths = state.mods.read().expect("mods lock poisoned").search_paths.clone();
+        let _guard = state.mods_lock.lock_safe();
+        let search_paths = state.mods.read_safe().search_paths.clone();
         for key in &keys {
             let m = state.find_mod(key)?;
             svsm_core::mods::delete_mod(Path::new(&m.source_path), &search_paths)?;

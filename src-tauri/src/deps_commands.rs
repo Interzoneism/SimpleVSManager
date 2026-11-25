@@ -1,6 +1,7 @@
 //! "Fix dependencies": installs, updates and enables whatever a mod needs to load.
 //! Port of 2.x `MainWindow.FixModButton_OnClick`.
 
+use svsm_core::sync::{LockExt as _, RwLockExt as _};
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
@@ -36,6 +37,7 @@ pub struct DependencyFixReport {
 #[specta::specta]
 pub async fn fix_dependencies(app: AppHandle, state: State<'_, AppState>, key: String) -> AppResult<DependencyFixReport> {
     let _run = state.update_lock.lock().await;
+    state.ensure_game_closed()?;
     fix(&app, &state, &key).await
 }
 
@@ -95,7 +97,7 @@ pub(crate) async fn fix<R: Runtime>(app: &AppHandle<R>, state: &AppState, key: &
 }
 
 fn current_plan(state: &AppState, key: &str) -> AppResult<svsm_core::mods::DependencyPlan> {
-    let mods = state.mods.read().expect("mods lock poisoned").mods.clone();
+    let mods = state.mods.read_safe().mods.clone();
     plan_dependency_fixes(&mods, key).ok_or_else(|| AppError::msg("That mod is no longer installed. The list will refresh."))
 }
 
@@ -110,7 +112,7 @@ async fn run<R: Runtime>(
     match action {
         DependencyAction::Enable { key, mod_id } => {
             let m = state.find_mod(key)?;
-            let _guard = state.mods_lock.lock().expect("mods lock poisoned");
+            let _guard = state.mods_lock.lock_safe();
             let (data, _) = state.mod_roots()?;
             let mut settings = ClientSettings::load(&data)?;
             if settings.set_active(&m.mod_id, m.version.as_deref(), true) {

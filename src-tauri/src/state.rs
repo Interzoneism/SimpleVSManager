@@ -1,3 +1,4 @@
+use svsm_core::sync::{LockExt as _, RwLockExt as _};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -18,6 +19,9 @@ pub struct ModSnapshot {
     pub icons: HashMap<String, Arc<Vec<u8>>>,
     pub search_paths: Vec<PathBuf>,
 }
+
+/// Finds a running Vintage Story client.
+pub type GameProbe = Arc<dyn Fn() -> Option<svsm_core::game_process::RunningGame> + Send + Sync>;
 
 /// Shared app state. Long-lived services hang off this.
 pub struct AppState {
@@ -41,6 +45,10 @@ pub struct AppState {
     /// Until when the watcher ignores clientsettings.json changes, because we wrote it
     /// ourselves and already returned the rescanned list.
     pub own_settings_write_until: Mutex<Option<std::time::Instant>>,
+    /// Finds a running Vintage Story client (tests replace this).
+    pub game_probe: RwLock<GameProbe>,
+    /// Leftovers of interrupted updates are cleaned up once, on the first scan.
+    recovered: std::sync::atomic::AtomicBool,
 }
 
 impl AppState {
@@ -63,31 +71,46 @@ impl AppState {
             update_lock: tokio::sync::Mutex::new(()),
             cancel_updates: AtomicBool::new(false),
             own_settings_write_until: Mutex::new(None),
+            game_probe: RwLock::new(Arc::new(svsm_core::game_process::find_running_game)),
+            recovered: AtomicBool::new(false),
         }
     }
 
     /// Runs detection and caches the result.
     pub fn refresh_environment(&self) -> DetectedEnvironment {
         let env = svsm_core::detect_environment(&self.host);
-        *self.environment.write().expect("environment lock poisoned") = Some(env.clone());
+        *self.environment.write_safe() = Some(env.clone());
         env
     }
 
     pub fn environment(&self) -> DetectedEnvironment {
-        if let Some(env) = self.environment.read().expect("environment lock poisoned").clone() {
+        if let Some(env) = self.environment.read_safe().clone() {
             return env;
         }
         self.refresh_environment()
     }
 
+    /// Errors while Vintage Story is running. Call before changing mods, clientsettings.json
+    /// or the data folder, and again before each batch of a long run.
+    pub fn ensure_game_closed(&self) -> AppResult<()> {
+        let probe = self.game_probe.read_safe().clone();
+        match probe() {
+            Some(g) => {
+                tracing::info!("Blocked a change because the game is running ({} pid {})", g.name, g.pid);
+                Err(AppError::msg(svsm_core::game_process::GAME_RUNNING_MESSAGE))
+            }
+            None => Ok(()),
+        }
+    }
+
     /// Call after saving clientsettings.json ourselves: the watcher's echo of that save
     /// would only rescan again and make the list refresh twice.
     pub fn note_own_settings_write(&self) {
-        *self.own_settings_write_until.lock().expect("watch lock poisoned") = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+        *self.own_settings_write_until.lock_safe() = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
     }
 
     pub fn is_own_settings_write(&self) -> bool {
-        self.own_settings_write_until.lock().expect("watch lock poisoned").is_some_and(|t| std::time::Instant::now() < t)
+        self.own_settings_write_until.lock_safe().is_some_and(|t| std::time::Instant::now() < t)
     }
 
     pub fn manager_dir(&self) -> PathBuf {
@@ -106,7 +129,7 @@ impl AppState {
     pub fn moddb(&self) -> AppResult<Arc<ModDb>> {
         let env = self.environment();
         let dir = PathBuf::from(&env.manager_dir.path);
-        let mut slot = self.moddb.lock().expect("moddb lock poisoned");
+        let mut slot = self.moddb.lock_safe();
         if let Some((d, db)) = slot.as_ref() {
             if *d == dir {
                 db.set_offline(env.settings.offline_mode);
@@ -125,7 +148,7 @@ impl AppState {
             return Err(AppError::msg(svsm_core::cloud::CloudError::Offline.to_string()));
         }
         let dir = PathBuf::from(&env.manager_dir.path);
-        let mut slot = self.cloud.lock().expect("cloud lock poisoned");
+        let mut slot = self.cloud.lock_safe();
         if let Some((d, a)) = slot.as_ref() {
             if *d == dir {
                 return Ok(a.clone());
@@ -141,7 +164,7 @@ impl AppState {
 
     /// Forget the cached sign-in (after the identity file changed).
     pub fn reset_cloud(&self) {
-        *self.cloud.lock().expect("cloud lock poisoned") = None;
+        *self.cloud.lock_safe() = None;
     }
 
     /// Data folder and game folder for mod operations.
@@ -156,11 +179,23 @@ impl AppState {
 
     /// Rescans mods and replaces the snapshot.
     pub fn rescan(&self) -> AppResult<Vec<PathBuf>> {
-        let _guard = self.mods_lock.lock().expect("mods lock poisoned");
+        let _guard = self.mods_lock.lock_safe();
         let (data, game) = self.mod_roots()?;
         let settings = ClientSettings::load(&data)?;
-        let result = discover_mods(&settings, game.as_deref());
-        let mut snap = self.mods.write().expect("mods lock poisoned");
+        let mut result = discover_mods(&settings, game.as_deref());
+        if !self.recovered.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            // Only folders mods are installed into, never the game's own.
+            let dirs: Vec<PathBuf> =
+                result.search_paths.iter().filter(|p| game.as_ref().is_none_or(|g| !p.starts_with(g))).cloned().collect();
+            let fixed = svsm_core::mods::recover_interrupted_installs(&dirs);
+            if !fixed.is_empty() {
+                for line in &fixed {
+                    tracing::warn!("{line}");
+                }
+                result = discover_mods(&settings, game.as_deref());
+            }
+        }
+        let mut snap = self.mods.write_safe();
         snap.mods = result.mods;
         snap.icons = result.icons.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
         snap.search_paths = result.search_paths.clone();
@@ -169,8 +204,7 @@ impl AppState {
 
     pub fn find_mod(&self, key: &str) -> AppResult<InstalledMod> {
         self.mods
-            .read()
-            .expect("mods lock poisoned")
+            .read_safe()
             .mods
             .iter()
             .find(|m| m.key == key)

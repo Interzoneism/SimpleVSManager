@@ -1,5 +1,6 @@
 //! Online modlists (browse, subscribe, publish) and user reports. Logic in `svsm_core::cloud`.
 
+use svsm_core::sync::RwLockExt as _;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -412,7 +413,7 @@ pub async fn edit_published_modlist(state: State<'_, AppState>, request: EditPub
 
 /// The enabled installed mods as a modlist (exact versions), like saving a modlist.
 fn current_mods(state: &AppState, meta: modlists::ModlistMeta) -> AppResult<Modlist> {
-    let mods: Vec<_> = state.mods.read().expect("mods lock poisoned").mods.iter().filter(|m| m.is_active).cloned().collect();
+    let mods: Vec<_> = state.mods.read_safe().mods.iter().filter(|m| m.is_active).cloned().collect();
     let list = modlists::from_installed(&mods, meta, Vec::new());
     if list.entries().is_empty() {
         return Err(AppError::msg("No mods are enabled, so there's nothing to publish."));
@@ -579,7 +580,7 @@ pub async fn check_play_sessions(state: State<'_, AppState>) -> AppResult<UsageP
     let Ok((data, _)) = state.mod_roots() else { return Ok(none) };
     let Some(game_version) = env.game_version.clone() else { return Ok(none) };
     let starts = svsm_core::sessions::long_sessions(&data.join("Logs"));
-    let installed = state.mods.read().expect("mods lock poisoned").mods.clone();
+    let installed = state.mods.read_safe().mods.clone();
     let active: Vec<(String, String)> = installed
         .iter()
         .filter(|m| m.is_active && !m.mod_id.trim().is_empty() && !svsm_core::mods::is_base_game_mod(&m.mod_id))

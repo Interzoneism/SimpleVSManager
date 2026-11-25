@@ -20,7 +20,8 @@ pub const DATA_FOLDER_NAME: &str = "VintagestoryData";
 /// Where the manager folder came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManagerDirKind {
-    /// `CustomConfigFolder.txt` next to the executable pointed at an existing folder.
+    /// The per-user pointer, or 2.x's `CustomConfigFolder.txt` next to the executable, pointed
+    /// at an existing folder.
     Custom,
     /// The OS default location.
     Default,
@@ -52,16 +53,24 @@ pub fn default_manager_dir(host: &HostEnv) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(name))
 }
 
-/// Reads `CustomConfigFolder.txt` next to the executable, as the WPF app does.
+/// Reads the per-user pointer, then 2.x's `CustomConfigFolder.txt` next to the executable.
 fn read_custom_folder_pointer(host: &HostEnv) -> Option<PathBuf> {
-    let file = host.exe_dir.as_ref()?.join(CUSTOM_FOLDER_POINTER_FILE);
-    let text = std::fs::read_to_string(file).ok()?;
-    let path = PathBuf::from(text.trim().trim_start_matches('\u{feff}'));
-    (!path.as_os_str().is_empty() && path.is_dir()).then_some(path)
+    let read = |file: PathBuf| {
+        let text = std::fs::read_to_string(file).ok()?;
+        let path = PathBuf::from(text.trim().trim_start_matches('\u{feff}'));
+        (!path.as_os_str().is_empty() && path.is_dir()).then_some(path)
+    };
+    custom_folder_pointer_file(host).and_then(read).or_else(|| legacy_folder_pointer_file(host).and_then(read))
 }
 
-/// Where `CustomConfigFolder.txt` lives (next to the executable).
+/// Where v3 writes the pointer to a moved manager folder (a fixed per-user file).
 pub fn custom_folder_pointer_file(host: &HostEnv) -> Option<PathBuf> {
+    host.os.manager_pointer_file(host)
+}
+
+/// 2.x's `CustomConfigFolder.txt` next to the executable. Only read (and cleared on a move):
+/// next to an installed app it usually can't be written.
+pub fn legacy_folder_pointer_file(host: &HostEnv) -> Option<PathBuf> {
     host.exe_dir.as_ref().map(|d| d.join(CUSTOM_FOLDER_POINTER_FILE))
 }
 
@@ -81,10 +90,11 @@ pub struct ManagerMove {
     pub old_folder_left: bool,
 }
 
-/// Moves the manager folder to `to` and points `CustomConfigFolder.txt` at it (or removes the
+/// Moves the manager folder to `to` and points the per-user pointer file at it (or removes the
 /// pointer when `to` is the default location), as 2.x's "Change manager config and cache
 /// folder" does. Everything is copied first; the old folder is only deleted once the copy and
-/// the pointer are in place, so a failure never leaves the settings half-moved.
+/// the pointer are in place, so a failure never leaves the settings half-moved. An old folder
+/// that isn't named like a manager folder (a 2.x pointer can name any folder) is left alone.
 pub fn move_manager_dir(host: &HostEnv, from: &Path, to: &Path) -> crate::error::CoreResult<ManagerMove> {
     use crate::error::CoreError;
     let invalid = |msg: &str| CoreError::io(to, std::io::Error::new(std::io::ErrorKind::InvalidInput, msg.to_string()));
@@ -103,16 +113,22 @@ pub fn move_manager_dir(host: &HostEnv, from: &Path, to: &Path) -> crate::error:
     } else {
         std::fs::create_dir_all(to).map_err(|e| CoreError::io(to, e))?;
     }
-    if same_dir(to, &default_manager_dir(host)) {
+    // A 2.x pointer next to the executable would win again once ours is gone: clear it.
+    let legacy_left = legacy_folder_pointer_file(host).is_some_and(|f| f.exists() && std::fs::remove_file(&f).is_err());
+    if same_dir(to, &default_manager_dir(host)) && !legacy_left {
         match std::fs::remove_file(&pointer) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(CoreError::io(&pointer, e)),
         }
     } else {
+        if let Some(dir) = pointer.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| CoreError::io(dir, e))?;
+        }
         std::fs::write(&pointer, to.display().to_string()).map_err(|e| CoreError::io(&pointer, e))?;
     }
-    let old_folder_left = from.exists() && std::fs::remove_dir_all(from).is_err();
+    let own_folder = from.file_name().is_some_and(|n| n == MANAGER_FOLDER_NAME || n == MANAGER_FOLDER_NAME_LINUX);
+    let old_folder_left = from.exists() && (!own_folder || std::fs::remove_dir_all(from).is_err());
     Ok(ManagerMove { to: to.to_path_buf(), old_folder_left })
 }
 
@@ -265,6 +281,13 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert_eq!(resolve_manager_dir(&host), (custom, ManagerDirKind::Custom));
+        // The per-user pointer wins over 2.x's file next to the executable.
+        let other = t.path().join("other");
+        std::fs::create_dir_all(&other).unwrap();
+        let ours = custom_folder_pointer_file(&host).unwrap();
+        std::fs::create_dir_all(ours.parent().unwrap()).unwrap();
+        std::fs::write(&ours, other.display().to_string()).unwrap();
+        assert_eq!(resolve_manager_dir(&host), (other, ManagerDirKind::Custom));
     }
 
     #[test]
@@ -334,6 +357,8 @@ pub(crate) mod tests {
         std::fs::write(from.join("svsm3-settings.json"), "{}").unwrap();
         std::fs::write(from.join("Modlists/a.json"), "x").unwrap();
 
+        // A 2.x pointer next to the executable that names the default folder.
+        std::fs::write(legacy_folder_pointer_file(&host).unwrap(), from.display().to_string()).unwrap();
         let to = manager_dir_in(&host, &t.path().join("D"));
         assert!(move_manager_dir(&host, &from, &from.join("sub")).is_err(), "no moving into itself");
         let moved = move_manager_dir(&host, &from, &to).unwrap();
@@ -341,11 +366,36 @@ pub(crate) mod tests {
         assert!(!from.exists());
         assert_eq!(std::fs::read_to_string(to.join("Modlists/a.json")).unwrap(), "x");
         assert_eq!(resolve_manager_dir(&host), (to.clone(), ManagerDirKind::Custom));
+        assert!(custom_folder_pointer_file(&host).unwrap().is_file(), "pointer is per user");
+        assert!(!legacy_folder_pointer_file(&host).unwrap().exists(), "2.x pointer cleared");
 
         // Back to the default: the pointer goes away.
         move_manager_dir(&host, &to, &from).unwrap();
         assert!(!custom_folder_pointer_file(&host).unwrap().exists());
         assert_eq!(resolve_manager_dir(&host), (from.clone(), ManagerDirKind::Default));
         assert!(from.join("svsm3-settings.json").is_file());
+
+        // A folder that isn't named like a manager folder (from a 2.x pointer) is never deleted.
+        let general = t.path().join("Documents");
+        std::fs::create_dir_all(&general).unwrap();
+        std::fs::write(general.join("letter.txt"), "keep").unwrap();
+        let moved = move_manager_dir(&host, &general, &manager_dir_in(&host, &t.path().join("E"))).unwrap();
+        assert!(moved.old_folder_left);
+        assert!(general.join("letter.txt").is_file());
+    }
+
+    #[test]
+    fn macos_game_folder_is_the_bundle() {
+        let t = tempfile::tempdir().unwrap();
+        let host = fake_host(t.path(), Os::Macos);
+        let dirs = Os::Macos.default_game_dirs(&host);
+        assert!(!dirs.iter().any(|d| d == Path::new("/Applications")));
+        assert!(dirs.iter().all(|d| d.extension().is_some_and(|e| e == "app")));
+        let bundle = t.path().join("home/Applications/Vintagestory.app");
+        std::fs::create_dir_all(bundle.join("Contents/MacOS")).unwrap();
+        std::fs::write(bundle.join("Contents/MacOS/Vintagestory"), b"").unwrap();
+        assert_eq!(resolve_game_dir(&host).map(|g| g.0), Some(bundle));
+        let ptr = custom_folder_pointer_file(&host).unwrap();
+        assert!(ptr.starts_with(t.path().join("home/Library/Preferences")), "{}", ptr.display());
     }
 }

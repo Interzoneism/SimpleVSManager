@@ -13,6 +13,16 @@ const APPIMAGE_ENV: &[&str] = &["APPIMAGE", "APPDIR", "OWD", "ARGV0", "LD_LIBRAR
 
 /// Builds the launch command for a game executable.
 pub fn game_command(os: Os, executable: &Path, data_dir: &Path) -> Command {
+    // macOS: start the bundle through LaunchServices (`open`), so Gatekeeper, the Dock and
+    // App Translocation treat it like a normal app start.
+    if os == Os::Macos {
+        if let Some(bundle) = app_bundle_of(executable) {
+            let mut cmd = Command::new("/usr/bin/open");
+            cmd.arg("-a").arg(bundle).arg("--args").arg("--dataPath").arg(data_dir);
+            cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+            return cmd;
+        }
+    }
     let mut cmd = Command::new(executable);
     if let Some(dir) = executable.parent() {
         cmd.current_dir(dir);
@@ -27,6 +37,14 @@ pub fn game_command(os: Os, executable: &Path, data_dir: &Path) -> Command {
     }
     detach(&mut cmd);
     cmd
+}
+
+/// `X.app` for `X.app/Contents/MacOS/<exe>`.
+fn app_bundle_of(executable: &Path) -> Option<&Path> {
+    let macos = executable.parent()?;
+    let contents = macos.parent()?;
+    let bundle = contents.parent()?;
+    (macos.file_name()? == "MacOS" && contents.file_name()? == "Contents" && bundle.extension()? .eq_ignore_ascii_case("app")).then_some(bundle)
 }
 
 /// Launches the game and returns without waiting. The child keeps running if we exit.
@@ -66,6 +84,17 @@ mod tests {
         let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
         assert_eq!(args, ["--dataPath", "/data"]);
         assert_eq!(cmd.get_current_dir(), Some(Path::new("/games/vs")));
+    }
+
+    #[test]
+    fn macos_bundle_starts_through_open() {
+        let cmd = game_command(Os::Macos, Path::new("/Applications/Vintagestory.app/Contents/MacOS/Vintagestory"), Path::new("/data"));
+        assert_eq!(cmd.get_program(), "/usr/bin/open");
+        let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        assert_eq!(args, ["-a", "/Applications/Vintagestory.app", "--args", "--dataPath", "/data"]);
+        // A plain executable still starts directly.
+        let cmd = game_command(Os::Macos, Path::new("/games/vs/Vintagestory"), Path::new("/data"));
+        assert_eq!(cmd.get_program(), "/games/vs/Vintagestory");
     }
 
     #[test]

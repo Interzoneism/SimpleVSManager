@@ -8,6 +8,7 @@
 //! * never signs up a new account when an identity exists but can't be refreshed (it reports an
 //!   error instead), and only creates `firebase-auth.json` (plus the backup) when there was none.
 
+use crate::sync::LockExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -127,7 +128,7 @@ impl Authenticator {
     pub async fn session(&self, force_refresh: bool) -> CloudResult<Session> {
         let now = now_ms();
         if !force_refresh {
-            if let Some(s) = self.cached.lock().expect("auth lock").clone().filter(|s| s.fresh(now)) {
+            if let Some(s) = self.cached.lock_safe().clone().filter(|s| s.fresh(now)) {
                 return Ok(s);
             }
         }
@@ -139,7 +140,7 @@ impl Authenticator {
                         .map(|exp| Session { id_token: identity.id_token.clone(), user_id: identity.user_id.clone(), expires_ms: exp })
                         .filter(|s| s.fresh(now));
                     if let Some(s) = stored.or(from_identity) {
-                        *self.cached.lock().expect("auth lock") = Some(s.clone());
+                        *self.cached.lock_safe() = Some(s.clone());
                         return Ok(s);
                     }
                 }
@@ -157,7 +158,7 @@ impl Authenticator {
     }
 
     fn remember(&self, s: &Session) {
-        *self.cached.lock().expect("auth lock") = Some(s.clone());
+        *self.cached.lock_safe() = Some(s.clone());
         let path = self.session_path();
         let text = serde_json::to_string_pretty(s).expect("session serializes");
         if let Err(e) = std::fs::write(&path, text) {
@@ -171,7 +172,7 @@ impl Authenticator {
 
     /// Forget the cached token so the next call refreshes (after the server rejected it).
     pub fn invalidate(&self) {
-        *self.cached.lock().expect("auth lock") = None;
+        *self.cached.lock_safe() = None;
         let _ = std::fs::remove_file(self.session_path());
     }
 

@@ -13,6 +13,7 @@ pub mod model;
 pub mod parse;
 pub mod updates;
 
+use crate::sync::LockExt as _;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -173,7 +174,7 @@ impl ModDb {
         let mut missing = Vec::new();
         let mut changed = false;
         {
-            let mut guard = self.thumbs.lock().expect("thumbs lock poisoned");
+            let mut guard = self.thumbs.lock_safe();
             let map = guard.get_or_insert_with(|| self.cache.load(THUMBS_CACHE).map(|(m, _)| m).unwrap_or_default());
             for id in ids {
                 let key = id.to_ascii_lowercase();
@@ -212,7 +213,7 @@ impl ModDb {
                 .collect()
                 .await;
             let fetched_ms = dates::now_ms();
-            let mut guard = self.thumbs.lock().expect("thumbs lock poisoned");
+            let mut guard = self.thumbs.lock_safe();
             let map = guard.get_or_insert_with(HashMap::new);
             for (id, r) in results {
                 if let Ok(raw) = r {
@@ -225,7 +226,7 @@ impl ModDb {
             }
         }
         if changed {
-            let guard = self.thumbs.lock().expect("thumbs lock poisoned");
+            let guard = self.thumbs.lock_safe();
             if let Some(map) = guard.as_ref() {
                 let _ = self.cache.store(THUMBS_CACHE, map, now);
             }
