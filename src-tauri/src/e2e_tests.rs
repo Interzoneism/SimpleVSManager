@@ -105,6 +105,19 @@ fn save_export_import_and_switch_states() {
     assert_eq!(saved.saved.icon.as_deref(), Some("md-sword"));
     assert_eq!(saved.saved.config_count, 1);
 
+    // Updating it with the enabled mods: still 2 mods, details and the config stay.
+    std::fs::write(
+        m.manager.join("Modlists/Mine.json"),
+        std::fs::read_to_string(m.manager.join("Modlists/Mine.json")).unwrap().replace("\"carryon\"", "\"carryon\", \"x\": 1").replace("\"modId\": \"extratestmod\"", "\"modId\": \"oldmod\""),
+    )
+    .unwrap();
+    let updated = run(crate::modlist_commands::update_modlist_mods(state.clone(), saved.saved.id.clone())).unwrap();
+    let mut ids: Vec<_> = updated.mods.iter().map(|m| m.mod_id.as_str()).collect();
+    ids.sort();
+    assert_eq!(ids, ["carryon", "extratestmod"]);
+    assert_eq!((updated.description.as_deref(), updated.icon.as_deref(), updated.config_count), (Some("desc"), Some("md-sword"), 1));
+    assert!(updated.active);
+
     // PDF round trip through export + import.
     let pdf = m.manager.join("out.pdf");
     run(export_modlist(state.clone(), saved.saved.id.clone(), pdf.display().to_string(), ExportFormat::Pdf)).unwrap();

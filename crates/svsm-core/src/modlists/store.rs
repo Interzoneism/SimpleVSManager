@@ -377,6 +377,18 @@ impl ModlistStore {
         Ok(id)
     }
 
+    /// Writes `modlist` over an existing modlist or preset file (same id, same place).
+    pub fn overwrite(&self, id: &str, modlist: &Modlist) -> CoreResult<()> {
+        let (path, kind) = self.resolve(id)?;
+        if !matches!(kind, ModlistKind::Modlist | ModlistKind::Preset) {
+            return Err(other(&path, "Only modlists and presets can be changed this way."));
+        }
+        if !path.is_file() {
+            return Err(other(&path, "That modlist no longer exists."));
+        }
+        self.write(&path, &to_json(modlist))
+    }
+
     /// Creates or updates a group. `id` is the existing group (renaming moves the file).
     pub fn save_group(&self, id: Option<&str>, def: &GroupDefinition) -> CoreResult<String> {
         let name = def.name.as_deref().map(str::trim).filter(|n| !n.is_empty()).unwrap_or("Modlist group");

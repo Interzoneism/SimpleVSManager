@@ -421,6 +421,8 @@ export const useResolveGroupConflict = () =>
     (a: { id: string; modId: string; reference: string }) => unwrap(commands.resolveGroupConflict(a.id, a.modId, a.reference)),
     upsert,
   );
+export const useUpdateModlistMods = () =>
+  useModlistMutation((id: string) => unwrap(commands.updateModlistMods(id)), upsert);
 export const useSetModlistIcon = () =>
   useModlistMutation(
     (a: { id: string; icon: string | null; color: string | null }) => unwrap(commands.setModlistIcon(a.id, a.icon, a.color)),

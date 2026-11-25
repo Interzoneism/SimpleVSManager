@@ -10,6 +10,7 @@ import {
   useOpenKnownFolder,
   useResolveGroupConflict,
   useSetModlistIcon,
+  useUpdateModlistMods,
   useSyncSubscription,
   useUnsubscribe,
 } from "../../api";
@@ -57,6 +58,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   const sync = useSyncSubscription();
   const unsubscribe = useUnsubscribe();
   const setIcon = useSetModlistIcon();
+  const updateMods = useUpdateModlistMods();
   const openMenu = useContextMenu();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -97,8 +99,19 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
     onFocusHandled?.();
   }, [focusId, lists.data, onFocusHandled]);
   const chosen = all.filter((m) => selected.includes(m.id));
-  const error = del.error ?? importFile.error ?? exportList.error ?? resolve.error ?? openFolder.error ?? sync.error ?? unsubscribe.error;
-  const busy = del.isPending || resolve.isPending || exportList.isPending || sync.isPending || unsubscribe.isPending;
+  const error = del.error ?? importFile.error ?? exportList.error ?? resolve.error ?? openFolder.error ?? sync.error ?? unsubscribe.error ?? updateMods.error;
+  const busy = del.isPending || resolve.isPending || exportList.isPending || sync.isPending || unsubscribe.isPending || updateMods.isPending;
+  const canUpdateMods = (entry: ModlistSummary) => (entry.kind === "modlist" || entry.kind === "preset") && !entry.subscription && !entry.error;
+
+  const doUpdateMods = async (entry: ModlistSummary) => {
+    const what = entry.kind === "preset" ? "which of your mods are on and off now" : "the mods you have enabled now";
+    const ok = await ask(`Replace the mods in "${entry.name}" with ${what}? The name, description and icon stay.`, {
+      title: "Update with enabled mods",
+      okLabel: "Update",
+      cancelLabel: "Cancel",
+    });
+    if (ok) updateMods.mutate(entry.id, { onSuccess: (s) => setFlash(`Updated "${s.name}": ${s.mods.length} mods.`) });
+  };
 
   const select = (id: string, additive: boolean) =>
     setSelected((prev) => (additive ? (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]) : [id]));
@@ -174,6 +187,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
     openMenu(event, `Actions for ${entry.name}`, [[
       !entry.active && entry.kind !== "preset" && { label: quick ? "Quick switch" : "Switch to this…", disabled: cannotLoad, run: () => startLoad(entry, "replace", quick) },
       { label: "Load…", disabled: cannotLoad, run: () => startLoad(entry) },
+      canUpdateMods(entry) && { label: "Update with enabled mods…", disabled: busy, run: () => void doUpdateMods(entry) },
       entry.kind === "group" && { label: "Edit group…", disabled: busy, run: () => setDialog({ kind: "group", group: entry, members: [] }) },
       { label: "Change icon…", disabled: busy || !!entry.error, run: () => setDialog({ kind: "icon", entry }) },
     ], [
@@ -263,11 +277,16 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
                   (rows.length === 0 ? (
                     <p className="muted small section-empty">{search ? "No matches." : section.empty}</p>
                   ) : (
-                    <ul className="card-grid modlist-card-grid" aria-label={section.title}>
+                    <ul className="card-grid modlist-card-grid online-card-grid" aria-label={section.title}>
                       {rows.map((m) => {
+                        const lines = [
+                          m.group ? <>Group of <strong>{m.group.members.length}</strong> lists</>
+                            : m.uploader ? <>By <strong>{m.uploader}</strong></>
+                            : kindLabel(m.kind),
+                          m.error ? "Can't be read" : <><strong>{m.mods.length}</strong> mod{m.mods.length === 1 ? "" : "s"}</>,
+                          m.gameVersion ? `VS ${m.gameVersion}` : "Any game version",
+                        ];
                         const facts = [
-                          m.error ? "Can't be read" : `${m.mods.length} mod${m.mods.length === 1 ? "" : "s"}`,
-                          m.gameVersion && `VS ${m.gameVersion}`,
                           m.subscription && `Revision ${m.subscription.syncedRevision}`,
                           m.configCount > 0 && `${m.configCount} config${m.configCount === 1 ? "" : "s"}`,
                           m.group && m.group.conflicts.length > 0 && `${m.group.conflicts.length} to check`,
@@ -280,6 +299,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
                             icon={m.icon}
                             iconColor={m.iconColor}
                             kindIcon={kindIcons[m.kind]}
+                            rows={lines}
                             facts={facts}
                             date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
                             badges={(m.active || m.subscription) && <>
@@ -337,6 +357,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
             onCopy={() => void copy(serverCommands(chosen[0]), "server install commands")}
             onEditGroup={() => setDialog({ kind: "group", group: chosen[0], members: [] })}
             onChangeIcon={() => setDialog({ kind: "icon", entry: chosen[0] })}
+            onUpdateMods={canUpdateMods(chosen[0]) ? () => void doUpdateMods(chosen[0]) : undefined}
             onDelete={() => void remove([chosen[0]])}
             onSelectMember={showEntry}
             onResolve={(modId, reference) => resolve.mutate({ id: chosen[0].id, modId, reference })}
@@ -419,6 +440,8 @@ interface DetailsProps {
   onExport: (format: "json" | "pdf") => void;
   onCopy: () => void;
   onEditGroup: () => void;
+  /** Replace the mods with the enabled ones (modlists and presets that don't follow an online list). */
+  onUpdateMods?: () => void;
   onChangeIcon: () => void;
   onDelete: () => void;
   onSelectMember: (id: string) => void;
@@ -427,7 +450,7 @@ interface DetailsProps {
   onUnsubscribe: () => void;
 }
 
-function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onChangeIcon, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe }: DetailsProps) {
+function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onUpdateMods, onChangeIcon, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe }: DetailsProps) {
   const hasCommands = entry.mods.some((m) => m.version);
   return (
     <>
@@ -493,6 +516,9 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
         >
           Load…
         </button>
+        {onUpdateMods && !entry.active && (
+          <button type="button" disabled={busy} title="Replace its mods with the mods you have enabled now" onClick={onUpdateMods}>Update</button>
+        )}
         {entry.kind === "group" && <button type="button" disabled={busy} onClick={onEditGroup}>Edit group…</button>}
         <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("pdf")}>Export PDF…</button>
         <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("json")}>Export JSON…</button>

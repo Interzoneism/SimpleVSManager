@@ -232,6 +232,46 @@ pub async fn save_modlist(state: State<'_, AppState>, request: SaveModlistReques
     Ok(SaveResult { saved: s.summary(&id)?, warnings })
 }
 
+/// Replaces a saved modlist's mods with the installed ones: the enabled mods with their versions
+/// for a modlist, every mod with its on/off state for a preset. Name, description and icon stay,
+/// and config files are kept for mods that are still in it.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_modlist_mods(state: State<'_, AppState>, id: String) -> AppResult<ModlistSummary> {
+    let s = store(&state);
+    let loaded = s.load(&id)?;
+    if !matches!(loaded.kind, ModlistKind::Modlist | ModlistKind::Preset) {
+        return Err(AppError::msg("Only modlists and presets can be updated with your mods."));
+    }
+    let mut list = loaded.modlist;
+    if list.online_subscription.is_some() {
+        return Err(AppError::msg("This modlist follows an online modlist. Stop following it first, or it would be replaced by the next update."));
+    }
+    let preset = loaded.kind == ModlistKind::Preset;
+    let mut mods = installed(&state);
+    if !preset {
+        mods.retain(|m| m.is_active);
+    }
+    let fresh = from_installed(&mods, ModlistMeta { name: "x".into(), ..Default::default() }, !preset, Vec::new());
+    if fresh.entries().is_empty() {
+        return Err(AppError::msg("No mods are enabled, so the modlist would be empty."));
+    }
+    let keep: std::collections::HashSet<String> = fresh.entries().iter().filter_map(|m| m.id()).map(str::to_ascii_lowercase).collect();
+    list.mods = fresh.mods;
+    list.include_mod_status = fresh.include_mod_status;
+    list.include_mod_versions = fresh.include_mod_versions;
+    list.exclusive = fresh.exclusive;
+    list.disabled_entries = None;
+    if let Some(configs) = list.configurations.as_mut() {
+        configs.retain(|c| c.mod_id.as_deref().is_some_and(|id| keep.contains(&id.to_ascii_lowercase())));
+    }
+    if let Some(game) = state.environment().game_version {
+        list.game_version = Some(game);
+    }
+    s.overwrite(&id, &list)?;
+    Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
+}
+
 /// Sets (or clears with `null`) the card icon of a modlist, preset, backup or group.
 #[tauri::command]
 #[specta::specta]

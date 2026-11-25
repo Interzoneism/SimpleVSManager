@@ -365,6 +365,19 @@ async setModlistIcon(id: string, icon: string | null, color: string | null) : Pr
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Replaces a saved modlist's mods with the installed ones: the enabled mods with their versions
+ * for a modlist, every mod with its on/off state for a preset. Name, description and icon stay,
+ * and config files are kept for mods that are still in it.
+ */
+async updateModlistMods(id: string) : Promise<Result<ModlistSummary, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_modlist_mods", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async saveModlistGroup(request: SaveGroupRequest) : Promise<Result<ModlistSummary, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_modlist_group", { request }) };
