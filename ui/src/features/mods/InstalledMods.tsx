@@ -25,11 +25,11 @@ import {
   type SortKey,
   type StatusFilter,
 } from "./modView";
-import { ModTable } from "./ModTable";
+import { ModTable, ROW_SIZES, type RowSize } from "./ModTable";
 import { ModDetails } from "./ModDetails";
 import { UpdateDialog } from "./UpdateDialog";
 import { Icon, type IconName } from "../../components/Icon";
-import { SplitWorkspace } from "../../components/SplitWorkspace";
+import { SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 
 /** Short progress label for the table, from an UpdateProgress event. */
@@ -65,6 +65,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   const openMenu = useContextMenu();
 
   const [search, setSearch] = useState("");
+  const [rowSize, setRowSize] = useLayoutPreference<RowSize>("installed-row-size", "medium");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -211,6 +212,20 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
         <span className="muted small results-count" aria-live="polite">
           {visible.length === all.length ? "" : `${visible.length} of ${all.length} mods`}
         </span>
+        <div className="segmented row-size" role="group" aria-label="Row size">
+          {(Object.keys(ROW_SIZES) as RowSize[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              className="small"
+              title={`${ROW_SIZES[key].label} rows`}
+              aria-pressed={rowSize === key}
+              onClick={() => setRowSize(key)}
+            >
+              {ROW_SIZES[key].label[0]}
+            </button>
+          ))}
+        </div>
         <div className="header-spacer" />
         <span className={`muted small update-check-status${checking ? " checking" : ""}`} aria-live="polite">
           {checking
@@ -267,6 +282,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
             onToggleActive={(m) => toggle([m], !m.isActive)}
             onRowMenu={onRowMenu}
             busy={busy}
+            rowSize={rowSize}
             empty={all.length === 0 ? (
               <div className="empty-state">
                 <p>No mods installed yet.</p>

@@ -168,7 +168,6 @@ pub struct SaveModlistRequest {
     pub kind: ModlistKind,
     pub name: String,
     pub description: Option<String>,
-    pub version: Option<String>,
     pub game_version: Option<String>,
     pub uploader: Option<String>,
     pub configs: Vec<ConfigChoice>,
@@ -213,7 +212,7 @@ fn build_from_installed(state: &AppState, req: &SaveModlistRequest) -> AppResult
         description: if preset { None } else { req.description.clone() },
         icon: req.icon.clone().or_else(|| replaced().and_then(|e| e.icon)),
         icon_color: req.icon_color.clone().or_else(|| replaced().and_then(|e| e.icon_color)),
-        version: if preset { None } else { req.version.clone() },
+        version: None,
         game_version: req.game_version.clone().or_else(|| state.environment().game_version),
         uploader: if preset { None } else { req.uploader.clone() },
     };

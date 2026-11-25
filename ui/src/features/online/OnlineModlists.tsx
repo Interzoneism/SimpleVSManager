@@ -102,13 +102,12 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
 
   const card = (list: OnlineEntry) => {
     const { entry, mine, subscribed, subscribers } = list;
-    const facts = [
-      entry.uploader ?? "Unknown author",
+    const rows = [
+      `By ${entry.uploader ?? "unknown author"}`,
       `${entry.mods.length} mod${entry.mods.length === 1 ? "" : "s"}`,
-      entry.gameVersion && `VS ${entry.gameVersion}`,
-      entry.version && `v${entry.version}`,
-      subscribers > 0 && `${subscribers} following`,
-    ].filter((fact): fact is string => !!fact);
+      entry.gameVersion ? `VS ${entry.gameVersion}` : "Any game version",
+    ];
+    const facts = [`Revision ${entry.revision}`, subscribers > 0 && `${subscribers} following`].filter((fact): fact is string => !!fact);
     return (
       <ModlistCard
         key={entry.registryId}
@@ -116,6 +115,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
         icon={entry.icon}
         iconColor={entry.iconColor}
         kindIcon="community"
+        rows={rows}
         facts={facts}
         date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
         badges={(mine || subscribed) && <>
@@ -201,7 +201,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
           {own.mine.length > 0 && (
             <section className="modlist-section">
               <h3 className="online-section-title">Your published modlists <span className="muted small">({own.mine.length})</span></h3>
-              <ul className="card-grid modlist-card-grid" aria-label="Your published modlists">{own.mine.map(card)}</ul>
+              <ul className="card-grid modlist-card-grid online-card-grid" aria-label="Your published modlists">{own.mine.map(card)}</ul>
             </section>
           )}
           {(own.mine.length === 0 || own.others.length > 0) && (
@@ -209,7 +209,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
               {own.mine.length > 0 && (
                 <h3 className="online-section-title">Community modlists <span className="muted small">({own.others.length})</span></h3>
               )}
-              <ul className="card-grid modlist-card-grid" aria-label="Online modlists">{own.others.map(card)}</ul>
+              <ul className="card-grid modlist-card-grid online-card-grid" aria-label="Online modlists">{own.others.map(card)}</ul>
             </section>
           )}
         </div>
@@ -266,7 +266,6 @@ function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHid
       <dl className="details-facts">
         <dt>Made by</dt>
         <dd>{e.uploader ?? "Unknown"}</dd>
-        {e.version && (<><dt>Version</dt><dd>{e.version}</dd></>)}
         {e.gameVersion && (<><dt>Game version</dt><dd>{e.gameVersion}</dd></>)}
         <dt>Revision</dt>
         <dd>{e.revision}</dd>

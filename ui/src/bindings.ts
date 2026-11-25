@@ -487,8 +487,8 @@ async deleteCloudSlot(slot: string) : Promise<Result<null, AppError>> {
 }
 },
 /**
- * Changes the description, version, game version or icon of one of the player's published
- * modlists. The name stays as it is.
+ * Changes the description, game version or icon of one of the player's published modlists.
+ * The name stays as it is, and so does the revision (followers aren't told about it).
  */
 async editPublishedModlist(request: EditPublishedRequest) : Promise<Result<SlotInfo, AppError>> {
     try {
@@ -802,9 +802,10 @@ export type Dependency = { modId: string;
 version: string }
 /**
  * Changes to a published modlist's details. `None` leaves a field as it is; an empty string
- * clears it. The name can't be changed (followers know the list by it).
+ * clears it. The name can't be changed (followers know the list by it), and there is no
+ * author-set version: the revision counts mod changes.
  */
-export type DetailsEdit = { description: string | null; version: string | null; gameVersion: string | null; icon: string | null; iconColor: string | null }
+export type DetailsEdit = { description: string | null; gameVersion: string | null; icon: string | null; iconColor: string | null }
 export type DetectedEnvironment = { os: Os; settings: Settings; managerDir: DetectedPath; dataDir: DetectedPath | null; gameDir: DetectedPath | null; gameExecutable: string | null; gameVersion: string | null; 
 /**
  * Name of the active profile in the WPF config, if one was found.
@@ -1223,7 +1224,7 @@ export type SaveModlistRequest = {
 /**
  * `modlist` (versions, exclusive) or `preset` (only on/off).
  */
-kind: ModlistKind; name: string; description: string | null; version: string | null; gameVersion: string | null; uploader: string | null; configs: ConfigChoice[]; 
+kind: ModlistKind; name: string; description: string | null; gameVersion: string | null; uploader: string | null; configs: ConfigChoice[]; 
 /**
  * Replace an existing file with the same name.
  */

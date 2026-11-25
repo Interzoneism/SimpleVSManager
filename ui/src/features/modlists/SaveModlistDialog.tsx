@@ -19,7 +19,6 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
   const [kind, setKind] = useState<"modlist" | "preset">(initialKind);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [version, setVersion] = useState("");
   const [uploader, setUploader] = useState<string | null>(null);
   const [gameVersion, setGameVersion] = useState<string | null>(null);
   const [configs, setConfigs] = useState<Set<string>>(new Set());
@@ -50,7 +49,6 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
         kind,
         name,
         description: description || null,
-        version: version || null,
         gameVersion: gameVersion || null,
         uploader: uploader || null,
         configs: candidates
@@ -97,8 +95,6 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
             </div>
             <label className="form-label" htmlFor="ml-desc">Description</label>
             <textarea id="ml-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
-            <label className="form-label" htmlFor="ml-version">Modlist version</label>
-            <input id="ml-version" type="text" placeholder="e.g. 1.0" value={version} onChange={(e) => setVersion(e.target.value)} />
             <label className="form-label" htmlFor="ml-by">Made by</label>
             <input id="ml-by" type="text" value={uploader ?? ""} onChange={(e) => setUploader(e.target.value)} />
             <label className="form-label" htmlFor="ml-gv">For game version</label>

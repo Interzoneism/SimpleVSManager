@@ -11,14 +11,13 @@ export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEnt
   const [icon, setIcon] = useState<string | null>(e.icon);
   const [iconColor, setIconColor] = useState<string | null>(e.iconColor);
   const [description, setDescription] = useState(e.description ?? "");
-  const [version, setVersion] = useState(e.version ?? "");
   const [gameVersion, setGameVersion] = useState(e.gameVersion ?? "");
   const [picking, setPicking] = useState(false);
   const name = e.name ?? "Unnamed modlist";
 
   const submit = () =>
     save.mutate(
-      { registryId: e.registryId, edit: { description, version, gameVersion, icon: icon ?? "", iconColor: iconColor ?? "" } },
+      { registryId: e.registryId, edit: { description, gameVersion, icon: icon ?? "", iconColor: iconColor ?? "" } },
       {
         onSuccess: (slot) => {
           onDone(`Updated "${name}" (revision ${slot.revision}).`);
@@ -41,14 +40,12 @@ export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEnt
         </div>
         <label className="form-label" htmlFor="ep-desc">Description</label>
         <textarea id="ep-desc" rows={4} autoFocus value={description} onChange={(ev) => setDescription(ev.target.value)} />
-        <label className="form-label" htmlFor="ep-version">Modlist version</label>
-        <input id="ep-version" type="text" placeholder="e.g. 1.0" value={version} onChange={(ev) => setVersion(ev.target.value)} />
         <label className="form-label" htmlFor="ep-gv">For game version</label>
         <input id="ep-gv" type="text" value={gameVersion} onChange={(ev) => setGameVersion(ev.target.value)} />
       </div>
       <p className="muted small">
-        The mods stay as they are; to change them, publish a new revision from your saved modlist.
-        {list.subscribers > 0 && ` ${list.subscribers} follower${list.subscribers === 1 ? "" : "s"} will see an update.`}
+        This keeps revision {e.revision} and doesn't notify followers. To change the mods, publish your saved modlist to
+        this slot again: that makes a new revision{list.subscribers > 0 ? ` and tells your ${list.subscribers} follower${list.subscribers === 1 ? "" : "s"}` : ""}.
       </p>
       {save.isError && <p className="notice error-text">{save.error.message}</p>}
       <div className="modal-actions">

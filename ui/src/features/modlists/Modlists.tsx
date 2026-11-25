@@ -252,7 +252,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
                         const facts = [
                           m.error ? "Can't be read" : `${m.mods.length} mod${m.mods.length === 1 ? "" : "s"}`,
                           m.gameVersion && `VS ${m.gameVersion}`,
-                          m.version && `v${m.version}`,
+                          m.subscription && `Revision ${m.subscription.syncedRevision}`,
                           m.configCount > 0 && `${m.configCount} config${m.configCount === 1 ? "" : "s"}`,
                           m.group && m.group.conflicts.length > 0 && `${m.group.conflicts.length} to check`,
                           !m.active && m.downloadsNeeded > 0 && `${m.downloadsNeeded} to download`,
@@ -450,7 +450,7 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
       {entry.description && <p className="description">{entry.description}</p>}
       <dl className="details-facts">
         {entry.uploader && (<><dt>Made by</dt><dd>{entry.uploader}</dd></>)}
-        {entry.version && (<><dt>Version</dt><dd>{entry.version}</dd></>)}
+        {entry.subscription && (<><dt>Revision</dt><dd>{entry.subscription.syncedRevision}</dd></>)}
         {entry.gameVersion && (<><dt>Game version</dt><dd>{entry.gameVersion}</dd></>)}
         {entry.modifiedMs && (<><dt>Saved</dt><dd>{new Date(entry.modifiedMs).toLocaleString()}</dd></>)}
         <dt>File</dt>

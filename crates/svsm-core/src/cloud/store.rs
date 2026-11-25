@@ -92,13 +92,13 @@ pub struct SubscriptionSnapshot {
 }
 
 /// Changes to a published modlist's details. `None` leaves a field as it is; an empty string
-/// clears it. The name can't be changed (followers know the list by it).
+/// clears it. The name can't be changed (followers know the list by it), and there is no
+/// author-set version: the revision counts mod changes.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DetailsEdit {
     pub description: Option<String>,
-    pub version: Option<String>,
     pub game_version: Option<String>,
     pub icon: Option<String>,
     pub icon_color: Option<String>,
@@ -119,7 +119,6 @@ impl DetailsEdit {
             }
         };
         set(&mut map, "description", self.description.clone());
-        set(&mut map, "version", self.version.clone());
         if self.game_version.is_some() {
             map.remove("vsVersion");
             set(&mut map, "gameVersion", self.game_version.clone());
@@ -200,6 +199,8 @@ pub fn with_uploader(content: &Value, identity: &PlayerIdentity) -> Value {
     let mut map = content.as_object().cloned().unwrap_or_default();
     // Local subscription bookkeeping never goes public.
     map.remove("onlineSubscription");
+    // Revisions replace the author-set modlist version.
+    map.remove("version");
     map.insert("uploader".into(), Value::String(identity.name.clone()));
     map.insert("uploaderName".into(), Value::String(identity.name.clone()));
     map.insert("uploaderId".into(), Value::String(identity.key()));
@@ -545,15 +546,27 @@ impl<'a> CloudStore<'a> {
         let registry_id = existing_id.unwrap_or_else(new_id);
         let now = now_iso();
         let created = existing.and_then(|n| s(n, "createdAt").or_else(|| s(n, "dateAdded"))).unwrap_or_else(|| now.clone());
-        let rev = existing.map(|n| revision(n) + 1.0).unwrap_or(1.0);
         let content = with_uploader(content, identity);
+        // A new revision (what followers are told about) only when the mods or configs change;
+        // detail edits (description, icon...) keep the revision and the update time.
+        let old_content = existing.and_then(|n| n.get("content"));
+        let same_mods = old_content.is_some_and(|old| same_mod_payload(old, &content));
+        let rev = match existing {
+            Some(n) if same_mods => revision(n),
+            Some(n) => revision(n) + 1.0,
+            None => 1.0,
+        };
+        let updated = existing
+            .filter(|_| same_mods)
+            .and_then(|n| s(n, "updatedAt").or_else(|| s(n, "dateAdded")))
+            .unwrap_or_else(|| now.clone());
         let session_user = self.auth.session(false).await?.user_id;
         let key = identity.key();
         let patch = json!({
-            format!("/users/{key}/{slot}"): { "registryId": registry_id, "content": content, "dateAdded": now, "revision": rev, "createdAt": created, "updatedAt": now },
+            format!("/users/{key}/{slot}"): { "registryId": registry_id, "content": content, "dateAdded": now, "revision": rev, "createdAt": created, "updatedAt": updated },
             format!("/registryOwners/{registry_id}"): session_user,
-            format!("/registry/{registry_id}"): { "content": content, "dateAdded": now, "revision": rev, "createdAt": created, "updatedAt": now },
-            format!("/registrySummaries/{registry_id}"): summary_json(&content, &now, rev, &created, &now),
+            format!("/registry/{registry_id}"): { "content": content, "dateAdded": now, "revision": rev, "createdAt": created, "updatedAt": updated },
+            format!("/registrySummaries/{registry_id}"): summary_json(&content, &now, rev, &created, &updated),
         });
         let r = self.send(reqwest::Method::PATCH, &[], None, Some(patch.to_string()), None).await?;
         Self::ok(&r, "Publishing the modlist")?;
@@ -592,6 +605,12 @@ impl<'a> CloudStore<'a> {
         }
         Ok(())
     }
+}
+
+/// Whether two published contents have the same mods and config files (what a load installs).
+fn same_mod_payload(a: &Value, b: &Value) -> bool {
+    let part = |v: &Value, k: &str| v.get(k).cloned().unwrap_or(Value::Null);
+    ["mods", "configurations", "exclusive", "disabledEntries"].iter().all(|k| part(a, k) == part(b, k))
 }
 
 fn new_id() -> String {
@@ -716,8 +735,8 @@ mod tests {
 
     #[test]
     fn details_edits_keep_name_and_mods() {
-        let content = json!({"name": "Mine", "description": "old", "vsVersion": "1.20", "version": "1", "mods": [{"modId": "x"}]});
-        let edit = DetailsEdit { description: Some(" new ".into()), version: Some("".into()), game_version: Some("1.21".into()), icon: Some("md-sword".into()), icon_color: Some("teal".into()) };
+        let content = json!({"name": "Mine", "description": "old", "vsVersion": "1.20", "mods": [{"modId": "x"}]});
+        let edit = DetailsEdit { description: Some(" new ".into()), game_version: Some("1.21".into()), icon: Some("md-sword".into()), icon_color: Some("teal".into()) };
         let out = edit.apply(&content);
         assert_eq!(out, json!({"name": "Mine", "description": "new", "gameVersion": "1.21", "icon": "md-sword", "iconColor": "teal", "mods": [{"modId": "x"}]}));
         let untouched = DetailsEdit::default().apply(&content);
@@ -727,14 +746,14 @@ mod tests {
     }
 
     #[test]
-    fn editing_details_publishes_a_new_revision() {
+    fn editing_details_keeps_the_revision() {
         let (mut server, t, auth) = setup();
         let store = CloudStore::new(&auth, CloudConfig::for_tests(&server.url()), t.path()).unwrap();
         server.mock("GET", "/db/owners/abc_def_1.json").match_query(Matcher::Any).with_body("\"fb1\"").create();
         server
             .mock("GET", "/db/users/abc_def_1.json")
             .match_query(Matcher::Any)
-            .with_body(r#"{"slot3":{"registryId":"rid","content":{"name":"Mine","description":"old","mods":[{"modId":"x"}]},"revision":4}}"#)
+            .with_body(r#"{"slot3":{"registryId":"rid","content":{"name":"Mine","description":"old","version":"9","mods":[{"modId":"x"}]},"revision":4,"updatedAt":"2026-02-02T00:00:00Z"}}"#)
             .create();
         let patch = server
             .mock("PATCH", "/db/.json")
@@ -743,15 +762,19 @@ mod tests {
                 Matcher::Regex(r#""/users/abc_def_1/slot3":\{"#.into()),
                 Matcher::Regex(r#""description":"new""#.into()),
                 Matcher::Regex(r#""name":"Mine""#.into()),
-                Matcher::Regex(r#""revision":5\.0"#.into()),
+                Matcher::Regex(r#""revision":4\.0"#.into()),
+                Matcher::Regex(r#""updatedAt":"2026-02-02T00:00:00Z""#.into()),
             ]))
             .with_body("{}")
             .expect(1)
             .create();
         let rt = rt();
         let edit = DetailsEdit { description: Some("new".into()), ..Default::default() };
-        assert_eq!(rt.block_on(store.edit_details(&me(), "rid", &edit)).unwrap().revision, 5.0);
+        assert_eq!(rt.block_on(store.edit_details(&me(), "rid", &edit)).unwrap().revision, 4.0, "no new revision for details");
         patch.assert();
+        assert!(!with_uploader(&json!({"version": "1"}), &me()).as_object().unwrap().contains_key("version"));
+        assert!(same_mod_payload(&json!({"name": "a", "mods": [1]}), &json!({"name": "b", "mods": [1]})));
+        assert!(!same_mod_payload(&json!({"mods": [1]}), &json!({"mods": [2]})));
         assert!(rt.block_on(store.edit_details(&me(), "someone-else", &edit)).is_err());
     }
 

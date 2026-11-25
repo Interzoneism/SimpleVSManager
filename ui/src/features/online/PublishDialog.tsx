@@ -18,7 +18,7 @@ export function PublishDialog({ onClose, onDone }: { onClose: () => void; onDone
     if (!id) return;
     if (replaces) {
       const ok = await ask(
-        `Publish a new revision of "${name ?? "this modlist"}"?${subscribers ? ` ${subscribers} follower${subscribers === 1 ? "" : "s"} will see that an update is available.` : ""}`,
+        `Replace "${name ?? "this modlist"}" online? If the mods changed, this makes a new revision${subscribers ? ` and ${subscribers} follower${subscribers === 1 ? "" : "s"} will see that an update is available` : ""}.`,
         { title: "Publish", okLabel: "Publish", cancelLabel: "Cancel" },
       );
       if (!ok) return;

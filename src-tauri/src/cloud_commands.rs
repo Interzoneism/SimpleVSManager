@@ -373,7 +373,7 @@ pub async fn publish_modlist(state: State<'_, AppState>, request: PublishRequest
         return Err(AppError::msg("Backups can't be published. Save them as a modlist first."));
     }
     let list = loaded.modlist;
-    let texts = [list.name.as_deref(), list.description.as_deref(), list.version.as_deref(), Some(me.name.as_str())];
+    let texts = [list.name.as_deref(), list.description.as_deref(), Some(me.name.as_str())];
     if let Some(word) = validator::find_blocked(texts.into_iter().flatten()) {
         return Err(AppError::msg(format!("Online modlists can't contain \"{word}\". Change the name or description first.")));
     }
@@ -392,14 +392,14 @@ pub struct EditPublishedRequest {
     pub edit: DetailsEdit,
 }
 
-/// Changes the description, version, game version or icon of one of the player's published
-/// modlists. The name stays as it is.
+/// Changes the description, game version or icon of one of the player's published modlists.
+/// The name stays as it is, and so does the revision (followers aren't told about it).
 #[tauri::command]
 #[specta::specta]
 pub async fn edit_published_modlist(state: State<'_, AppState>, request: EditPublishedRequest) -> AppResult<SlotInfo> {
     let me = player(&state)?;
     let e = &request.edit;
-    let texts = [e.description.as_deref(), e.version.as_deref(), e.game_version.as_deref()];
+    let texts = [e.description.as_deref(), e.game_version.as_deref()];
     if let Some(word) = validator::find_blocked(texts.into_iter().flatten()) {
         return Err(AppError::msg(format!("Online modlists can't contain \"{word}\". Change the description first.")));
     }

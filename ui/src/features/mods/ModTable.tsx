@@ -1,11 +1,18 @@
-import { useRef, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { InstalledMod, Os } from "../../bindings";
 import { iconUrl } from "../../lib/iconUrl";
 import { canToggleMod, latestShown, modStatus, statusLabel, type DbIndex, type SortDirection, type SortKey } from "./modView";
 
-const ROW_HEIGHT = 52;
 const HEADER_HEIGHT = 42;
+
+export type RowSize = "small" | "medium" | "large";
+/** Row height and icon size (px) for each row size. */
+export const ROW_SIZES: Record<RowSize, { row: number; icon: number; label: string }> = {
+  small: { row: 52, icon: 32, label: "Small" },
+  medium: { row: 68, icon: 48, label: "Medium" },
+  large: { row: 88, icon: 66, label: "Large" },
+};
 
 const COLUMNS: { key: SortKey | null; label: string; className: string }[] = [
   { key: null, label: "", className: "col-active" },
@@ -33,6 +40,7 @@ interface Props {
   onRowMenu: (event: MouseEvent<HTMLDivElement>, mod: InstalledMod) => void;
   busy: boolean;
   empty: ReactNode;
+  rowSize: RowSize;
 }
 
 /** Virtualized table: only visible rows are in the DOM, which keeps WebKitGTK fast. */
@@ -40,14 +48,18 @@ export function ModTable(props: Props) {
   const { mods, selected, onSelectionChange } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchor = useRef<string | null>(null);
+  const size = ROW_SIZES[props.rowSize] ?? ROW_SIZES.medium;
+  const rowHeight = size.row;
 
   const virtualizer = useVirtualizer({
     count: mods.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     scrollMargin: HEADER_HEIGHT,
     overscan: 12,
   });
+
+  useEffect(() => virtualizer.measure(), [rowHeight, virtualizer]);
 
   const onRowClick = (e: React.MouseEvent, mod: InstalledMod) => {
     const multi = e.ctrlKey || e.metaKey;
@@ -81,7 +93,7 @@ export function ModTable(props: Props) {
   };
 
   return (
-    <div className="mod-table" role="grid" aria-label="Installed mods" aria-rowcount={mods.length + 1} tabIndex={0} onKeyDown={onKeyDown}>
+    <div className={`mod-table rows-${props.rowSize}`} style={{ "--mod-icon-size": `${size.icon}px` } as CSSProperties} role="grid" aria-label="Installed mods" aria-rowcount={mods.length + 1} tabIndex={0} onKeyDown={onKeyDown}>
       <div className="mod-scroll" ref={scrollRef}>
         <div className="mod-row mod-header" role="row" aria-rowindex={1} style={{ height: HEADER_HEIGHT }}>
           {COLUMNS.map((c) => (
@@ -113,7 +125,7 @@ export function ModTable(props: Props) {
                   aria-rowindex={item.index + 2}
                   aria-selected={isSelected}
                   className={`mod-row status-${status}${isSelected ? " selected" : ""}`}
-                  style={{ position: "absolute", top: 0, left: 0, right: 0, height: ROW_HEIGHT, transform: `translateY(${item.start - HEADER_HEIGHT}px)` }}
+                  style={{ position: "absolute", top: 0, left: 0, right: 0, height: rowHeight, transform: `translateY(${item.start - HEADER_HEIGHT}px)` }}
                   onClick={(e) => onRowClick(e, mod)}
                   onContextMenu={(e) => {
                     if (!isSelected) {

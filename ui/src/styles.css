@@ -266,16 +266,20 @@ button.nav-button {
 .workspace-divider:is(:hover, :focus-visible, :active)::before { background: var(--accent); }
 .split-workspace:has(.workspace-divider:active) { user-select: none; }
 
+/* Equal-width filter buttons, as narrow as the widest one's content allows. */
 .library-overview {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 18px;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  width: max-content;
+  max-width: 100%;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 button.library-stat {
   min-width: 0;
-  min-height: 74px;
-  padding: 9px 12px;
+  min-height: 60px;
+  padding: 8px 14px 8px 10px;
   justify-content: flex-start;
   gap: 10px;
   border-radius: var(--radius);
@@ -341,7 +345,14 @@ button.library-stat[aria-pressed="true"] {
 .sort-button { background: transparent; border: 0; padding: 5px 0; font-size: 12px; font-weight: 650; color: var(--palette-grey); }
 .sort-button:hover:not(:disabled) { background: transparent; color: var(--palette-white); }
 
-.mod-icon { width: 32px; height: 32px; border-radius: 7px; object-fit: cover; flex: none; }
+.mod-icon { width: var(--mod-icon-size, 32px); height: var(--mod-icon-size, 32px); border-radius: 7px; object-fit: cover; flex: none; }
+.mod-name-button { gap: 10px; }
+.rows-medium .mod-title { font-size: 15px; }
+.rows-large .mod-title { font-size: 16px; }
+.rows-large .mod-id, .rows-medium .mod-id { font-size: 12px; }
+.rows-large .mod-icon { border-radius: 10px; }
+.mod-icon.placeholder { font-size: calc(var(--mod-icon-size, 32px) * 0.45); }
+.row-size button { min-width: 30px; padding: 4px 8px; }
 .mod-icon.placeholder, .details-icon.placeholder {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--palette-interactive-surface); color: var(--palette-grey); font-weight: 600;
@@ -732,3 +743,15 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .icon-swatch-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
 .icon-swatch-default { background: var(--selection); color: var(--accent); }
 .icon-swatch.selected { border-color: var(--palette-white); }
+
+/* Online modlist cards: same size in every row; facts as lines; icon at the bottom left. */
+.online-card-grid { grid-auto-rows: 1fr; }
+.online-card-grid .modlist-card { height: 100%; }
+.online-card-grid .card-title { min-height: 2.5em; }
+.modlist-card-lines { display: flex; flex-direction: column; gap: 2px; color: var(--palette-text-secondary, var(--palette-grey)); }
+.modlist-card-lines > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modlist-card-foot { display: flex; align-items: flex-end; gap: 12px; margin-top: auto; min-width: 0; }
+.modlist-card-foot .modlist-card-icon { width: 76px; height: 76px; }
+.modlist-card-foot .modlist-card-icon .nerd-icon { font-size: 38px; }
+.modlist-card-foot .modlist-card-icon .ui-icon { width: 34px; height: 34px; }
+.modlist-card-foot-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
