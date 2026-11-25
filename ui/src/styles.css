@@ -745,16 +745,18 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .icon-swatch.selected { border-color: var(--palette-white); }
 
 /* Online modlist cards: same size in every row; facts as lines; icon at the bottom left. */
-.online-card-grid { grid-auto-rows: 1fr; }
-.online-card-grid .modlist-card { height: 100%; }
+/* Every card is the same height without stretching: one-line title, fixed-height foot. */
+.online-card-grid .card-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modlist-card-lines { display: flex; flex-direction: column; gap: 2px; color: var(--palette-text-secondary, var(--palette-grey)); }
 .modlist-card-lines > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.modlist-card-foot { display: flex; align-items: flex-end; gap: 12px; margin-top: auto; min-width: 0; }
+.modlist-card-foot { display: flex; align-items: center; gap: 12px; height: 76px; min-width: 0; }
 /* Same space above and below the icon: card padding = gap under the title. */
 .online-card-grid .modlist-card { gap: 14px; padding: 14px; }
 .modlist-card-foot .modlist-card-icon { width: 76px; height: 76px; }
 .modlist-card-foot .modlist-card-icon .nerd-icon { font-size: 38px; }
 .modlist-card-foot .modlist-card-icon .ui-icon { width: 34px; height: 34px; }
 .modlist-card-foot-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-.modlist-card-foot-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.modlist-card-foot-line { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.modlist-card-foot-line > .muted { overflow: hidden; text-overflow: ellipsis; }
+.modlist-card-foot-line .modlist-card-badges { flex-wrap: nowrap; flex: none; }
 .modlist-card-lines strong { font-weight: 650; color: var(--palette-white); }

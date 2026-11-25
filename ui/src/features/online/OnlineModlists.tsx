@@ -118,10 +118,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
         rows={rows}
         facts={facts}
         date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
-        badges={(mine || subscribed) && <>
-          {mine && <span className="badge">Yours</span>}
-          {subscribed && <span className="badge active-badge">Following</span>}
-        </>}
+        badges={subscribed && !mine && <span className="badge active-badge">Following</span>}
         selected={selected === entry.registryId}
         onSelect={() => setSelected(entry.registryId)}
         onContextMenu={(event) => onCardMenu(event, list)}
