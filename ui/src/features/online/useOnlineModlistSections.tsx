@@ -166,7 +166,7 @@ export function useOnlineModlistSections({
         rows={rows}
         facts={facts}
         date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
-        badges={subscribed && !mine && <span className="badge active-badge">Following</span>}
+        following={subscribed && !mine}
         selected={selected === entry.registryId}
         onSelect={() => onSelect(entry.registryId)}
         onLoad={busy ? undefined : () => startLoad(list)}

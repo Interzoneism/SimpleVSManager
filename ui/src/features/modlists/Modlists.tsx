@@ -252,11 +252,10 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
         rows={lines}
         facts={facts}
         date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
-        badges={(m.active || m.subscription) && <>
+        following={!!m.subscription}
+        badges={(m.active || m.subscription?.updateAvailable) && <>
           {m.active && <span className="badge active-badge">Active</span>}
-          {m.subscription && <span className={`badge${m.subscription.updateAvailable ? " update-badge" : ""}`}>
-            {m.subscription.updateAvailable ? "Update available" : "Following"}
-          </span>}
+          {m.subscription?.updateAvailable && <span className="badge update-badge">Update available</span>}
         </>}
         selected={selected.includes(m.id)}
         onSelect={(event) => select(m.id, event.ctrlKey || event.metaKey)}

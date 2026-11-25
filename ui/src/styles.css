@@ -927,3 +927,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .mod-window-changelog { margin-top: 18px; }
 .mod-window-changelog summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--palette-grey); }
 .section-toolbar { margin: -2px 0 10px; }
+.modlist-card { position: relative; }
+.modlist-card:has(.card-following) > .card-title { padding-right: 22px; }
+.card-following { position: absolute; top: 13px; right: 12px; color: var(--accent); display: grid; place-items: center; }
+.card-following .ui-icon { width: 18px; height: 18px; stroke-width: 2.2; }
