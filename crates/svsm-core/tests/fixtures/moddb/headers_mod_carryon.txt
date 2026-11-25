@@ -1,0 +1,9 @@
+Server: nginx
+Date: Tue, 24 Nov 2026 15:13:42 GMT
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: no-referrer-when-downgrade
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+Content-Type: application/json

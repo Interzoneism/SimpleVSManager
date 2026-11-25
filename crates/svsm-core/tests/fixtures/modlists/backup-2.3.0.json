@@ -1,0 +1,35 @@
+{
+  "name": "05 Nov 2025 \u2022 19.09 \u2022 05s -- ModlistLoaded (5 mods)",
+  "mods": [
+    {
+      "modId": "drifteraimnerf",
+      "version": "1.0.0",
+      "isActive": true
+    },
+    {
+      "modId": "enhancedhandbook",
+      "version": "1.7.0",
+      "isActive": true
+    },
+    {
+      "modId": "handytweaks",
+      "version": "1.2.7",
+      "isActive": true
+    },
+    {
+      "modId": "showcraftable",
+      "version": "1.2.6",
+      "isActive": true,
+      "configurationFileName": "ShowCraftable.json",
+      "configurationContent": "{\r\n  \u0022EnableFetchButton\u0022: true,\r\n  \u0022DisableFetchButtonOnServer\u0022: false,\r\n  \u0022UseDefaultFont\u0022: false,\r\n  \u0022SearchDistanceItems\u0022: 20,\r\n  \u0022AllStacksPartitions\u0022: -1\r\n}"
+    },
+    {
+      "modId": "torchholderplaceontop",
+      "version": "1.0.1",
+      "isActive": true
+    }
+  ],
+  "includeModStatus": true,
+  "includeModVersions": true,
+  "exclusive": true
+}

@@ -1,0 +1,95 @@
+//! Starting the game. Always passes `--dataPath` so the game uses the folder the manager is
+//! showing (as the WPF app does).
+
+use std::path::Path;
+use std::process::{Command, Stdio};
+
+use crate::error::{CoreError, CoreResult};
+use crate::platform::Os;
+
+/// Environment variables an AppImage sets for its own bundled libraries. The game must not
+/// inherit them or it may load our libraries instead of the system's.
+const APPIMAGE_ENV: &[&str] = &["APPIMAGE", "APPDIR", "OWD", "ARGV0", "LD_LIBRARY_PATH", "LD_PRELOAD", "GDK_PIXBUF_MODULE_FILE", "GIO_MODULE_DIR", "GTK_PATH", "GTK_EXE_PREFIX", "GTK_DATA_PREFIX", "GSETTINGS_SCHEMA_DIR", "PYTHONHOME", "PERLLIB", "QT_PLUGIN_PATH", "XDG_DATA_DIRS"];
+
+/// Builds the launch command for a game executable.
+pub fn game_command(os: Os, executable: &Path, data_dir: &Path) -> Command {
+    let mut cmd = Command::new(executable);
+    if let Some(dir) = executable.parent() {
+        cmd.current_dir(dir);
+    }
+    cmd.arg("--dataPath").arg(data_dir);
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+
+    if os == Os::Linux && std::env::var_os("APPIMAGE").is_some() {
+        for key in APPIMAGE_ENV {
+            cmd.env_remove(key);
+        }
+    }
+    detach(&mut cmd);
+    cmd
+}
+
+/// Launches the game and returns without waiting. The child keeps running if we exit.
+pub fn launch_game(os: Os, executable: &Path, data_dir: &Path) -> CoreResult<()> {
+    if !executable.is_file() {
+        return Err(CoreError::io(executable, std::io::Error::new(std::io::ErrorKind::NotFound, "game executable not found")));
+    }
+    std::fs::create_dir_all(data_dir).map_err(|e| CoreError::io(data_dir, e))?;
+    game_command(os, executable, data_dir).spawn().map(|_| ()).map_err(|e| CoreError::io(executable, e))
+}
+
+#[cfg(windows)]
+fn detach(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+}
+
+#[cfg(unix)]
+fn detach(cmd: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    // New process group: closing the manager (or its terminal) doesn't signal the game.
+    cmd.process_group(0);
+}
+
+#[cfg(not(any(windows, unix)))]
+fn detach(_cmd: &mut Command) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_has_data_path() {
+        let cmd = game_command(Os::Linux, Path::new("/games/vs/Vintagestory"), Path::new("/data"));
+        let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        assert_eq!(args, ["--dataPath", "/data"]);
+        assert_eq!(cmd.get_current_dir(), Some(Path::new("/games/vs")));
+    }
+
+    #[test]
+    fn missing_executable_is_an_error() {
+        assert!(launch_game(Os::current(), Path::new("/no/such/Vintagestory"), Path::new("/tmp")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn launches_a_detached_process() {
+        let t = tempfile::tempdir().unwrap();
+        let exe = t.path().join("Vintagestory");
+        let marker = t.path().join("ran");
+        std::fs::write(&exe, format!("#!/bin/sh\necho \"$@\" > '{}'\n", marker.display())).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        launch_game(Os::Linux, &exe, &t.path().join("data")).unwrap();
+        for _ in 0..50 {
+            if marker.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let args = std::fs::read_to_string(&marker).unwrap();
+        assert!(args.starts_with("--dataPath "));
+    }
+}

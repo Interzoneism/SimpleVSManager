@@ -1,0 +1,8 @@
+/target/
+/dist/
+node_modules/
+/src-tauri/gen/
+*.log
+
+# Rust binaries folder, not a build output
+!/src-tauri/src/bin/

@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = ["crates/svsm-core", "src-tauri"]
+
+[workspace.package]
+version = "3.0.0-alpha.0"
+edition = "2021"
+license = "UNLICENSED"
+authors = ["Interzone"]
+rust-version = "1.85"
+
+[workspace.dependencies]
+svsm-core = { path = "crates/svsm-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tracing = "0.1"
+specta = { version = "=2.0.0-rc.22", features = ["derive"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

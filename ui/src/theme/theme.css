@@ -1,0 +1,86 @@
+/*
+ * Theme palette. Variable names mirror the WPF palette keys (DarkVsTheme.xaml,
+ * "Palette.BaseSurface.Raised" -> --palette-base-surface-raised) so saved custom themes from
+ * Simple VS Manager 2.x can be mapped 1:1 later. Default is the "Dark VS" palette.
+ */
+:root {
+  --palette-base-surface-brighter: #344237;
+  --palette-base-surface-shadowed: #141b18;
+  --palette-base-surface-raised: #1d2721;
+  --palette-base-surface-hover-glow: #28372e;
+  --palette-interactive-surface: #253129;
+  --palette-interactive-disabled-surface: #1c241f;
+  --palette-accent-primary: #abd49d;
+  --palette-text-primary: #dfe7db;
+  --palette-text-link: #b6dda9;
+  --palette-bevel-highlight: #435247;
+  --palette-bevel-shadow: #344138;
+  --palette-overlay-hover-tint: rgba(206, 235, 211, 0.055);
+  --palette-white: #f4f7ef;
+  --palette-grey: #a4b3a8;
+  --palette-dark-grey: #86978b;
+  --palette-error: #ffa796;
+  --palette-warning: #f0c080;
+  --palette-success: #a1cf98;
+  --on-accent: #172719;
+
+  --canvas: var(--palette-base-surface-shadowed);
+  --surface: var(--palette-base-surface-raised);
+  --border: var(--palette-bevel-shadow);
+  --accent: var(--palette-accent-primary);
+  --selection: var(--palette-interactive-surface);
+  --radius: 10px;
+  --workspace-padding: clamp(16px, 2.1vw, 32px);
+
+  color-scheme: dark;
+  --font-ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", "Noto Sans", "Ubuntu", sans-serif;
+  --font-mono: "Cascadia Mono", "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+}
+
+@supports (color: color-mix(in srgb, white, black)) {
+  :root { --selection: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
+}
+
+/* Plain dark: neutral greys instead of the Vintage Story browns. */
+:root[data-theme="dark"] {
+  --palette-base-surface-brighter: #4a4a4f;
+  --palette-base-surface-shadowed: #18191d;
+  --palette-base-surface-raised: #22242a;
+  --palette-base-surface-hover-glow: #30333c;
+  --palette-interactive-surface: #292c34;
+  --palette-interactive-disabled-surface: #202127;
+  --palette-accent-primary: #9ac5fa;
+  --palette-text-primary: #d6d6db;
+  --palette-text-link: #6aa8ea;
+  --palette-white: #ffffff;
+  --palette-grey: #afb4c1;
+  --palette-dark-grey: #6a6a72;
+  --palette-bevel-shadow: #373a43;
+  --palette-bevel-highlight: #505460;
+  --on-accent: #132235;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --palette-base-surface-brighter: #ffffff;
+  --palette-base-surface-shadowed: #f0f2ee;
+  --palette-base-surface-raised: #fbfcf9;
+  --palette-base-surface-hover-glow: #e3e0da;
+  --palette-interactive-surface: #e6e3dd;
+  --palette-interactive-disabled-surface: #efede9;
+  --palette-accent-primary: #34613e;
+  --palette-text-primary: #2b2722;
+  --palette-text-link: #1f6d93;
+  --palette-bevel-highlight: rgba(255, 255, 255, 0.9);
+  --palette-bevel-shadow: rgba(0, 0, 0, 0.15);
+  --palette-overlay-hover-tint: rgba(0, 0, 0, 0.05);
+  --palette-white: #1a1714;
+  --palette-grey: #6f685f;
+  --palette-dark-grey: #8a837a;
+  --palette-error: #c62f24;
+  --palette-warning: #a86f0c;
+  --palette-success: #3c8a2c;
+  --on-accent: #fff;
+}
+
+:root[data-theme="custom"] { --on-accent: var(--palette-white); }
