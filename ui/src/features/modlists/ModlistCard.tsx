@@ -12,7 +12,7 @@ export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, dat
   iconColor?: string | null;
   kindIcon: IconName;
   /** One fact per line under the title, with the icon at the bottom left (online cards). */
-  rows?: string[];
+  rows?: ReactNode[];
   facts: string[];
   date?: string;
   badges?: ReactNode;
@@ -44,7 +44,7 @@ export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, dat
             <span className={`card-logo modlist-card-icon${iconThemeClass(iconColor)}`}><ModlistIcon icon={icon} fallback={kindIcon} /></span>
             <span className="modlist-card-foot-meta">
               <span className="modlist-card-lines">
-                {rows.map((row) => <span key={row} className="small">{row}</span>)}
+                {rows.map((row, i) => <span key={i} className="small">{row}</span>)}
               </span>
               <span className="modlist-card-foot-line">
                 {badges && <span className="modlist-card-badges">{badges}</span>}

@@ -103,8 +103,8 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
   const card = (list: OnlineEntry) => {
     const { entry, mine, subscribed, subscribers } = list;
     const rows = [
-      `By ${entry.uploader ?? "unknown author"}`,
-      `${entry.mods.length} mod${entry.mods.length === 1 ? "" : "s"}`,
+      <>By <strong>{entry.uploader ?? "unknown author"}</strong></>,
+      <><strong>{entry.mods.length}</strong> mod{entry.mods.length === 1 ? "" : "s"}</>,
       entry.gameVersion ? `VS ${entry.gameVersion}` : "Any game version",
     ];
     const facts = [`Revision ${entry.revision}`, subscribers > 0 && `${subscribers} following`].filter((fact): fact is string => !!fact);
