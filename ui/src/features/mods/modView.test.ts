@@ -1,5 +1,5 @@
-import type { InstalledMod } from "../../bindings";
-import { filterMods, modStatus, sortMods, statusLabel, summarize } from "./modView";
+import type { InstalledMod, ModDbSummary } from "../../bindings";
+import { filterMods, modStatus, modTags, sortMods, statusLabel, summarize } from "./modView";
 import { compareVersions } from "../../lib/version";
 
 function mod(partial: Partial<InstalledMod> & { name: string }): InstalledMod {
@@ -62,6 +62,19 @@ test("sort", () => {
   expect(sortMods(mods, "name", "asc").map((m) => m.name)).toEqual(["Alpha", "Broken", "Carry On", "Needy"]);
   expect(sortMods(mods, "version", "desc")[0].name).toBe("Carry On"); // 1.10.0 > 1.9.2
   expect(sortMods(mods, "status", "asc").map((m) => m.name)).toEqual(["Broken", "Needy", "Alpha", "Carry On"]);
+});
+
+test("sort by tags and date modified", () => {
+  const withDates = mods.map((m, i) => ({ ...m, modifiedMs: [300, 100, null, 200][i] }));
+  expect(sortMods(withDates, "modified", "desc").map((m) => m.modifiedMs)).toEqual([300, 200, 100, null]);
+  const db = new Map<string, ModDbSummary>([
+    [mods[0].key, { tags: ["Storage"] } as unknown as ModDbSummary],
+    [mods[2].key, { tags: ["QoL", "Utility"] } as unknown as ModDbSummary],
+  ]);
+  expect(modTags(db, mods[2])).toEqual(["QoL", "Utility"]);
+  expect(modTags(db, mods[1])).toEqual([]);
+  // Untagged mods go last, then by name.
+  expect(sortMods(mods, "tags", "asc", db).map((m) => m.name)).toEqual(["Broken", "Carry On", "Alpha", "Needy"]);
 });
 
 test("summary", () => {

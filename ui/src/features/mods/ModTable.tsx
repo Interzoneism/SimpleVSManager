@@ -2,7 +2,8 @@ import { useEffect, useRef, type CSSProperties, type MouseEvent, type ReactNode 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { InstalledMod, Os } from "../../bindings";
 import { iconUrl } from "../../lib/iconUrl";
-import { canToggleMod, latestShown, modStatus, statusLabel, type DbIndex, type SortDirection, type SortKey } from "./modView";
+import { canToggleMod, latestShown, modStatus, modTags, statusLabel, type DbIndex, type SortDirection, type SortKey } from "./modView";
+import { formatDate } from "../../lib/format";
 
 const HEADER_HEIGHT = 42;
 
@@ -20,7 +21,9 @@ const COLUMNS: { key: SortKey | null; label: string; className: string }[] = [
   { key: "version", label: "Version", className: "col-version" },
   { key: "latest", label: "Latest", className: "col-latest" },
   { key: "authors", label: "Authors", className: "col-authors" },
+  { key: "tags", label: "Tags", className: "col-tags" },
   { key: "side", label: "Side", className: "col-side" },
+  { key: "modified", label: "Modified", className: "col-modified" },
   { key: "status", label: "Status", className: "col-status" },
 ];
 
@@ -171,7 +174,11 @@ export function ModTable(props: Props) {
                   <div className="cell col-authors" role="gridcell" title={mod.authors.join(", ")}>
                     {mod.authors.join(", ")}
                   </div>
+                  <TagsCell tags={modTags(props.db, mod)} />
                   <div className="cell col-side" role="gridcell">{mod.side ?? ""}</div>
+                  <div className="cell col-modified" role="gridcell" title={mod.modifiedMs != null ? new Date(mod.modifiedMs).toLocaleString() : undefined}>
+                    {formatDate(mod.modifiedMs)}
+                  </div>
                   <div className="cell col-status" role="gridcell" title={mod.error ?? mod.loadError ?? undefined}>
                     <span className="mod-status">{statusLabel(mod)}</span>
                   </div>
@@ -181,6 +188,15 @@ export function ModTable(props: Props) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function TagsCell({ tags }: { tags: string[] }) {
+  const text = tags.join(", ");
+  return (
+    <div className="cell col-tags muted" role="gridcell" title={text || undefined}>
+      {text}
     </div>
   );
 }

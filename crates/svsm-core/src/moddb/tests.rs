@@ -23,6 +23,9 @@ fn parses_real_mod() {
     assert_eq!(info.page_url.as_deref(), Some("https://mods.vintagestory.at/carryon"));
     assert!(info.logo_url.as_deref().unwrap().starts_with("https://moddbcdn.vintagestory.at/"));
     assert_eq!(info.tags, vec!["Storage", "QoL"]);
+    assert_eq!(info.screenshots.len(), 1);
+    assert!(info.screenshots[0].url.starts_with("https://moddbcdn.vintagestory.at/CarryOnLogo2_"));
+    assert!(info.screenshots[0].thumbnail_url.as_deref().is_some_and(|t| t.ends_with("_55_60.png")));
     assert_eq!(info.releases.len(), 89);
     let latest = info.latest_release().unwrap();
     assert_eq!(latest.version, "2.0.0-rc.1");

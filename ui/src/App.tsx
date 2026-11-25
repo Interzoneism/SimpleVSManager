@@ -87,7 +87,8 @@ export default function App() {
     }
     return () => applied.forEach((k) => root.style.removeProperty(k));
   }, [theme, palette]);
-  const canLaunch = !!env.data?.gameExecutable && dataReady;
+  const shortcut = env.data?.settings.customShortcutPath;
+  const canLaunch = !!shortcut || (!!env.data?.gameExecutable && dataReady);
 
   return (
     <div className={`app${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
@@ -147,7 +148,7 @@ export default function App() {
             type="button"
             className="primary launch-button"
             disabled={!canLaunch || launch.isPending}
-            title={canLaunch ? "Start Vintage Story with this data folder" : "Set the game and data folders first"}
+            title={shortcut ? `Start Vintage Story through ${shortcut}` : canLaunch ? "Start Vintage Story with this data folder" : "Set the game and data folders first"}
             onClick={() => launch.mutate()}
           >
             <Icon name="play" />

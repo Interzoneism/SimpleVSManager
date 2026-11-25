@@ -1,7 +1,10 @@
-import { open } from "@tauri-apps/plugin-dialog";
+import { ask, message, open } from "@tauri-apps/plugin-dialog";
 import type { DetectedEnvironment, DetectedPath, KnownFolder, Os, PathSource } from "../../bindings";
 import {
+  restartApp,
+  useMoveManagerFolder,
   useOpenKnownFolder,
+  useSetCustomShortcut,
   useRefreshEnvironment,
   useSetCloseAfterLaunch,
   useSetDataDirectory,
@@ -54,10 +57,31 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
   const setGame = useSetGameDirectory();
   const setData = useSetDataDirectory();
   const closeAfterLaunch = useSetCloseAfterLaunch();
+  const moveManager = useMoveManagerFolder();
 
   const pick = async (title: string, current: string | undefined, apply: (p: string) => void) => {
     const chosen = await open({ directory: true, multiple: false, title, defaultPath: current });
     if (typeof chosen === "string") apply(chosen);
+  };
+
+  const moveManagerTo = async (parent: string | null, target: string) => {
+    const ok = await ask(
+      `Move the manager's settings, modlists, backups and caches from\n${env.managerDir.path}\nto\n${target}?\n\n` +
+        "Files with the same name already there are replaced. Simple VS Manager 2.x keeps looking in the old place unless you move its folder too. The manager restarts afterwards.",
+      { title: "Move manager folder", kind: "warning", okLabel: "Move and restart", cancelLabel: "Cancel" },
+    );
+    if (!ok) return;
+    moveManager.mutate(parent, {
+      onSuccess: async (moved) => {
+        await message(
+          moved.oldFolderLeft
+            ? `Moved to ${moved.folder}. Some files in the old folder were in use and stayed behind; you can delete it after the restart.`
+            : `Moved to ${moved.folder}. The manager restarts now.`,
+          { title: "Manager folder moved" },
+        );
+        await restartApp();
+      },
+    });
   };
 
   return (
@@ -97,7 +121,23 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
           onReset={env.settings.dataDirectory ? () => setData.mutate(null) : undefined}
           error={setData.error?.message}
         />
-        <FolderCard title="Manager folder" folder="manager" detected={env.managerDir} missingText="" />
+        <FolderCard
+          title="Manager folder"
+          folder="manager"
+          detected={env.managerDir}
+          missingText=""
+          changeLabel="Change folder…"
+          onChange={async () => {
+            const parent = await open({ directory: true, multiple: false, title: "Choose where to put the Simple VS Manager folder" });
+            if (typeof parent !== "string") return;
+            const sep = env.os === "windows" ? "\\" : "/";
+            const target = `${parent.replace(/[\\/]+$/, "")}${sep}${env.os === "linux" ? "simple-vs-manager" : "Simple VS Manager"}`;
+            void moveManagerTo(parent, target);
+          }}
+          resetLabel="Move back to default"
+          onReset={env.managerDir.source === "customPointer" ? () => void moveManagerTo(null, "the default location") : undefined}
+          error={moveManager.error?.message}
+        />
       </div>
 
       <label className="checkbox-row">
@@ -109,7 +149,32 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
         />
         Close the manager after launching Vintage Story
       </label>
+      <CustomShortcut env={env} />
     </>
+  );
+}
+
+/** 2.x's "Set custom Vintage Story shortcut": Launch opens this file instead of the game. */
+function CustomShortcut({ env }: { env: DetectedEnvironment }) {
+  const set = useSetCustomShortcut();
+  const current = env.settings.customShortcutPath;
+  const pick = async () => {
+    const chosen = await open({
+      multiple: false,
+      title: "Choose the shortcut that starts Vintage Story",
+      defaultPath: current ?? undefined,
+      filters: env.os === "windows" ? [{ name: "Shortcuts", extensions: ["lnk", "url", "bat", "cmd", "exe"] }, { name: "All files", extensions: ["*"] }] : undefined,
+    });
+    if (typeof chosen === "string") set.mutate(chosen);
+  };
+  return (
+    <div className="setting-row custom-shortcut">
+      <span>Launch through a shortcut</span>
+      {current ? <code className="path small">{current}</code> : <span className="muted small">Off: Launch starts the game directly with the data folder above.</span>}
+      <button type="button" disabled={set.isPending} onClick={() => void pick()}>{current ? "Change…" : "Choose…"}</button>
+      {current && <button type="button" disabled={set.isPending} onClick={() => set.mutate(null)}>Clear</button>}
+      {set.isError && <p className="error-text small">{set.error.message}</p>}
+    </div>
   );
 }
 
@@ -121,6 +186,8 @@ function FolderCard(props: {
   executable?: string;
   onChange?: () => void;
   onReset?: () => void;
+  changeLabel?: string;
+  resetLabel?: string;
   error?: string;
 }) {
   const open = useOpenKnownFolder();
@@ -133,7 +200,7 @@ function FolderCard(props: {
       openMenu(event, props.title, [[
         !!detected && { label: "Open folder", disabled: !detected?.exists || open.isPending, run: () => open.mutate(props.folder) },
         !!props.onChange && { label: "Change folder…", run: props.onChange },
-        !!props.onReset && { label: "Auto-detect", run: props.onReset },
+        !!props.onReset && { label: props.resetLabel ?? "Auto-detect", run: props.onReset },
       ], [
         !!detected && { label: "Copy folder path", run: () => copyText(detected.path) },
         !!props.executable && { label: "Copy executable path", run: () => copyText(props.executable!) },
@@ -169,12 +236,12 @@ function FolderCard(props: {
         )}
         {props.onChange && (
           <button type="button" onClick={props.onChange}>
-            Change…
+            {props.changeLabel ?? "Change…"}
           </button>
         )}
         {props.onReset && (
           <button type="button" onClick={props.onReset}>
-            Auto-detect
+            {props.resetLabel ?? "Auto-detect"}
           </button>
         )}
       </div>

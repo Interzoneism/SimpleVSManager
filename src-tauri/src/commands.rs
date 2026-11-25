@@ -250,24 +250,93 @@ pub fn open_mod_website(app: AppHandle, state: State<'_, AppState>, key: String)
 // Game
 // ---------------------------------------------------------------------------------------------
 
-/// Starts Vintage Story with `--dataPath`. Closes the manager afterwards if that setting is on.
+/// Starts Vintage Story with `--dataPath`, or through the custom shortcut when one is set (as
+/// 2.x does). Closes the manager afterwards if that setting is on.
 #[tauri::command]
 #[specta::specta]
-pub async fn launch_game(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
+pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, AppState>) -> AppResult<()> {
     let env = state.environment();
-    let exe = env
-        .game_executable
-        .ok_or_else(|| AppError::msg("Vintage Story wasn't found. Pick the game folder under Folders."))?;
-    let (data, _) = state.mod_roots()?;
+    let shortcut = env.settings.custom_shortcut();
+    if let Some(sc) = &shortcut {
+        if !sc.is_file() {
+            state.update_settings(|s| s.custom_shortcut_path = None)?;
+            return Err(AppError::msg(format!(
+                "The custom Vintage Story shortcut wasn't found ({}), so it was cleared. Set it again under Settings, or press Launch to start the game directly.",
+                sc.display()
+            )));
+        }
+    }
+    let exe = match &shortcut {
+        Some(_) => None,
+        None => Some(env.game_executable.clone().ok_or_else(|| AppError::msg("Vintage Story wasn't found. Pick the game folder under Folders."))?),
+    };
+    let data = match &shortcut {
+        Some(_) => None,
+        None => Some(state.mod_roots()?.0),
+    };
     if env.settings.auto_data_backups {
         let _run = state.update_lock.lock().await;
         crate::m5_commands::run_backup(&app, &state)
             .await
             .map_err(|e| AppError::msg(format!("The automatic backup failed, so the game wasn't started: {}", e.message)))?;
     }
-    svsm_core::launch::launch_game(state.host.os, Path::new(&exe), &data)?;
+    match (&shortcut, exe, data) {
+        (Some(sc), _, _) => app
+            .opener()
+            .open_path(sc.display().to_string(), None::<&str>)
+            .map_err(|e| AppError::msg(format!("Couldn't start Vintage Story through the shortcut: {e}")))?,
+        (None, Some(exe), Some(data)) => svsm_core::launch::launch_game(state.host.os, Path::new(&exe), &data)?,
+        _ => unreachable!("exe and data are set when there is no shortcut"),
+    }
     if env.settings.close_after_launch {
         app.exit(0);
     }
     Ok(())
+}
+
+/// Sets (or with `None` clears) the custom shortcut used to start the game.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_custom_shortcut(state: State<'_, AppState>, path: Option<String>) -> AppResult<DetectedEnvironment> {
+    let path = path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
+    if let Some(p) = &path {
+        if !Path::new(p).is_file() {
+            return Err(AppError::msg("That file doesn't exist."));
+        }
+    }
+    state.update_settings(|s| s.custom_shortcut_path = path)
+}
+
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagerFolderMove {
+    pub folder: String,
+    /// Some files of the old folder were in use and stayed behind (the copy is complete).
+    pub old_folder_left: bool,
+}
+
+/// Moves the manager's settings and cache folder into `<parent>/Simple VS Manager`, or back to
+/// the default location when `parent` is `None`. Restart the app afterwards (`restart_app`).
+#[tauri::command]
+#[specta::specta]
+pub async fn move_manager_folder(state: State<'_, AppState>, parent: Option<String>) -> AppResult<ManagerFolderMove> {
+    let from = state.manager_dir();
+    let to = match parent.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+        Some(p) => paths::manager_dir_in(&state.host, Path::new(p)),
+        None => paths::default_manager_dir(&state.host),
+    };
+    let _run = state.update_lock.lock().await;
+    let host = state.host.clone();
+    let moved = tauri::async_runtime::spawn_blocking(move || paths::move_manager_dir(&host, &from, &to))
+        .await
+        .map_err(|e| AppError::msg(e.to_string()))?
+        .map_err(|e| AppError::msg(format!("The folder wasn't moved: {e}")))?;
+    Ok(ManagerFolderMove { folder: moved.to.display().to_string(), old_folder_left: moved.old_folder_left })
+}
+
+/// Restarts the manager (after moving its folder).
+#[tauri::command]
+#[specta::specta]
+pub fn restart_app(app: AppHandle) {
+    app.restart();
 }

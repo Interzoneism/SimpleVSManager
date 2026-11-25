@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::changelog::html_to_text;
 use super::dates::parse_utc_ms;
 use super::json::{int, status_code, string, strings};
-use super::model::{ModDbInfo, ModDbListEntry, ModDbRelease, NamedTag};
+use super::model::{ModDbInfo, ModDbListEntry, ModDbRelease, ModDbScreenshot, NamedTag};
 use crate::version;
 
 pub const SITE_URL: &str = "https://mods.vintagestory.at";
@@ -115,10 +115,32 @@ pub fn build_info(mod_id: &str, raw: &Value, target: Option<&str>, exact: bool, 
         source_code_url: string(raw, "sourcecodeurl"),
         issue_tracker_url: string(raw, "issuetrackerurl"),
         wiki_url: string(raw, "wikiurl"),
+        screenshots: screenshots(raw),
         releases,
         latest_compatible_index,
         fetched_ms,
     }
+}
+
+/// Screenshots of a raw `mod` object. Skips entries without a usable web address (2.x also
+/// dropped ones with an invalid file id).
+pub fn screenshots(raw: &Value) -> Vec<ModDbScreenshot> {
+    let web = |s: Option<String>| s.filter(|u| u.starts_with("https://") || u.starts_with("http://"));
+    raw.get("screenshots")
+        .and_then(Value::as_array)
+        .map(|all| {
+            all.iter()
+                .filter(|s| s.get("fileid").and_then(Value::as_i64).is_none_or(|id| id > 0))
+                .filter_map(|s| {
+                    Some(ModDbScreenshot {
+                        url: web(string(s, "mainfile"))?,
+                        thumbnail_url: web(string(s, "thumbnailfilename")),
+                        file_name: string(s, "filename"),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The picture the Mod DB shows on its mod cards (`logofiledb`), from a raw `mod` object.

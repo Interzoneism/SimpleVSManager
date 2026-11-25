@@ -18,6 +18,7 @@ import { linkClickHandler, sanitizeHtml } from "../../lib/html";
 import { progressLabel } from "../mods/InstalledMods";
 import { summarizeVersions } from "../mods/UpdateDialog";
 import { CloseDetails, SplitWorkspace } from "../../components/SplitWorkspace";
+import { ScreenshotGallery } from "./ScreenshotGallery";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
 
@@ -418,6 +419,7 @@ function BrowseDetails({ entry, thumbUrl, offline, onClose, onFavourite, favouri
             (offline ? "Versions aren't available in offline mode until this mod has been looked up once." : "This mod has no downloadable releases.")}
         </p>
       )}
+      {info && !offline && <ScreenshotGallery screenshots={info.screenshots ?? []} modName={entry.name} />}
       {chosen?.changelog && (
         <section className="details-section">
           <h3>Changes in {chosen.version}</h3>

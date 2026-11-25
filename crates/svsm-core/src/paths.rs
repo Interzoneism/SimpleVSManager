@@ -60,6 +60,90 @@ fn read_custom_folder_pointer(host: &HostEnv) -> Option<PathBuf> {
     (!path.as_os_str().is_empty() && path.is_dir()).then_some(path)
 }
 
+/// Where `CustomConfigFolder.txt` lives (next to the executable).
+pub fn custom_folder_pointer_file(host: &HostEnv) -> Option<PathBuf> {
+    host.exe_dir.as_ref().map(|d| d.join(CUSTOM_FOLDER_POINTER_FILE))
+}
+
+/// The manager folder a "Change folder…" to `parent` would use: `<parent>/Simple VS Manager`.
+pub fn manager_dir_in(host: &HostEnv, parent: &Path) -> PathBuf {
+    parent.join(match host.os {
+        Os::Linux => MANAGER_FOLDER_NAME_LINUX,
+        _ => MANAGER_FOLDER_NAME,
+    })
+}
+
+/// Result of [`move_manager_dir`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagerMove {
+    pub to: PathBuf,
+    /// The old folder couldn't be removed completely (a file was in use); the copy is complete.
+    pub old_folder_left: bool,
+}
+
+/// Moves the manager folder to `to` and points `CustomConfigFolder.txt` at it (or removes the
+/// pointer when `to` is the default location), as 2.x's "Change manager config and cache
+/// folder" does. Everything is copied first; the old folder is only deleted once the copy and
+/// the pointer are in place, so a failure never leaves the settings half-moved.
+pub fn move_manager_dir(host: &HostEnv, from: &Path, to: &Path) -> crate::error::CoreResult<ManagerMove> {
+    use crate::error::CoreError;
+    let invalid = |msg: &str| CoreError::io(to, std::io::Error::new(std::io::ErrorKind::InvalidInput, msg.to_string()));
+    if same_dir(from, to) {
+        return Err(invalid("That is already the manager folder."));
+    }
+    if to.starts_with(from) || (from.exists() && to.exists() && std::fs::canonicalize(to).ok().zip(std::fs::canonicalize(from).ok()).is_some_and(|(t, f)| t.starts_with(&f))) {
+        return Err(invalid("The new folder can't be inside the current manager folder."));
+    }
+    if from.starts_with(to) {
+        return Err(invalid("The new folder can't contain the current manager folder."));
+    }
+    let pointer = custom_folder_pointer_file(host).ok_or_else(|| invalid("The manager's own folder is unknown."))?;
+    if from.is_dir() {
+        copy_tree(from, to)?;
+    } else {
+        std::fs::create_dir_all(to).map_err(|e| CoreError::io(to, e))?;
+    }
+    if same_dir(to, &default_manager_dir(host)) {
+        match std::fs::remove_file(&pointer) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(CoreError::io(&pointer, e)),
+        }
+    } else {
+        std::fs::write(&pointer, to.display().to_string()).map_err(|e| CoreError::io(&pointer, e))?;
+    }
+    let old_folder_left = from.exists() && std::fs::remove_dir_all(from).is_err();
+    Ok(ManagerMove { to: to.to_path_buf(), old_folder_left })
+}
+
+fn same_dir(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    }
+}
+
+/// Copies a folder tree, replacing files that already exist at the destination.
+fn copy_tree(from: &Path, to: &Path) -> crate::error::CoreResult<()> {
+    use crate::error::CoreError;
+    std::fs::create_dir_all(to).map_err(|e| CoreError::io(to, e))?;
+    for entry in std::fs::read_dir(from).map_err(|e| CoreError::io(from, e))? {
+        let entry = entry.map_err(|e| CoreError::io(from, e))?;
+        let src = entry.path();
+        let dst = to.join(entry.file_name());
+        let kind = entry.file_type().map_err(|e| CoreError::io(&src, e))?;
+        if kind.is_dir() {
+            copy_tree(&src, &dst)?;
+        } else if kind.is_file() {
+            std::fs::copy(&src, &dst).map_err(|e| CoreError::io(&src, e))?;
+        }
+    }
+    Ok(())
+}
+
 /// Candidate data folders, most likely first. Mirrors the game's own lookup plus the WPF extras.
 pub fn data_dir_candidates(host: &HostEnv) -> Vec<PathBuf> {
     let mut out = Vec::new();
@@ -236,5 +320,32 @@ pub(crate) mod tests {
         std::fs::write(dir.join("Vintagestory.exe"), b"").unwrap();
         assert_eq!(find_game_executable(Os::Windows, dir), Some(dir.join("Vintagestory.exe")));
         assert_eq!(find_game_executable(Os::Linux, dir), Some(dir.join("Vintagestory")));
+    }
+
+    #[test]
+    fn moves_the_manager_folder_and_back() {
+        let t = tempfile::tempdir().unwrap();
+        let mut host = fake_host(t.path(), Os::Windows);
+        host.exe_dir = Some(t.path().join("app"));
+        std::fs::create_dir_all(t.path().join("app")).unwrap();
+        let (from, kind) = resolve_manager_dir(&host);
+        assert_eq!(kind, ManagerDirKind::Default);
+        std::fs::create_dir_all(from.join("Modlists")).unwrap();
+        std::fs::write(from.join("svsm3-settings.json"), "{}").unwrap();
+        std::fs::write(from.join("Modlists/a.json"), "x").unwrap();
+
+        let to = manager_dir_in(&host, &t.path().join("D"));
+        assert!(move_manager_dir(&host, &from, &from.join("sub")).is_err(), "no moving into itself");
+        let moved = move_manager_dir(&host, &from, &to).unwrap();
+        assert!(!moved.old_folder_left);
+        assert!(!from.exists());
+        assert_eq!(std::fs::read_to_string(to.join("Modlists/a.json")).unwrap(), "x");
+        assert_eq!(resolve_manager_dir(&host), (to.clone(), ManagerDirKind::Custom));
+
+        // Back to the default: the pointer goes away.
+        move_manager_dir(&host, &to, &from).unwrap();
+        assert!(!custom_folder_pointer_file(&host).unwrap().exists());
+        assert_eq!(resolve_manager_dir(&host), (from.clone(), ManagerDirKind::Default));
+        assert!(from.join("svsm3-settings.json").is_file());
     }
 }

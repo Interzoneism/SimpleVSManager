@@ -131,7 +131,8 @@ async openModWebsite(key: string) : Promise<Result<null, AppError>> {
 }
 },
 /**
- * Starts Vintage Story with `--dataPath`. Closes the manager afterwards if that setting is on.
+ * Starts Vintage Story with `--dataPath`, or through the custom shortcut when one is set (as
+ * 2.x does). Closes the manager afterwards if that setting is on.
  */
 async launchGame() : Promise<Result<null, AppError>> {
     try {
@@ -140,6 +141,35 @@ async launchGame() : Promise<Result<null, AppError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Sets (or with `None` clears) the custom shortcut used to start the game.
+ */
+async setCustomShortcut(path: string | null) : Promise<Result<DetectedEnvironment, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_custom_shortcut", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Moves the manager's settings and cache folder into `<parent>/Simple VS Manager`, or back to
+ * the default location when `parent` is `None`. Restart the app afterwards (`restart_app`).
+ */
+async moveManagerFolder(parent: string | null) : Promise<Result<ManagerFolderMove, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("move_manager_folder", { parent }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Restarts the manager (after moving its folder).
+ */
+async restartApp() : Promise<void> {
+    await TAURI_INVOKE("restart_app");
 },
 /**
  * Mod DB data for every installed mod: latest version, update offers, page links.
@@ -970,6 +1000,11 @@ export type LookupMode =
  * Ask the Mod DB for everything.
  */
 "force"
+export type ManagerFolderMove = { folder: string; 
+/**
+ * Some files of the old folder were in use and stayed behind (the copy is complete).
+ */
+oldFolderLeft: boolean }
 export type ManagerUpdate = { version: string; pageUrl: string | null }
 export type MigrationReport = { 
 /**
@@ -1008,6 +1043,10 @@ modId: string; assetId: number | null; name: string | null; author: string | nul
  */
 tags: string[]; downloads: number | null; follows: number | null; comments: number | null; trendingPoints: number | null; createdMs: number | null; lastReleasedMs: number | null; homepageUrl: string | null; sourceCodeUrl: string | null; issueTrackerUrl: string | null; wikiUrl: string | null; 
 /**
+ * Screenshots from the mod page, in the Mod DB's order.
+ */
+screenshots?: ModDbScreenshot[]; 
+/**
  * Newest first, as the Mod DB lists them.
  */
 releases: ModDbRelease[]; 
@@ -1035,6 +1074,10 @@ compatible: boolean;
  * Plain text, converted from the Mod DB's HTML.
  */
 changelog: string | null; downloads: number | null; createdMs: number | null }
+/**
+ * One screenshot on a mod's Mod DB page.
+ */
+export type ModDbScreenshot = { url: string; thumbnailUrl: string | null; fileName: string | null }
 export type ModDbStatus = { entries: ModDbEntry[]; 
 /**
  * Installed mod keys the Mod DB doesn't know.
@@ -1226,7 +1269,7 @@ modUsageTracking: boolean | null }
  * A game profile. The active profile's values live in the top-level settings fields; the
  * others are stored here and swapped in when switching.
  */
-export type Profile = { name: string; gameDirectory: string | null; dataDirectory: string | null; targetGameVersion: string | null }
+export type Profile = { name: string; gameDirectory: string | null; dataDirectory: string | null; targetGameVersion: string | null; customShortcutPath: string | null }
 export type ProfileChange = { action: "switch"; name: string } | { action: "rename"; from: string; to: string } | { action: "delete"; name: string }
 export type PublishCurrentRequest = { 
 /**
@@ -1399,7 +1442,16 @@ verboseLogging: boolean;
 /**
  * Set once the 2.x backups, theme and profiles were copied over.
  */
-legacyM5Imported: boolean }
+legacyM5Imported: boolean; 
+/**
+ * Shortcut (or other file) opened instead of the game executable when launching, as in
+ * 2.x's "Set custom Vintage Story shortcut". Per profile.
+ */
+customShortcutPath: string | null; 
+/**
+ * Set once the 2.x custom shortcut was copied over.
+ */
+legacyShortcutImported: boolean }
 export type SkipChange = { modId: string; version: string | null }
 /**
  * One of the player's own cloud slots.

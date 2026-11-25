@@ -46,12 +46,25 @@ pub struct ModDbInfo {
     pub source_code_url: Option<String>,
     pub issue_tracker_url: Option<String>,
     pub wiki_url: Option<String>,
+    /// Screenshots from the mod page, in the Mod DB's order.
+    #[serde(default)]
+    pub screenshots: Vec<ModDbScreenshot>,
     /// Newest first, as the Mod DB lists them.
     pub releases: Vec<ModDbRelease>,
     /// Index into `releases` of the newest release that supports the target game version.
     pub latest_compatible_index: Option<u32>,
     /// When this data was downloaded.
     pub fetched_ms: f64,
+}
+
+/// One screenshot on a mod's Mod DB page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct ModDbScreenshot {
+    pub url: String,
+    pub thumbnail_url: Option<String>,
+    pub file_name: Option<String>,
 }
 
 impl ModDbInfo {

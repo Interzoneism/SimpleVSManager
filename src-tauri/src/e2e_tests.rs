@@ -467,3 +467,37 @@ fn fix_dependencies_installs_and_updates_from_the_mod_db() {
     let again = run(crate::deps_commands::fix(m.app.handle(), &state, &key)).unwrap();
     assert!(again.done.is_empty() && again.failures.is_empty());
 }
+
+#[test]
+fn custom_shortcut_and_moving_the_manager_folder() {
+    let m = machine();
+    let state = m.app.state::<AppState>();
+    let root = m.manager.parent().unwrap().parent().unwrap().to_path_buf();
+
+    // Shortcut: must exist; a missing one is cleared at launch instead of starting anything.
+    assert!(run(crate::commands::set_custom_shortcut(state.clone(), Some(root.join("nope.lnk").display().to_string()))).is_err());
+    let lnk = root.join("Vintage Story.lnk");
+    std::fs::write(&lnk, "x").unwrap();
+    let env = run(crate::commands::set_custom_shortcut(state.clone(), Some(lnk.display().to_string()))).unwrap();
+    assert_eq!(env.settings.custom_shortcut_path.as_deref(), Some(lnk.display().to_string().as_str()));
+    std::fs::remove_file(&lnk).unwrap();
+    let err = run(crate::commands::launch_game(m.app.handle().clone(), state.clone())).unwrap_err();
+    assert!(err.message.contains("wasn't found"), "{}", err.message);
+    assert_eq!(state.environment().settings.custom_shortcut_path, None);
+
+    // Move the manager folder and back; settings travel with it.
+    std::fs::create_dir_all(root.join("app")).unwrap();
+    state.update_settings(|s| s.close_after_launch = true).unwrap();
+    let moved = run(crate::commands::move_manager_folder(state.clone(), Some(root.join("D").display().to_string()))).unwrap();
+    assert!(!moved.old_folder_left);
+    let new_dir = std::path::PathBuf::from(&moved.folder);
+    assert!(new_dir.ends_with(svsm_core::paths::MANAGER_FOLDER_NAME) || new_dir.ends_with(svsm_core::paths::MANAGER_FOLDER_NAME_LINUX));
+    assert!(!m.manager.exists());
+    let env = state.refresh_environment();
+    assert_eq!(std::path::PathBuf::from(&env.manager_dir.path), new_dir);
+    assert!(env.settings.close_after_launch);
+    run(crate::commands::move_manager_folder(state.clone(), None)).unwrap();
+    let env = state.refresh_environment();
+    assert_eq!(std::path::PathBuf::from(&env.manager_dir.path), m.manager);
+    assert!(env.settings.close_after_launch);
+}

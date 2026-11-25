@@ -156,6 +156,7 @@ pub fn detect_environment_with(host: &HostEnv, settings: &Settings, mut warnings
             if let Some(l) = &legacy {
                 s.import_legacy(&l.preferences);
                 s.import_legacy_m5(&l.preferences);
+                s.import_legacy_shortcut(&l.active_profile, l.custom_shortcut_path.as_deref());
             }
             s
         },
@@ -237,7 +238,7 @@ mod tests {
         assert_eq!(env.data_dir.unwrap().source, PathSource::UserSetting);
         assert_eq!(env.game_dir.unwrap().source, PathSource::UserSetting);
         // The 2.x preferences were imported (in memory) alongside.
-        assert_eq!(env.settings, Settings { legacy_preferences_imported: true, legacy_m5_imported: true, ..settings });
+        assert_eq!(env.settings, Settings { legacy_preferences_imported: true, legacy_m5_imported: true, legacy_shortcut_imported: true, ..settings });
     }
 
     #[test]

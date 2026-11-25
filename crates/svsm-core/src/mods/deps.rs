@@ -234,6 +234,7 @@ mod tests {
             source_code_url: None,
             issue_tracker_url: None,
             wiki_url: None,
+            screenshots: vec![],
             releases: vec![rel("3.0", false), rel("2.1", true), rel("1.0", true)],
             latest_compatible_index: Some(1),
             fetched_ms: 0.0,

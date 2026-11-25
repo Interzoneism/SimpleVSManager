@@ -7,7 +7,7 @@ export type ModStatus = "active" | "disabled" | "error" | "problem";
 export type StatusFilter = "all" | "active" | "disabled" | "problems" | "updates";
 /** Mod DB summaries by installed mod key. */
 export type DbIndex = Map<string, ModDbSummary>;
-export type SortKey = "name" | "version" | "latest" | "authors" | "side" | "status" | "modified";
+export type SortKey = "name" | "version" | "latest" | "authors" | "tags" | "side" | "status" | "modified";
 export type SortDirection = "asc" | "desc";
 
 export function canToggleMod(mod: InstalledMod): boolean {
@@ -85,6 +85,12 @@ export function sortMods(
       }
       case "authors":
         return collator.compare(a.authors.join(", "), b.authors.join(", "));
+      case "tags": {
+        // Mods without tags (not on the Mod DB, or not looked up yet) go last.
+        const ta = modTags(db, a).join(", ");
+        const tb = modTags(db, b).join(", ");
+        return (ta ? 0 : 1) - (tb ? 0 : 1) || collator.compare(ta, tb);
+      }
       case "side":
         return collator.compare(a.side ?? "", b.side ?? "");
       case "status":
@@ -103,6 +109,11 @@ export function summarize(mods: InstalledMod[]) {
     active: mods.filter((m) => m.isActive && !m.error).length,
     problems: mods.filter(hasProblem).length,
   };
+}
+
+/** The mod's Mod DB category tags, as the Tags column shows them. */
+export function modTags(db: DbIndex, mod: InstalledMod): string[] {
+  return db.get(mod.key)?.tags ?? [];
 }
 
 /** The version shown in the "Latest" column. */

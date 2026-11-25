@@ -69,6 +69,11 @@ pub struct Settings {
     pub verbose_logging: bool,
     /// Set once the 2.x backups, theme and profiles were copied over.
     pub legacy_m5_imported: bool,
+    /// Shortcut (or other file) opened instead of the game executable when launching, as in
+    /// 2.x's "Set custom Vintage Story shortcut". Per profile.
+    pub custom_shortcut_path: Option<String>,
+    /// Set once the 2.x custom shortcut was copied over.
+    pub legacy_shortcut_imported: bool,
 }
 
 /// A game profile. The active profile's values live in the top-level settings fields; the
@@ -81,6 +86,7 @@ pub struct Profile {
     pub game_directory: Option<String>,
     pub data_directory: Option<String>,
     pub target_game_version: Option<String>,
+    pub custom_shortcut_path: Option<String>,
 }
 
 /// Sentinel for [`Settings::target_game_version`]: offer the newest release regardless of game version.
@@ -117,6 +123,8 @@ impl Default for Settings {
             active_profile: DEFAULT_PROFILE.into(),
             verbose_logging: false,
             legacy_m5_imported: false,
+            custom_shortcut_path: None,
+            legacy_shortcut_imported: false,
         }
     }
 }
@@ -152,6 +160,21 @@ impl Settings {
 
     pub fn data_dir(&self) -> Option<PathBuf> {
         non_empty(&self.data_directory)
+    }
+
+    pub fn custom_shortcut(&self) -> Option<PathBuf> {
+        non_empty(&self.custom_shortcut_path)
+    }
+
+    /// Copies the 2.x custom shortcut once (only for the profile that was active in 2.x).
+    pub fn import_legacy_shortcut(&mut self, legacy_profile: &str, shortcut: Option<&Path>) {
+        if self.legacy_shortcut_imported {
+            return;
+        }
+        self.legacy_shortcut_imported = true;
+        if self.custom_shortcut_path.is_none() && legacy_profile.eq_ignore_ascii_case(&self.active_profile) {
+            self.custom_shortcut_path = shortcut.map(|p| p.display().to_string());
+        }
     }
 
     /// The game version releases are matched against, or `None` to accept any release.
@@ -190,6 +213,7 @@ impl Settings {
             game_directory: self.game_directory.clone(),
             data_directory: self.data_directory.clone(),
             target_game_version: self.target_game_version.clone(),
+            custom_shortcut_path: self.custom_shortcut_path.clone(),
         }
     }
 
@@ -216,6 +240,7 @@ impl Settings {
         self.game_directory = target.game_directory;
         self.data_directory = target.data_directory;
         self.target_game_version = target.target_game_version;
+        self.custom_shortcut_path = target.custom_shortcut_path;
         Ok(())
     }
 
@@ -368,6 +393,19 @@ mod tests {
     }
 
     #[test]
+    fn imports_legacy_shortcut_once_for_the_active_profile() {
+        let mut s = Settings::default();
+        s.import_legacy_shortcut("Other", Some(Path::new("C:/vs.lnk")));
+        assert_eq!(s.custom_shortcut_path, None);
+        let mut s = Settings::default();
+        s.import_legacy_shortcut("default", Some(Path::new("C:/vs.lnk")));
+        assert_eq!(s.custom_shortcut_path.as_deref(), Some("C:/vs.lnk"));
+        s.custom_shortcut_path = None;
+        s.import_legacy_shortcut("default", Some(Path::new("C:/vs.lnk")));
+        assert_eq!(s.custom_shortcut_path, None, "clearing it sticks");
+    }
+
+    #[test]
     fn corrupt_file_is_an_error() {
         let t = tempfile::tempdir().unwrap();
         std::fs::write(Settings::path(t.path()), "{").unwrap();
@@ -381,12 +419,14 @@ mod profile_tests {
 
     #[test]
     fn switching_profiles_swaps_folders() {
-        let mut s = Settings { data_directory: Some("A".into()), ..Default::default() };
+        let mut s = Settings { data_directory: Some("A".into()), custom_shortcut_path: Some("A.lnk".into()), ..Default::default() };
         s.switch_profile("Modded").unwrap();
         assert_eq!((s.active_profile.as_str(), s.data_directory.as_deref()), ("Modded", None));
+        assert_eq!(s.custom_shortcut_path, None);
         s.data_directory = Some("B".into());
         s.switch_profile("default").unwrap();
         assert_eq!(s.data_directory.as_deref(), Some("A"));
+        assert_eq!(s.custom_shortcut_path.as_deref(), Some("A.lnk"));
         assert_eq!(s.profile_names(), ["Default", "Modded"]);
         s.rename_profile("Modded", "Heavy").unwrap();
         assert!(s.rename_profile("Heavy", "DEFAULT").is_err());

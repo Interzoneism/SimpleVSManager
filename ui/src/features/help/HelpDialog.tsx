@@ -1,4 +1,9 @@
+import { useOpenUrl } from "../../api";
 import { Modal } from "../modlists/Modal";
+
+/** Same links as 2.3's Help menu. */
+export const DISCORD_URL = "https://discord.gg/Zhm3QnD2s9";
+export const MANAGER_MODDB_URL = "https://mods.vintagestory.at/simplevsmanager";
 
 const SECTIONS: { title: string; body: string[] }[] = [
   {
@@ -42,6 +47,8 @@ const SECTIONS: { title: string; body: string[] }[] = [
     title: "Settings",
     body: [
       "Folders: the game and data folders are found automatically; pick them if not.",
+      "Launch through a shortcut: Launch opens your own shortcut (for example one with extra options) instead of starting the game directly.",
+      "Manager folder: Change folder… moves the manager's settings, modlists and caches to another place, for example another drive.",
       "Game profiles: separate folders and target versions, for example vanilla and modded.",
       "Data folder backups: worlds, settings and mods in one backup; optional before every launch.",
       "Offline mode stops all network use. Cached Mod DB data and your mod library keep working.",
@@ -51,6 +58,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
 
 /** One help page instead of 2.x's Help, Guide and Menu Guide dialogs. */
 export function HelpDialog({ onClose }: { onClose: () => void }) {
+  const openUrl = useOpenUrl();
   return (
     <Modal title="Help" onClose={onClose}>
       <div className="help">
@@ -62,6 +70,9 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="modal-actions">
+        <button type="button" onClick={() => openUrl.mutate(DISCORD_URL)} title={DISCORD_URL}>Discord</button>
+        <button type="button" onClick={() => openUrl.mutate(MANAGER_MODDB_URL)} title={MANAGER_MODDB_URL}>Mod DB page</button>
+        {openUrl.isError && <span className="error-text small">{openUrl.error.message}</span>}
         <span className="header-spacer" />
         <button type="button" className="primary" onClick={onClose}>Close</button>
       </div>

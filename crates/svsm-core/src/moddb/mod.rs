@@ -24,7 +24,7 @@ pub use browse::{browse, BrowseEntry, BrowsePage, BrowseQuery, BrowseSort};
 pub use cache::{CachedMod, ModDbCache};
 pub use client::{DownloadProgress, ModDbClient, NetError, NetResult};
 pub use install::{install_archive, CachedMods, CachedVersion, InstallPlan, InstallTarget};
-pub use model::{ModDbInfo, ModDbListEntry, ModDbRelease, ModDbSummary, NamedTag, UpdateOffer};
+pub use model::{ModDbInfo, ModDbListEntry, ModDbRelease, ModDbScreenshot, ModDbSummary, NamedTag, UpdateOffer};
 
 /// At most this many Mod DB requests run at once (same as 2.x).
 pub const MAX_CONCURRENT_REQUESTS: usize = 4;

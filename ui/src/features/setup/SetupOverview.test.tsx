@@ -40,6 +40,8 @@ const env: DetectedEnvironment = {
     activeProfile: "Default",
     verboseLogging: false,
     legacyM5Imported: true,
+    customShortcutPath: null,
+    legacyShortcutImported: true,
   },
   managerDir: { path: "/home/me/.local/share/simple-vs-manager", source: "default", exists: false },
   dataDir: { path: "/chosen", source: "userSetting", exists: true },
@@ -60,5 +62,11 @@ test("shows detected folders, version, warnings and settings", () => {
   // Only the data folder was set by hand, so only it offers "Auto-detect".
   expect(screen.getAllByRole("button", { name: "Auto-detect" })).toHaveLength(1);
   expect(screen.getAllByRole("button", { name: "Change…" })).toHaveLength(2);
+  // The manager folder can be moved; it's in the default place, so there's nothing to move back.
+  expect(screen.getByRole("button", { name: "Change folder…" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Move back to default" })).not.toBeInTheDocument();
+  // No custom shortcut yet.
+  expect(screen.getByText(/Launch starts the game directly/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Choose…" })).toBeInTheDocument();
   expect(screen.getByRole("checkbox", { name: /Close the manager/ })).toBeChecked();
 });

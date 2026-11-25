@@ -84,6 +84,14 @@ export const useSetDataDirectory = () =>
   useEnvironmentMutation<string | null>((p) => commands.setDataDirectory(p));
 export const useSetCloseAfterLaunch = () =>
   useEnvironmentMutation<boolean>((v) => commands.setCloseAfterLaunch(v));
+export const useSetCustomShortcut = () =>
+  useEnvironmentMutation<string | null>((p) => commands.setCustomShortcut(p));
+
+/** Moves the manager folder (`null` = back to the default place). Restart afterwards. */
+export function useMoveManagerFolder() {
+  return useMutation({ mutationFn: (parent: string | null) => unwrap(commands.moveManagerFolder(parent)) });
+}
+export const restartApp = () => commands.restartApp();
 
 export function useOpenKnownFolder() {
   return useMutation({
@@ -151,7 +159,12 @@ export function useModsChangedListener() {
 // --- Game --------------------------------------------------------------------------------------
 
 export function useLaunchGame() {
-  return useMutation({ mutationFn: () => unwrap(commands.launchGame()) });
+  const client = useQueryClient();
+  // A missing custom shortcut is cleared by the backend, so refetch the settings on failure.
+  return useMutation({
+    mutationFn: () => unwrap(commands.launchGame()),
+    onError: () => void client.invalidateQueries({ queryKey: queryKeys.environment }),
+  });
 }
 
 // --- Mod DB: installed mods ---------------------------------------------------------------------

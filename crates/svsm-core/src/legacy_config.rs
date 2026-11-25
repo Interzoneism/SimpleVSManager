@@ -183,6 +183,7 @@ pub fn parse(text: &str) -> Result<LegacyPaths, String> {
                 game_directory: str_at(p, "gameDirectory"),
                 data_directory: str_at(p, "dataDirectory"),
                 target_game_version: str_at(p, "targetGameVersionOverride").map(|t| if t == "__target_latest__" { "latest".to_string() } else { t }),
+                custom_shortcut_path: str_at(p, "customShortcutPath"),
             });
         }
     }
