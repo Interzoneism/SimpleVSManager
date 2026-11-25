@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import type { BrowseEntry, BrowsePage, ModlistSummary } from "../../bindings";
 import { commands } from "../../bindings";
 import { forgetAll } from "../../lib/pageMemory";
-import { builder, emptyState, getBuilder, isDirty, resetBuilderForTests, signature, sortedEntries, type BuilderEntry } from "./builderStore";
+import { builder, emptyState, getBuilder, isDirty, resetBuilderForTests, signature, type BuilderEntry } from "./builderStore";
 import { ModBrowser } from "./ModBrowser";
 import { BuilderToggle } from "./ModlistBuilder";
 
@@ -74,7 +74,8 @@ beforeEach(() => {
   mocked.browseThumbnails.mockReturnValue(ok({}));
   mocked.builderVersions.mockImplementation((ids: string[]) => ok(ids.map((modId) => ({ modId, version: "2.0.0", compatible: true }))));
   mocked.modlistModCards.mockImplementation((ids: string[]) =>
-    ok(ids.map((modId) => ({ modId, name: `Card ${modId}`, author: null, side: null, logoUrl: null, pageUrl: null, downloads: 1, installedVersion: null, libraryVersions: [], notOnModDb: false }))));
+    ok(ids.map((modId) => ({ modId, name: `Card ${modId}`, author: null, side: null, logoUrl: null, pageUrl: null, downloads: 1,
+      installedVersion: modId === "carryon" ? "1.8.0" : null, libraryVersions: [], notOnModDb: false }))));
   const lists = [saved];
   mocked.listModlists.mockImplementation(() => ok([...lists]));
   mocked.saveBuiltModlist.mockImplementation((r: { id: string | null; name: string; mods: { modId: string; version: string | null }[] }) => {
@@ -182,6 +183,7 @@ test("editing a saved modlist keeps its pinned versions and asks before discardi
   fireEvent.change(picker, { target: { value: saved.id } });
   await waitFor(() => expect(within(pane).getByText("Card carryon")).toBeInTheDocument());
   expect(within(pane).getByText("1.8.0")).toBeInTheDocument();
+  await waitFor(() => expect(within(pane).getByText("Installed")).toBeInTheDocument()); // the Library column
   expect(mocked.builderVersions).not.toHaveBeenCalled();
   expect(within(pane).getByRole("button", { name: "Save changes" })).toBeDisabled(); // nothing changed yet
 
@@ -207,15 +209,10 @@ test("editing a saved modlist keeps its pinned versions and asks before discardi
   expect(getBuilder().sourceId).toBeNull();
 });
 
-test("builder state survives a restart and sorts like a table", async () => {
+test("builder state survives a restart", async () => {
   const entry = (modId: string, name: string, downloads: number, version: string): BuilderEntry =>
     ({ modId, version, compatible: true, name, author: null, side: null, logoUrl: null, downloads });
   const entries = [entry("b", "Beta", 5, "1.10.0"), entry("a", "alpha", 9, "1.9.0")];
-  expect(sortedEntries(entries, null, "asc").map((e) => e.modId)).toEqual(["b", "a"]);
-  expect(sortedEntries(entries, "name", "asc").map((e) => e.modId)).toEqual(["a", "b"]);
-  expect(sortedEntries(entries, "downloads", "desc").map((e) => e.modId)).toEqual(["a", "b"]);
-  expect(sortedEntries(entries, "version", "asc").map((e) => e.modId)).toEqual(["a", "b"]);
-
   const state = { ...emptyState(), open: true, name: "Draft", entries };
   expect(signature(state)).not.toBe(state.baseline);
   localStorage.setItem("svsm-builder", JSON.stringify(state));

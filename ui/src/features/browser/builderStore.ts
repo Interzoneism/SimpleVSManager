@@ -3,7 +3,7 @@
 // the page isn't showing.
 import { useSyncExternalStore } from "react";
 import { commands, type BrowseEntry, type ModlistSummary } from "../../bindings";
-import { compareVersions } from "../../lib/version";
+import { SORT_KEYS, type ModlistSortKey } from "../modlists/modlistTable";
 
 export interface BuilderEntry {
   modId: string;
@@ -18,7 +18,7 @@ export interface BuilderEntry {
   downloads: number | null;
 }
 
-export type BuilderSortKey = "name" | "version" | "author" | "side" | "downloads";
+export type BuilderSortKey = ModlistSortKey;
 
 export interface BuilderState {
   open: boolean;
@@ -69,7 +69,6 @@ function load(): BuilderState {
             downloads: typeof e.downloads === "number" ? e.downloads : null,
           }))
       : [];
-    const sortKeys: BuilderSortKey[] = ["name", "version", "author", "side", "downloads"];
     return {
       ...base,
       open: v.open === true,
@@ -77,7 +76,7 @@ function load(): BuilderState {
       name: str(v.name) ?? "",
       entries,
       baseline: str(v.baseline) ?? base.baseline,
-      sortKey: sortKeys.includes(v.sortKey as BuilderSortKey) ? (v.sortKey as BuilderSortKey) : null,
+      sortKey: SORT_KEYS.includes(v.sortKey as BuilderSortKey) ? (v.sortKey as BuilderSortKey) : null,
       sortDirection: v.sortDirection === "desc" ? "desc" : "asc",
     };
   } catch {
@@ -244,7 +243,7 @@ export const builder = {
     set((s) =>
       s.sortKey === key
         ? { sortDirection: s.sortDirection === "asc" ? "desc" : "asc" }
-        : { sortKey: key, sortDirection: key === "downloads" ? "desc" : "asc" },
+        : { sortKey: key, sortDirection: "asc" },
     );
   },
 };
@@ -253,27 +252,4 @@ export const builder = {
 export function resetBuilderForTests(next: BuilderState = emptyState()) {
   state = next;
   for (const l of listeners) l();
-}
-
-/** The entries in table order. Unsorted = the order they were added. */
-export function sortedEntries(entries: BuilderEntry[], key: BuilderSortKey | null, dir: "asc" | "desc"): BuilderEntry[] {
-  if (!key) return entries;
-  const text = (v: string | null) => (v ?? "").toLowerCase();
-  const byName = (a: BuilderEntry, b: BuilderEntry) => text(a.name ?? a.modId).localeCompare(text(b.name ?? b.modId));
-  const cmp = (a: BuilderEntry, b: BuilderEntry): number => {
-    switch (key) {
-      case "name":
-        return byName(a, b);
-      case "version":
-        return compareVersions(a.version, b.version);
-      case "author":
-        return text(a.author).localeCompare(text(b.author));
-      case "side":
-        return text(a.side).localeCompare(text(b.side));
-      case "downloads":
-        return (a.downloads ?? -1) - (b.downloads ?? -1);
-    }
-  };
-  const sign = dir === "asc" ? 1 : -1;
-  return [...entries].sort((a, b) => sign * cmp(a, b) || byName(a, b));
 }

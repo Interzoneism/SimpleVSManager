@@ -652,21 +652,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .progress-block progress { width: 100%; height: 10px; accent-color: var(--palette-accent-primary); }
 
 .active-badge { background: color-mix(in srgb, var(--palette-success) 35%, transparent); color: var(--palette-white); }
-.mod-cards { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
-.mod-card-row {
-  display: flex; align-items: center; gap: 12px;
-  min-width: 0; padding: 10px;
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--canvas);
-  overflow-wrap: anywhere;
-}
-.mod-card-row.off .mod-card-name { color: var(--palette-grey); }
-.mini-logo { width: 48px; height: 48px; border-radius: 7px; object-fit: cover; flex: none; background: var(--palette-interactive-surface); }
-.mini-logo.placeholder { display: inline-flex; align-items: center; justify-content: center; color: var(--palette-grey); font-size: 20px; font-weight: 600; }
-.mod-card-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-.mod-card-text .muted { margin: 0; }
-.mod-card-name { justify-content: flex-start; text-align: left; white-space: normal; font-size: 15px; font-weight: 650; }
-.mod-card-where { max-width: 30%; text-align: right; }
 
 .update-badge { background: color-mix(in srgb, var(--palette-warning) 40%, transparent); color: var(--palette-white); }
 .notice.quiet { border-left-color: var(--palette-grey); }
@@ -953,7 +938,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .builder-confirm-actions { display: flex; gap: 6px; margin-left: auto; }
 .builder-table { min-height: 140px; }
 .builder-table .mod-row:not(.mod-header) { cursor: grab; }
-.builder-table .mod-name-button { display: flex; align-items: center; }
 .builder-table .mod-row.dragging { opacity: 0.6; }
 .builder-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 36px 18px; text-align: center; }
 .builder-empty strong { color: var(--palette-white); }
@@ -1028,3 +1012,15 @@ body.pointer-dragging, body.pointer-dragging * { cursor: grabbing !important; us
 .save-config-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .save-config-mod { flex: none; padding: 0 8px; border-radius: 999px; font-size: 11px; line-height: 1.7; background: var(--selection); color: var(--accent); }
 .save-config-size { margin-left: auto; flex: none; }
+
+/* --- Modlist mod tables (builder and modlist details) --- */
+.modlist-table .mod-name-button { display: flex; align-items: center; }
+.modlist-table .mod-row:not(.mod-header) { cursor: default; }
+.builder-table .mod-row:not(.mod-header) { cursor: grab; }
+.builder-head-actions { display: flex; align-items: center; gap: 8px; }
+.builder-head .close-details { position: static; }
+.modlist-mods-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.modlist-mods-head h3 { margin: 0; }
+.modlist-mods .modlist-table { flex: none; }
+.modlist-mods .modlist-table .mod-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
+.modlist-mods-empty { padding: 12px; margin: 0; }

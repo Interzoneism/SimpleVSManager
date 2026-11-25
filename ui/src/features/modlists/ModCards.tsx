@@ -1,49 +1,39 @@
+import { useMemo } from "react";
 import type { ModlistModView } from "../../bindings";
-import { useModlistModCards, useOpenUrl } from "../../api";
-import { formatCount } from "../../lib/format";
-import { Logo } from "../browser/ModBrowser";
-import { modLocation } from "./modlistView";
+import { useOpenUrl } from "../../api";
+import { copyText } from "../../components/ContextMenu";
+import { useLayoutPreference } from "../../components/SplitWorkspace";
+import { ModlistModsTable, RowSizePicker, useRowSize, type ModlistSortKey, type RowMenu } from "./ModlistModsTable";
+import { SORT_KEYS } from "./modlistTable";
 
-/** The list's mods with names, logos and downloads from the Mod DB, and where each one is. */
+/** The list's mods as a table like Installed mods: names and pictures from the Mod DB, and where each one is. */
 export function ModCards({ mods }: { mods: ModlistModView[] }) {
-  const ids = mods.map((m) => m.modId);
-  const cards = useModlistModCards(ids, true);
   const openUrl = useOpenUrl();
-  const byId = new Map((cards.data ?? []).map((c) => [c.modId.toLowerCase(), c]));
+  const [rowSize, setRowSize] = useRowSize("modlist-mods-row-size");
+  const [sort, setSort] = useLayoutPreference<string>("modlist-mods-sort", "");
+  const [key, dir] = sort.split(":");
+  const sortKey = SORT_KEYS.includes(key as ModlistSortKey) ? (key as ModlistSortKey) : null;
+  const sortDirection = dir === "desc" ? "desc" : "asc";
+  const onSort = (k: ModlistSortKey) => setSort(`${k}:${sortKey === k && sortDirection === "asc" ? "desc" : "asc"}`);
+  const rows = useMemo(() => mods.map((m) => ({ modId: m.modId, version: m.version, isActive: m.isActive })), [mods]);
+
+  const rowMenu: RowMenu = (ids, row, card) => [
+    [
+      !!card?.pageUrl && { label: "Open Mod DB page", run: () => openUrl.mutate(card.pageUrl!) },
+      { label: ids.length > 1 ? `Copy ${ids.length} mod IDs` : "Copy mod ID", run: () => copyText(ids.length > 1 ? ids.join("\n") : row.modId) },
+    ],
+  ];
+
   return (
-    <div className="details-section">
-      <h3>
-        Mods ({mods.length}){cards.isFetching && <span className="muted small"> · looking up…</span>}
-      </h3>
-      <ul className="mod-cards">
-        {mods.map((m) => {
-          const c = byId.get(m.modId.toLowerCase());
-          const name = c?.name ?? m.modId;
-          const where = modLocation(m.version, c?.installedVersion ?? null, c?.libraryVersions ?? []);
-          const facts = [m.version, c?.author, c?.downloads != null ? `${formatCount(c.downloads)} downloads` : null, c?.notOnModDb ? "not on the Mod DB" : null];
-          return (
-            <li key={m.modId} className={`mod-card-row${m.isActive === false ? " off" : ""}`}>
-              <Logo url={c?.logoUrl ?? null} name={name} className="mini-logo" />
-              <span className="mod-card-text">
-                {c?.pageUrl ? (
-                  <button type="button" className="link-button mod-card-name" onClick={() => openUrl.mutate(c.pageUrl!)}>
-                    {name}
-                  </button>
-                ) : (
-                  <span className="mod-card-name">{name}</span>
-                )}
-                <span className="muted small">{facts.filter(Boolean).join(" · ")}</span>
-              </span>
-              {(m.isActive === false || where) && (
-                <span className="small mod-card-where">
-                  {m.isActive === false && <span className="muted">{where ? "off · " : "off"}</span>}
-                  {where && <span className={where === "not downloaded" ? "muted" : undefined}>{where}</span>}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+    <div className="details-section modlist-mods">
+      <div className="modlist-mods-head">
+        <h3>Mods ({mods.length})</h3>
+        <RowSizePicker value={rowSize} onChange={setRowSize} />
+      </div>
+      {openUrl.error && <p className="notice error-text">{openUrl.error.message}</p>}
+      <ModlistModsTable rows={rows} label="Mods in this modlist" layoutKey="modlist-mods-columns" rowSize={rowSize}
+        sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} rowMenu={rowMenu}
+        empty={<p className="muted small modlist-mods-empty">This list has no mods.</p>} />
     </div>
   );
 }
