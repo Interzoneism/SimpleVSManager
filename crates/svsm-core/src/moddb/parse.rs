@@ -102,7 +102,7 @@ pub fn build_info(mod_id: &str, raw: &Value, target: Option<&str>, exact: bool, 
         name: string(raw, "name"),
         author: string(raw, "author"),
         page_url: page_url(asset_id, url_alias.as_deref()),
-        logo_url: string(raw, "logofiledb").or_else(|| string(raw, "logofile")),
+        logo_url: db_logo(raw),
         side: string(raw, "side"),
         tags: strings(raw, "tags"),
         downloads: count(raw, "downloads"),
@@ -119,6 +119,11 @@ pub fn build_info(mod_id: &str, raw: &Value, target: Option<&str>, exact: bool, 
         latest_compatible_index,
         fetched_ms,
     }
+}
+
+/// The picture the Mod DB shows on its mod cards (`logofiledb`), from a raw `mod` object.
+pub fn db_logo(raw: &Value) -> Option<String> {
+    string(raw, "logofiledb").or_else(|| string(raw, "logofile"))
 }
 
 /// The mod's description (HTML) from a raw `mod` object, as plain text.

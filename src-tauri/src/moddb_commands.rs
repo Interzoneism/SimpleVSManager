@@ -1,6 +1,6 @@
 //! Mod DB, updates, the version cache and the mod browser.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
@@ -701,6 +701,16 @@ pub async fn browse_mods(
         |e| e.mod_ids.iter().any(|id| settings.is_favourite(id)) || settings.is_favourite(&e.mod_id),
         fetched_ms,
     ))
+}
+
+/// The Mod DB's own card thumbnails for browser cards, by lower-case mod id. The catalogue's
+/// `logo` is often a different picture; this looks up each mod's `logofiledb` (cached for a
+/// week). Mods that couldn't be looked up are left out; `null` = the mod has no picture.
+#[tauri::command]
+#[specta::specta]
+pub async fn browse_thumbnails(state: State<'_, AppState>, mod_ids: Vec<String>) -> AppResult<HashMap<String, Option<String>>> {
+    let db = state.moddb()?;
+    Ok(db.thumbnails(&mod_ids).await)
 }
 
 // ---------------------------------------------------------------------------------------------

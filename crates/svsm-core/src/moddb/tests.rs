@@ -164,3 +164,24 @@ async fn releases_come_from_version_cache_offline() {
     assert_eq!(p, slot);
     assert!(!temp);
 }
+
+#[tokio::test]
+async fn thumbnails_come_from_cached_mod_data_offline() {
+    let t = tempfile::tempdir().unwrap();
+    let db = ModDb::with_client(ModDbClient::with_base("http://127.0.0.1:9").unwrap(), t.path(), true);
+    db.cache()
+        .store_mod("carryon", Some(&serde_json::json!({"logo": "a.png", "logofiledb": "https://cdn/db.png"})), 1.0)
+        .unwrap();
+    db.cache().store_mod("nologo", Some(&serde_json::json!({"name": "x"})), 1.0).unwrap();
+    let ids = vec!["CarryOn".to_string(), "nologo".to_string(), "unknown".to_string()];
+    let got = db.thumbnails(&ids).await;
+    assert_eq!(got.get("carryon"), Some(&Some("https://cdn/db.png".to_string())));
+    assert_eq!(got.get("nologo"), Some(&None));
+    assert!(!got.contains_key("unknown"), "not looked up yet: caller keeps the catalogue logo");
+
+    // Remembered on disk: a fresh instance knows it even after the mod data is gone.
+    std::fs::remove_dir_all(db.cache().dir().join("mods")).unwrap();
+    let db2 = ModDb::with_client(ModDbClient::with_base("http://127.0.0.1:9").unwrap(), t.path(), true);
+    let got = db2.thumbnails(&["carryon".to_string()]).await;
+    assert_eq!(got.get("carryon"), Some(&Some("https://cdn/db.png".to_string())));
+}

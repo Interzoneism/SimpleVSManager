@@ -45,6 +45,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             moddb_commands::install_mod,
             moddb_commands::browse_facets,
             moddb_commands::browse_mods,
+            moddb_commands::browse_thumbnails,
             moddb_commands::manager_update,
             moddb_commands::open_url,
             modlist_commands::list_modlists,

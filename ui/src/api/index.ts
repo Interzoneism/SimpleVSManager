@@ -1,7 +1,7 @@
 // Query hooks around the generated bindings. Components use these, never `commands` directly,
 // so caching and error handling stay in one place.
 import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   commands,
   events,
@@ -273,6 +273,34 @@ export function useBrowseMods(query: BrowseQuery, gameVersion: string | null, en
     queryFn: () => unwrap(commands.browseMods(query, gameVersion, false)),
     enabled,
     placeholderData: (prev) => prev,
+  });
+}
+
+const THUMB_CHUNK = 12;
+
+/**
+ * The Mod DB's own card pictures (`logofiledb`) for browser cards, by lower-case mod id. Looked
+ * up in small batches so cards fill in as they arrive; a mod missing from the map keeps the
+ * catalogue's logo, `null` means it has no picture.
+ */
+export function useBrowseThumbnails(modIds: string[], enabled = true): Record<string, string | null> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < modIds.length; i += THUMB_CHUNK) chunks.push(modIds.slice(i, i + THUMB_CHUNK));
+  return useQueries({
+    queries: chunks.map((ids) => ({
+      queryKey: ["browseThumbnails", ids] as const,
+      queryFn: () => unwrap(commands.browseThumbnails(ids)),
+      enabled,
+      staleTime: Infinity,
+      retry: false,
+    })),
+    combine: (results) => {
+      const out: Record<string, string | null> = {};
+      for (const r of results) {
+        for (const [k, v] of Object.entries(r.data ?? {})) if (v !== undefined) out[k] = v;
+      }
+      return out;
+    },
   });
 }
 

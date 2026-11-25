@@ -17,6 +17,8 @@ const paths = {
   warning: "M12 4 2.5 20h19L12 4Z M12 10v4 M12 17h.01",
   panel: "M3 5h18v14H3z M15 5v14",
   close: "m6 6 12 12 M18 6 6 18",
+  download: "M12 4v11 M7 10l5 5 5-5 M5 20h14",
+  comment: "M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 20.5l1.4-5A8.5 8.5 0 1 1 21 11.5Z",
   folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
 };
 

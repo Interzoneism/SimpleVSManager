@@ -16,6 +16,7 @@ pub mod updates;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
 
 use futures_util::stream::{self, StreamExt};
 
@@ -32,6 +33,8 @@ pub const MOD_MAX_AGE_MS: f64 = 30.0 * 60_000.0;
 /// The full catalogue is ~4 MB; refresh it at most every few hours unless asked.
 pub const LIST_MAX_AGE_MS: f64 = 3.0 * 3_600_000.0;
 pub const TAGS_MAX_AGE_MS: f64 = 24.0 * 3_600_000.0;
+/// Card thumbnails rarely change; look them up again after a week.
+pub const THUMB_MAX_AGE_MS: f64 = 7.0 * 24.0 * 3_600_000.0;
 
 /// The manager's own Mod DB page (for the "new version of the manager" notice).
 pub const MANAGER_MOD_ID: &str = "5545";
@@ -54,7 +57,19 @@ pub struct ModDb {
     temp_dir: PathBuf,
     offline: AtomicBool,
     counter: AtomicU64,
+    /// Card thumbnails by lower-case mod id, loaded from disk on first use.
+    thumbs: Mutex<Option<HashMap<String, Thumb>>>,
 }
+
+/// The Mod DB's card thumbnail (`logofiledb`) for one mod. The catalogue only has `logo`,
+/// which is often a different (older or cropped) image than the one the Mod DB shows.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct Thumb {
+    url: Option<String>,
+    at: f64,
+}
+
+const THUMBS_CACHE: &str = "thumbnails";
 
 impl ModDb {
     pub fn new(manager_dir: &Path, offline: bool) -> NetResult<Self> {
@@ -69,6 +84,7 @@ impl ModDb {
             temp_dir: manager_dir.join("Temp Cache").join("svsm3 Downloads"),
             offline: AtomicBool::new(offline),
             counter: AtomicU64::new(0),
+            thumbs: Mutex::new(None),
         }
     }
 
@@ -145,6 +161,76 @@ impl ModDb {
     pub async fn get_mod(&self, id: &str, force: bool) -> (Option<CachedMod>, Option<String>) {
         let mut l = self.lookup(&[id.to_string()], force).await;
         (l.mods.remove(&id.to_ascii_lowercase()), l.error)
+    }
+
+    /// The Mod DB card thumbnail (`logofiledb`) for each mod id, as the Mod DB's own mod list
+    /// shows it. Uses (in order) the thumbnail cache, cached mod data, then `/api/mod/<id>`
+    /// (which also warms the details cache). Mods that couldn't be looked up are left out, so
+    /// the caller keeps the catalogue's `logo`; `None` = the mod has no thumbnail.
+    pub async fn thumbnails(&self, ids: &[String]) -> HashMap<String, Option<String>> {
+        let now = dates::now_ms();
+        let mut out = HashMap::new();
+        let mut missing = Vec::new();
+        let mut changed = false;
+        {
+            let mut guard = self.thumbs.lock().expect("thumbs lock poisoned");
+            let map = guard.get_or_insert_with(|| self.cache.load(THUMBS_CACHE).map(|(m, _)| m).unwrap_or_default());
+            for id in ids {
+                let key = id.to_ascii_lowercase();
+                if out.contains_key(&key) {
+                    continue;
+                }
+                match map.get(&key) {
+                    Some(t) if now - t.at <= THUMB_MAX_AGE_MS && t.at <= now => {
+                        out.insert(key, t.url.clone());
+                    }
+                    _ => {
+                        // Cached mod data (any age) is good enough for a picture.
+                        if let Some(raw) = self.cache.load_mod(&key).and_then(|c| c.raw) {
+                            let url = parse::db_logo(&raw);
+                            map.insert(key.clone(), Thumb { url: url.clone(), at: now });
+                            out.insert(key, url);
+                            changed = true;
+                        } else {
+                            out.insert(key.clone(), None);
+                            missing.push(key);
+                        }
+                    }
+                }
+            }
+        }
+        for k in &missing {
+            out.remove(k);
+        }
+        if !missing.is_empty() && !self.is_offline() {
+            let results: Vec<(String, NetResult<Option<serde_json::Value>>)> = stream::iter(missing)
+                .map(|id| async move {
+                    let r = self.client.fetch_mod(&id).await;
+                    (id, r)
+                })
+                .buffer_unordered(MAX_CONCURRENT_REQUESTS)
+                .collect()
+                .await;
+            let fetched_ms = dates::now_ms();
+            let mut guard = self.thumbs.lock().expect("thumbs lock poisoned");
+            let map = guard.get_or_insert_with(HashMap::new);
+            for (id, r) in results {
+                if let Ok(raw) = r {
+                    let _ = self.cache.store_mod(&id, raw.as_ref(), fetched_ms);
+                    let url = raw.as_ref().and_then(parse::db_logo);
+                    map.insert(id.clone(), Thumb { url: url.clone(), at: fetched_ms });
+                    out.insert(id, url);
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            let guard = self.thumbs.lock().expect("thumbs lock poisoned");
+            if let Some(map) = guard.as_ref() {
+                let _ = self.cache.store(THUMBS_CACHE, map, now);
+            }
+        }
+        out
     }
 
     async fn cached_or_fetch<T, F, Fut>(&self, name: &str, max_age: f64, force: bool, fetch: F) -> NetResult<(T, f64)>

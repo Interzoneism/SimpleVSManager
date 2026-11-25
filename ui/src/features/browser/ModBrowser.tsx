@@ -4,6 +4,7 @@ import {
   defaultBrowseQuery,
   useBrowseFacets,
   useBrowseMods,
+  useBrowseThumbnails,
   useEnvironment,
   useInstallMod,
   useModDbDetails,
@@ -18,6 +19,7 @@ import { progressLabel } from "../mods/InstalledMods";
 import { summarizeVersions } from "../mods/UpdateDialog";
 import { CloseDetails, SplitWorkspace } from "../../components/SplitWorkspace";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
+import { Icon } from "../../components/Icon";
 
 const SORTS: { value: BrowseSort; label: string }[] = [
   { value: "relevance", label: "Best match" },
@@ -64,6 +66,12 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
 
   const set = <K extends keyof BrowseQuery>(k: K, v: BrowseQuery[K]) => setQuery((q) => ({ ...q, [k]: v, limit: PAGE }));
   const page = results.data;
+  const pageIds = useMemo(() => page?.items.map((i) => i.modId) ?? [], [page]);
+  const thumbs = useBrowseThumbnails(pageIds, !offline);
+  const thumbFor = (e: BrowseEntry) => {
+    const t = thumbs[e.modId.toLowerCase()];
+    return t === undefined ? e.logoUrl : t;
+  };
   const current = selected && page?.items.find((i) => i.modId === selected.modId);
 
   const toggleFavourite = (entry: BrowseEntry) =>
@@ -165,10 +173,10 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
         <div className="browse-scroll">
           {results.isPending && <p className="empty-state">Loading the Mod DB… (the first time takes a few seconds)</p>}
           {page && page.items.length === 0 && <p className="empty-state">No mods match.</p>}
-          <div className="card-grid" role="list">
+          <div className="db-card-grid" role="list">
             {page?.items.map((e) => (
-              <ModCard key={e.modId} entry={e} selected={selected?.modId === e.modId} onSelect={() => setSelected(e)}
-                onContextMenu={(event) => onCardMenu(event, e)} />
+              <ModCard key={e.modId} entry={e} thumbUrl={thumbFor(e)} selected={selected?.modId === e.modId}
+                onSelect={() => setSelected(e)} onContextMenu={(event) => onCardMenu(event, e)} />
             ))}
           </div>
           {page && page.items.length < page.total && (
@@ -182,6 +190,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
       </div>
       {selected ? (
         <BrowseDetails entry={current ?? selected} offline={offline} onClose={() => setSelected(null)}
+          thumbUrl={thumbFor(current ?? selected)}
           onFavourite={() => toggleFavourite(current ?? selected)} favouriteBusy={prefs.isPending} />
       ) : (
         <aside className="details empty">
@@ -206,8 +215,10 @@ export function Logo({ url, name, className }: { url: string | null; name: strin
   return <img className={className} src={url} alt="" loading="lazy" onError={() => setFailed(true)} />;
 }
 
-function ModCard({ entry, selected, onSelect, onContextMenu }: {
+/** Mod DB style card: the mod's picture on top, name, summary and counts below. */
+function ModCard({ entry, thumbUrl, selected, onSelect, onContextMenu }: {
   entry: BrowseEntry;
+  thumbUrl: string | null;
   selected: boolean;
   onSelect: () => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -216,31 +227,63 @@ function ModCard({ entry, selected, onSelect, onContextMenu }: {
     <button
       type="button"
       role="listitem"
-      className={`mod-card${selected ? " selected" : ""}`}
+      className={`db-card${selected ? " selected" : ""}`}
       onClick={onSelect}
       onContextMenu={onContextMenu}
       aria-haspopup="menu"
-      title={entry.summary ?? entry.name}
+      title={entry.summary ? `${entry.name}
+${entry.summary}` : entry.name}
     >
-      <Logo url={entry.logoUrl} name={entry.name} className="card-logo" />
-      <span className="card-body">
-        <span className="card-title">
-          {entry.favourite && <span aria-label="Favourite">★ </span>}
-          {entry.name}
+      <Thumbnail url={thumbUrl} name={entry.name} />
+      {(entry.installed || entry.favourite) && (
+        <span className="db-card-badges">
+          {entry.favourite && <span className="db-card-badge fav" aria-label="Favourite">★</span>}
+          {entry.installed && <span className="db-card-badge">Installed</span>}
         </span>
-        <span className="muted small">{entry.author}</span>
-        <span className="card-summary small">{entry.summary}</span>
-        <span className="muted small card-stats">
-          ⬇ {formatCount(entry.downloads)} · ♥ {formatCount(entry.follows)}
-          {entry.installed && <span className="badge">Installed</span>}
+      )}
+      <span className="db-card-desc">
+        <span className="db-card-stats">
+          <span title={`${entry.downloads.toLocaleString()} downloads`}>
+            <Icon name="download" />
+            {formatCount(entry.downloads)}
+          </span>
+          <span title={`${entry.comments.toLocaleString()} comments`}>
+            <Icon name="comment" />
+            {formatCount(entry.comments)}
+          </span>
         </span>
+        <span className="db-card-title">{entry.name}</span>
+        {entry.summary && <span className="db-card-summary">{entry.summary}</span>}
       </span>
     </button>
   );
 }
 
-function BrowseDetails({ entry, offline, onClose, onFavourite, favouriteBusy }: {
+/**
+ * The card picture, shown whole (as on the Mod DB) over a blurred copy of itself so pictures
+ * that aren't 3:2 still fill the space. Falls back to the mod's initial.
+ */
+function Thumbnail({ url, name }: { url: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
+  if (!url || failed) {
+    return (
+      <span className="db-card-thumb placeholder" aria-hidden>
+        <span>{name.slice(0, 1).toUpperCase()}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="db-card-thumb">
+      <img className="backdrop" src={url} alt="" loading="lazy" aria-hidden />
+      <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} />
+    </span>
+  );
+}
+
+function BrowseDetails({ entry, thumbUrl, offline, onClose, onFavourite, favouriteBusy }: {
   entry: BrowseEntry;
+  thumbUrl: string | null;
   offline: boolean;
   onClose: () => void;
   onFavourite: () => void;
@@ -287,7 +330,7 @@ function BrowseDetails({ entry, offline, onClose, onFavourite, favouriteBusy }: 
         <CloseDetails onClose={onClose} />
       </div>
       <div className="details-hero">
-        {entry.logoUrl && <Logo url={entry.logoUrl} name={entry.name} className="details-logo" />}
+        {thumbUrl && <Logo url={thumbUrl} name={entry.name} className="details-logo" />}
       </div>
       <dl className="details-facts">
         <dt>Author</dt>

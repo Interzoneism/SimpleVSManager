@@ -240,6 +240,19 @@ async browseMods(query: BrowseQuery, gameVersion: string | null, refresh: boolea
 }
 },
 /**
+ * The Mod DB's own card thumbnails for browser cards, by lower-case mod id. The catalogue's
+ * `logo` is often a different picture; this looks up each mod's `logofiledb` (cached for a
+ * week). Mods that couldn't be looked up are left out; `null` = the mod has no picture.
+ */
+async browseThumbnails(modIds: string[]) : Promise<Result<Partial<{ [key in string]: string | null }>, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("browse_thumbnails", { modIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * A newer Simple VS Manager on the Mod DB, if there is one.
  */
 async managerUpdate() : Promise<Result<ManagerUpdate | null, AppError>> {
