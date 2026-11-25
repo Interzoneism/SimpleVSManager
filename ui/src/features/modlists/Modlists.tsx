@@ -16,7 +16,6 @@ import {
 } from "../../api";
 import { formatAgo } from "../../lib/format";
 import { canQuickSwitch, filterModlists, kindLabel, serverCommands, type QuickSwitchPreference } from "./modlistView";
-import { SaveModlistDialog } from "./SaveModlistDialog";
 import { LoadModlistDialog } from "./LoadModlistDialog";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
@@ -30,7 +29,6 @@ import { useContextMenu } from "../../components/ContextMenu";
 
 type Dialog =
   | OnlineModlistDialog
-  | { kind: "save" }
   | { kind: "load"; source: ModlistSource; listKind: ModlistKind | null; title: string; mode?: LoadMode; quick?: boolean }
   | { kind: "group"; group: ModlistSummary | null; members: string[] }
   | { kind: "icon"; entry: ModlistSummary };
@@ -75,8 +73,8 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
   const revealCard = useRef<HTMLButtonElement>(null);
   const [rememberedSwitch, setRememberedSwitch] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch", "review");
   const quickSwitchEnabled = rememberedSwitch === "keep-configs" || rememberedSwitch === "use-list-configs";
-  // The config choice used when Quick switch is turned on again from the toolbar.
-  const [lastSwitchConfigs, setLastSwitchConfigs] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch-configs", "keep-configs");
+  // The config choice used when Quick switch is turned on again (in Settings).
+  const [, setLastSwitchConfigs] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch-configs", "keep-configs");
   const rememberSwitch = (p: QuickSwitchPreference) => {
     if (p !== "review") setLastSwitchConfigs(p);
     setRememberedSwitch(p);
@@ -277,34 +275,6 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <div className="header-spacer" />
-          <button type="button" className="primary" onClick={() => setDialog({ kind: "save" })}>
-            Save current mods…
-          </button>
-          <button type="button" onClick={() => void doImport()} disabled={importFile.isPending}>Import file…</button>
-          <button
-            type="button"
-            title="Combine the selected modlists (or pick them in the next step)"
-            onClick={() => setDialog({ kind: "group", group: null, members: chosen.filter((c) => c.kind !== "group").map((c) => c.id) })}
-          >
-            New group…
-          </button>
-          <button type="button" onClick={() => openFolder.mutate("modlists")}>Open folder</button>
-          <label
-            className="checkbox toolbar-toggle"
-            title={
-              lastSwitchConfigs === "use-list-configs"
-                ? "Switch to a modlist in one step, without the review dialog. Config files from the modlist are used."
-                : "Switch to a modlist in one step, without the review dialog. Your own config files are kept."
-            }
-          >
-            <input
-              type="checkbox"
-              checked={quickSwitchEnabled}
-              onChange={(e) => setRememberedSwitch(e.target.checked ? lastSwitchConfigs : "review")}
-            />
-            Quick switch
-          </label>
         </div>
         {flash && <p className="notice" role="status">{flash}</p>}
         {error && <p className="notice error-text">{error.message}</p>}
@@ -336,10 +306,22 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
           {online.sections}
         </div>
       </div>
-      <aside className={`details${hasDetails ? "" : " empty"}`} aria-label="Modlist details">
+      <aside className={`details with-toolbar${hasDetails ? "" : " empty"}`} aria-label="Modlist details">
+        <div className="details-toolbar">
+          <button
+            type="button"
+            className="primary"
+            title="Combine the selected modlists (or pick them in the next step)"
+            onClick={() => setDialog({ kind: "group", group: null, members: chosen.filter((c) => c.kind !== "group").map((c) => c.id) })}
+          >
+            New group…
+          </button>
+          <button type="button" onClick={() => void doImport()} disabled={importFile.isPending}>Import file…</button>
+          <button type="button" onClick={() => openFolder.mutate("modlists")}>Open folder</button>
+        </div>
         {hasDetails && <CloseDetails onClose={() => selectLocal([])} />}
         {!hasDetails && (
-          <p className="muted">
+          <p className="muted details-empty-text">
             Select a modlist to see what's in it. Double-click a card or drop a modlist JSON or PDF here to load it.
           </p>
         )}
@@ -381,17 +363,6 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
           />
         )}
       </aside>
-      {dialog?.kind === "save" && (
-        <SaveModlistDialog
-          existing={all}
-          onSaved={(s) => {
-            setDialog(null);
-            showEntry(s.id);
-            setFlash(`Saved "${s.name}".`);
-          }}
-          onClose={() => setDialog(null)}
-        />
-      )}
       {dialog?.kind === "load" && (
         <LoadModlistDialog
           os={os}

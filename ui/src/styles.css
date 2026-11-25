@@ -931,3 +931,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .modlist-card:has(.card-following) > .card-title { padding-right: 22px; }
 .card-following { position: absolute; top: 13px; right: 12px; color: var(--accent); display: grid; place-items: center; }
 .card-following .ui-icon { width: 18px; height: 18px; stroke-width: 2.2; }
+.details-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 34px 12px 0; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.details.with-toolbar.empty { display: flex; flex-direction: column; place-items: stretch; text-align: left; }
+.details.with-toolbar.empty > * { max-width: none; }
+.details.with-toolbar.empty > .details-empty-text { margin: auto; max-width: 235px; text-align: center; }

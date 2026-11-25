@@ -10,7 +10,7 @@ import {
   useSetDataDirectory,
   useSetGameDirectory,
 } from "../../api";
-import { AppearanceSettings, BackupSettings, ProfileSettings } from "./MoreSettings";
+import { AppearanceSettings, BackupSettings, ModlistSettings, ProfileSettings } from "./MoreSettings";
 import { UpdateSettings } from "./UpdateSettings";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 
@@ -43,6 +43,7 @@ export function SetupOverview({ env }: { env: DetectedEnvironment }) {
         <div className="settings-column">
           <ProfileSettings env={env} />
           <BackupSettings env={env} os={env.os} />
+          <ModlistSettings />
         </div>
         <div className="settings-column">
           <UpdateSettings env={env} />

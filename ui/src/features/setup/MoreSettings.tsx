@@ -1,3 +1,5 @@
+import { useLayoutPreference } from "../../components/SplitWorkspace";
+import type { QuickSwitchPreference } from "../modlists/modlistView";
 import { useCallback, useState } from "react";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import type { BackupProgress, DetectedEnvironment } from "../../bindings";
@@ -177,6 +179,40 @@ function samePath(a: string, b: string, os: string) {
 }
 
 /** Theme and logging. */
+/** Quick switch for modlists (stored with the layout preferences, like the Modlists page reads it). */
+export function ModlistSettings() {
+  const [remembered, setRemembered] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch", "review");
+  const [lastConfigs, setLastConfigs] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch-configs", "keep-configs");
+  const on = remembered === "keep-configs" || remembered === "use-list-configs";
+  const configs = on ? remembered : lastConfigs;
+  return (
+    <section className="settings-section" aria-labelledby="modlist-settings-heading">
+      <h2 id="modlist-settings-heading">Modlists</h2>
+      <label className="checkbox-row">
+        <input type="checkbox" checked={on} onChange={(e) => setRemembered(e.target.checked ? lastConfigs : "review")} />
+        Quick switch: switch to a modlist in one step, without the review dialog
+      </label>
+      {on && (
+        <div className="setting-row">
+          <label htmlFor="quick-switch-configs">Config files</label>
+          <select
+            id="quick-switch-configs"
+            value={configs}
+            onChange={(e) => {
+              const v = e.target.value as QuickSwitchPreference;
+              setLastConfigs(v);
+              setRemembered(v);
+            }}
+          >
+            <option value="keep-configs">Keep my config files</option>
+            <option value="use-list-configs">Use the modlist's config files</option>
+          </select>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function AppearanceSettings({ env }: { env: DetectedEnvironment }) {
   const prefs = useMorePreferences();
   const s = env.settings;
