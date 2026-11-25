@@ -113,6 +113,31 @@ pub struct SaveDefaults {
     pub game_version: Option<String>,
     /// Config files in `ModConfig`, matched to installed mods where possible.
     pub configs: Vec<ConfigCandidate>,
+    /// Installed but disabled mods. Modlists leave them out (presets keep them, switched off).
+    pub disabled_mods: Vec<DisabledMod>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DisabledMod {
+    pub mod_id: String,
+    pub name: String,
+}
+
+/// Disabled mods (no enabled copy with the same id), sorted by name. Base game mods are skipped.
+fn disabled_mods(mods: &[InstalledMod]) -> Vec<DisabledMod> {
+    let enabled = |id: &str| mods.iter().any(|m| m.is_active && m.mod_id.eq_ignore_ascii_case(id));
+    let mut out: Vec<DisabledMod> = Vec::new();
+    for m in mods.iter().filter(|m| !m.is_active) {
+        let id = m.mod_id.trim();
+        if id.is_empty() || svsm_core::mods::is_base_game_mod(id) || enabled(id) || out.iter().any(|d| d.mod_id.eq_ignore_ascii_case(id)) {
+            continue;
+        }
+        let name = if m.name.trim().is_empty() { id.to_string() } else { m.name.trim().to_string() };
+        out.push(DisabledMod { mod_id: id.to_string(), name });
+    }
+    out.sort_by_key(|d| d.name.to_lowercase());
+    out
 }
 
 #[tauri::command]
@@ -125,6 +150,7 @@ pub async fn modlist_save_defaults(state: State<'_, AppState>) -> AppResult<Save
         uploader: ClientSettings::load(&data).ok().and_then(|c| c.player_name()),
         game_version: state.environment().game_version,
         configs: configs::candidates(&data, &mods, &known),
+        disabled_mods: disabled_mods(&mods),
     })
 }
 
@@ -148,6 +174,8 @@ pub struct SaveModlistRequest {
     pub configs: Vec<ConfigChoice>,
     /// Replace an existing file with the same name.
     pub overwrite: bool,
+    /// Card icon; `null` keeps the icon of the file being replaced (if any).
+    pub icon: Option<String>,
 }
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -164,17 +192,29 @@ fn build_from_installed(state: &AppState, req: &SaveModlistRequest) -> AppResult
         return Err(AppError::msg("Give it a name."));
     }
     let (data, _) = state.mod_roots()?;
-    let chosen: Vec<(String, Option<String>)> = req.configs.iter().map(|c| (c.relative_path.clone(), c.mod_id.clone())).collect();
-    let (configs, warnings) = configs::read_for_modlist(&data, &chosen);
     let preset = req.kind == ModlistKind::Preset;
+    let mut mods = installed(state);
+    // Modlists hold only the mods that are on (and their config files); presets keep the
+    // disabled ones, switched off.
+    let left_out = if preset { Vec::new() } else { disabled_mods(&mods) };
+    if !preset {
+        mods.retain(|m| m.is_active);
+    }
+    let gone = |id: &Option<String>| id.as_deref().is_some_and(|id| left_out.iter().any(|d| d.mod_id.eq_ignore_ascii_case(id)));
+    let chosen: Vec<(String, Option<String>)> =
+        req.configs.iter().filter(|c| !gone(&c.mod_id)).map(|c| (c.relative_path.clone(), c.mod_id.clone())).collect();
+    let (configs, warnings) = configs::read_for_modlist(&data, &chosen);
+    let s = store(state);
+    let replaced_icon = || s.summary(&s.id_for_name(req.kind, name)).ok().and_then(|e| e.icon);
     let meta = ModlistMeta {
         name: name.to_string(),
         description: if preset { None } else { req.description.clone() },
+        icon: req.icon.clone().or_else(|| if req.overwrite { replaced_icon() } else { None }),
         version: if preset { None } else { req.version.clone() },
         game_version: req.game_version.clone().or_else(|| state.environment().game_version),
         uploader: if preset { None } else { req.uploader.clone() },
     };
-    Ok((from_installed(&installed(state), meta, !preset, configs), warnings))
+    Ok((from_installed(&mods, meta, !preset, configs), warnings))
 }
 
 /// Saves the installed mods as a modlist (`Modlists/`) or preset (`Presets/`).
@@ -188,6 +228,15 @@ pub async fn save_modlist(state: State<'_, AppState>, request: SaveModlistReques
     let s = store(&state);
     let id = s.save(request.kind, request.name.trim(), &list, request.overwrite)?;
     Ok(SaveResult { saved: s.summary(&id)?, warnings })
+}
+
+/// Sets (or clears with `null`) the card icon of a modlist, preset, backup or group.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_modlist_icon(state: State<'_, AppState>, id: String, icon: Option<String>) -> AppResult<ModlistSummary> {
+    let s = store(&state);
+    s.set_icon(&id, icon.as_deref())?;
+    Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
 }
 
 // ---------------------------------------------------------------------------------------------

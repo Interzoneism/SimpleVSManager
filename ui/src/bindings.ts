@@ -299,6 +299,17 @@ async saveModlist(request: SaveModlistRequest) : Promise<Result<SaveResult, AppE
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Sets (or clears with `null`) the card icon of a modlist, preset, backup or group.
+ */
+async setModlistIcon(id: string, icon: string | null) : Promise<Result<ModlistSummary, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_modlist_icon", { id, icon }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async saveModlistGroup(request: SaveGroupRequest) : Promise<Result<ModlistSummary, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_modlist_group", { request }) };
@@ -787,6 +798,7 @@ legacyProfile: string | null;
  */
 warnings: string[] }
 export type DetectedPath = { path: string; source: PathSource; exists: boolean }
+export type DisabledMod = { modId: string; name: string }
 export type ExportFormat = "json" | "pdf"
 export type FlagChange = { modIds: string[]; on: boolean }
 export type GroupConflict = { modId: string; choices: ConflictChoice[]; 
@@ -1036,7 +1048,11 @@ export type ModlistSource = { id: string | null; file: string | null; online: st
 /**
  * One entry for the Modlists screen.
  */
-export type ModlistSummary = { id: string; kind: ModlistKind; fileName: string; name: string; description: string | null; version: string | null; gameVersion: string | null; uploader: string | null; modifiedMs: number | null; mods: ModlistModView[]; configCount: number; hasVersions: boolean; 
+export type ModlistSummary = { id: string; kind: ModlistKind; fileName: string; name: string; description: string | null; 
+/**
+ * Card icon (Symbols Nerd Font glyph name); `null` = the default icon for the kind.
+ */
+icon: string | null; version: string | null; gameVersion: string | null; uploader: string | null; modifiedMs: number | null; mods: ModlistModView[]; configCount: number; hasVersions: boolean; 
 /**
  * The file couldn't be read.
  */
@@ -1144,7 +1160,11 @@ replaces: string | null }
 /**
  * One public modlist.
  */
-export type RegistryEntry = { registryId: string; name: string | null; description: string | null; version: string | null; uploader: string | null; gameVersion: string | null; mods: RegistryMod[]; revision: number; createdMs: number | null; updatedMs: number | null; 
+export type RegistryEntry = { registryId: string; name: string | null; description: string | null; 
+/**
+ * Card icon (Symbols Nerd Font glyph name) chosen by the author.
+ */
+icon: string | null; version: string | null; uploader: string | null; gameVersion: string | null; mods: RegistryMod[]; revision: number; createdMs: number | null; updatedMs: number | null; 
 /**
  * Full content (with configs) or only the summary.
  */
@@ -1163,7 +1183,11 @@ uploader: string | null; gameVersion: string | null;
 /**
  * Config files in `ModConfig`, matched to installed mods where possible.
  */
-configs: ConfigCandidate[] }
+configs: ConfigCandidate[]; 
+/**
+ * Installed but disabled mods. Modlists leave them out (presets keep them, switched off).
+ */
+disabledMods: DisabledMod[] }
 export type SaveGroupRequest = { 
 /**
  * Existing group id; `null` creates one.
@@ -1181,7 +1205,11 @@ kind: ModlistKind; name: string; description: string | null; version: string | n
 /**
  * Replace an existing file with the same name.
  */
-overwrite: boolean }
+overwrite: boolean; 
+/**
+ * Card icon; `null` keeps the icon of the file being replaced (if any).
+ */
+icon: string | null }
 export type SaveResult = { saved: ModlistSummary; 
 /**
  * Config files that couldn't be read (the rest were saved).

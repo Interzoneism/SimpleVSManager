@@ -178,8 +178,8 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
                 <ModlistCard
                   key={entry.registryId}
                   title={entry.name ?? "Unnamed modlist"}
-                  icon="community"
-                  description={entry.description}
+                  icon={entry.icon}
+                  kindIcon="community"
                   facts={facts}
                   date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
                   badges={(mine || subscribed) && <>

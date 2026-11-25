@@ -8,6 +8,7 @@ const summary = (over: Partial<ModlistSummary>): ModlistSummary => ({
   fileName: "a.json",
   name: "A",
   description: null,
+  icon: null,
   version: null,
   gameVersion: null,
   uploader: null,

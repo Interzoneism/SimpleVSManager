@@ -20,6 +20,9 @@ pub struct Modlist {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Card icon: a Symbols Nerd Font glyph name such as `md-sword` (3.x only; 2.x ignores it).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     /// The modlist's own version (set by its author), not a game version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -218,9 +221,20 @@ fn trimmed(s: &Option<String>) -> Option<&str> {
     s.as_deref().map(str::trim).filter(|s| !s.is_empty())
 }
 
+/// A usable icon name: short, ASCII letters, digits, `-` and `_` only. Anything else is dropped.
+pub fn clean_icon(icon: Option<&str>) -> Option<String> {
+    let icon = icon?.trim();
+    let ok = !icon.is_empty() && icon.len() <= 64 && icon.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    ok.then(|| icon.to_string())
+}
+
 impl Modlist {
     pub fn display_name(&self) -> Option<&str> {
         trimmed(&self.name)
+    }
+
+    pub fn icon(&self) -> Option<String> {
+        clean_icon(self.icon.as_deref())
     }
 
     /// Mods with a usable id, in file order, first entry per id (case-insensitive).

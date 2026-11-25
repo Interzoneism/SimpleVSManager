@@ -82,6 +82,7 @@ fn save_export_import_and_switch_states() {
     let defaults = run(modlist_save_defaults(state.clone())).unwrap();
     assert_eq!(defaults.uploader.as_deref(), Some("Tester"));
     assert_eq!(defaults.configs[0].mod_id.as_deref(), Some("carryon"));
+    assert_eq!(defaults.disabled_mods.iter().map(|d| d.mod_id.as_str()).collect::<Vec<_>>(), ["handytweaks"]);
 
     let saved = run(save_modlist(
         state.clone(),
@@ -94,10 +95,14 @@ fn save_export_import_and_switch_states() {
             uploader: defaults.uploader.clone(),
             configs: vec![ConfigChoice { relative_path: "CarryOn.json".into(), mod_id: Some("carryon".into()) }],
             overwrite: false,
+            icon: Some("md-sword".into()),
         },
     ))
     .unwrap();
-    assert_eq!(saved.saved.mods.len(), 3);
+    // The disabled mod (handytweaks) is left out of modlists.
+    assert_eq!(saved.saved.mods.len(), 2);
+    assert!(saved.saved.mods.iter().all(|x| x.mod_id != "handytweaks"));
+    assert_eq!(saved.saved.icon.as_deref(), Some("md-sword"));
     assert_eq!(saved.saved.config_count, 1);
 
     // PDF round trip through export + import.
@@ -105,7 +110,7 @@ fn save_export_import_and_switch_states() {
     run(export_modlist(state.clone(), saved.saved.id.clone(), pdf.display().to_string(), ExportFormat::Pdf)).unwrap();
     run(delete_modlists(state.clone(), vec![saved.saved.id.clone()])).unwrap();
     let imported = run(import_modlist(state.clone(), pdf.display().to_string(), false)).unwrap();
-    assert_eq!((imported.name.as_str(), imported.mods.len(), imported.config_count), ("Mine", 3, 1));
+    assert_eq!((imported.name.as_str(), imported.mods.len(), imported.config_count), ("Mine", 2, 1));
     assert!(run(export_modlist(state.clone(), imported.id.clone(), m.manager.join("x.exe").display().to_string(), ExportFormat::Json)).is_err());
 
     // A preset that turns everything off, loaded as "just switch on and off".
@@ -186,6 +191,7 @@ fn switching_between_lists_uses_the_library_offline() {
                 uploader: None,
                 configs: vec![],
                 overwrite: false,
+                icon: None,
             },
         ))
         .unwrap()
@@ -210,16 +216,16 @@ fn switching_between_lists_uses_the_library_offline() {
 
     // Back to "Everything": comes from the library, no network (offline mode).
     let preview = run(preview_modlist(state.clone(), ModlistSource { id: Some(everything.clone()), file: None, online: None }, LoadMode::Replace)).unwrap();
-    assert_eq!((preview.from_library, preview.to_download), (2, 0));
+    assert_eq!((preview.from_library, preview.to_download), (1, 0));
     let lists = run(list_modlists(state.clone())).unwrap();
     assert_eq!(lists.iter().find(|l| l.id == everything).unwrap().downloads_needed, 0);
     let back = run(run_apply(m.app.handle(), &state, ModlistSource { id: Some(everything.clone()), file: None, online: None }, LoadMode::Replace, true)).unwrap();
     assert!(back.failures.is_empty(), "{:?}", back.failures);
-    assert_eq!(back.installed, 2);
+    assert_eq!(back.installed, 1);
     let mods = back.list.unwrap().mods;
-    assert_eq!(mods.len(), 3);
-    // handytweaks was disabled in "Everything" and stays disabled.
-    assert!(!mods.iter().find(|x| x.mod_id == "handytweaks").unwrap().is_active);
+    // handytweaks was disabled when "Everything" was saved, so it isn't part of it.
+    assert_eq!(mods.len(), 2);
+    assert!(mods.iter().all(|x| x.mod_id != "handytweaks"));
     assert!(run(list_modlists(state.clone())).unwrap().iter().find(|l| l.id == everything).unwrap().active);
 }
 

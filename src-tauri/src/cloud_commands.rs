@@ -268,6 +268,10 @@ pub async fn sync_subscription(state: State<'_, AppState>, id: String) -> AppRes
     let (entry, mut list) = fetch_online(&state, &registry_id)
         .await
         .map_err(|e| AppError::msg(format!("{} You can stop following it to keep it as a normal modlist.", e.message)))?;
+    // Keep an icon picked locally when the author didn't set one.
+    if list.icon().is_none() {
+        list.icon = local.icon();
+    }
     let now = chrono::Utc::now().to_rfc3339();
     list.online_subscription = Some(OnlineSubscription {
         synced_revision: entry.revision,

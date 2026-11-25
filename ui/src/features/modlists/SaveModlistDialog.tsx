@@ -3,6 +3,7 @@ import type { ModlistKind, ModlistSummary } from "../../bindings";
 import { useModlistSaveDefaults, useSaveModlist } from "../../api";
 import { formatBytes } from "../../lib/format";
 import { Modal } from "./Modal";
+import { IconPicker, ModlistIcon } from "./ModlistIcon";
 
 interface Props {
   initialKind: "modlist" | "preset";
@@ -23,6 +24,8 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
   const [gameVersion, setGameVersion] = useState<string | null>(null);
   const [configs, setConfigs] = useState<Set<string>>(new Set());
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [icon, setIcon] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     if (!defaults.data) return;
@@ -30,7 +33,10 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
     setGameVersion((g) => g ?? defaults.data.gameVersion ?? "");
   }, [defaults.data]);
 
-  const candidates = defaults.data?.configs ?? [];
+  const disabled = defaults.data?.disabledMods ?? [];
+  const disabledIds = useMemo(() => new Set(disabled.map((d) => d.modId.toLowerCase())), [disabled]);
+  const isLeftOut = (modId: string | null) => kind === "modlist" && !!modId && disabledIds.has(modId.toLowerCase());
+  const candidates = (defaults.data?.configs ?? []).filter((c) => !isLeftOut(c.modId));
   const targetKind: ModlistKind = kind;
   const clash = useMemo(
     () => existing.some((e) => e.kind === targetKind && e.name.trim().toLowerCase() === name.trim().toLowerCase()),
@@ -50,6 +56,7 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
           .filter((c) => configs.has(c.relativePath))
           .map((c) => ({ relativePath: c.relativePath, modId: c.modId })),
         overwrite,
+        icon,
       },
       {
         onSuccess: (r) => {
@@ -79,6 +86,13 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
         <input id="ml-name" type="text" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
         {!isPreset && (
           <>
+            <span className="form-label">Icon</span>
+            <div className="icon-field">
+              <button type="button" className="details-icon-button" aria-label="Choose an icon" title="Choose an icon" onClick={() => setPicking(true)}>
+                <ModlistIcon icon={icon} fallback="lists" />
+              </button>
+              <button type="button" className="link-button small" onClick={() => setPicking(true)}>Choose…</button>
+            </div>
             <label className="form-label" htmlFor="ml-desc">Description</label>
             <textarea id="ml-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
             <label className="form-label" htmlFor="ml-version">Modlist version</label>
@@ -90,6 +104,13 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
           </>
         )}
       </div>
+      {!isPreset && disabled.length > 0 && (
+        <div className="notice warn-text disabled-mods-note" role="status">
+          {disabled.length === 1 ? "1 mod is" : `${disabled.length} mods are`} disabled and won't be in the modlist
+          (a preset keeps them, switched off):
+          <ul>{disabled.map((d) => <li key={d.modId}>{d.name}{d.name !== d.modId && <span className="muted small"> ({d.modId})</span>}</li>)}</ul>
+        </div>
+      )}
       {!isPreset && (
         <section className="config-picker">
           <h3>Include config files</h3>
@@ -153,6 +174,17 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
           </>
         )}
       </div>
+      {picking && (
+        <IconPicker
+          current={icon}
+          fallback="lists"
+          onPick={(picked) => {
+            setIcon(picked);
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </Modal>
   );
 }

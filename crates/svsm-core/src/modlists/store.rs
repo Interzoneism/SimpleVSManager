@@ -81,6 +81,8 @@ pub struct ModlistSummary {
     pub file_name: String,
     pub name: String,
     pub description: Option<String>,
+    /// Card icon (Symbols Nerd Font glyph name); `null` = the default icon for the kind.
+    pub icon: Option<String>,
     pub version: Option<String>,
     pub game_version: Option<String>,
     pub uploader: Option<String>,
@@ -248,6 +250,7 @@ impl ModlistStore {
             file_name: path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
             name: stem(path),
             description: None,
+            icon: None,
             version: None,
             game_version: None,
             uploader: None,
@@ -269,6 +272,7 @@ impl ModlistStore {
                 }
                 let t = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(String::from);
                 s.description = t(&l.description);
+                s.icon = l.icon();
                 s.version = t(&l.version);
                 s.game_version = t(&l.game_version);
                 s.uploader = t(&l.uploader);
@@ -385,6 +389,38 @@ impl ModlistStore {
             let _ = std::fs::remove_file(o);
         }
         Ok(new_id)
+    }
+
+    /// Sets or clears (`None`) an entry's card icon. Other fields in the file are kept as they are.
+    pub fn set_icon(&self, id: &str, icon: Option<&str>) -> CoreResult<()> {
+        let (path, kind) = self.resolve(id)?;
+        if !path.is_file() {
+            return Err(other(&path, "That modlist no longer exists."));
+        }
+        let icon = super::format::clean_icon(icon);
+        if kind == ModlistKind::Group {
+            let mut def = self.read_group(&path)?;
+            def.icon = icon;
+            return self.write(&path, &groups::group_to_json(&def));
+        }
+        let text = std::fs::read_to_string(&path).map_err(|e| CoreError::io(&path, e))?;
+        let text = match serde_json::from_str::<serde_json::Value>(text.trim_start_matches('\u{feff}')) {
+            // Plain JSON: change only the icon, so fields we don't know survive.
+            Ok(serde_json::Value::Object(mut map)) => {
+                map.retain(|k, _| !k.eq_ignore_ascii_case("icon"));
+                if let Some(icon) = icon {
+                    map.insert("icon".into(), serde_json::Value::String(icon));
+                }
+                serde_json::to_string_pretty(&serde_json::Value::Object(map)).expect("JSON always serializes")
+            }
+            // Lenient JSON (comments, trailing commas): rewrite it in our format.
+            _ => {
+                let mut list = parse_modlist(&text).map_err(|message| CoreError::Parse { path: path.clone(), message })?;
+                list.icon = icon;
+                to_json(&list)
+            }
+        };
+        self.write(&path, &text)
     }
 
     /// Moves entries to the system trash.
@@ -545,6 +581,31 @@ mod tests {
         let backups: Vec<_> = s.list().into_iter().filter(|e| e.kind == ModlistKind::Backup).collect();
         assert_eq!(backups.len(), MAX_BACKUPS + 1);
         assert!(backups.iter().any(|b| b.name.contains("-- ModlistLoaded (1 mod)")));
+    }
+
+    #[test]
+    fn icons_are_saved_without_touching_other_fields() {
+        let t = tempfile::tempdir().unwrap();
+        let s = ModlistStore::new(t.path());
+        std::fs::create_dir_all(t.path().join("Modlists")).unwrap();
+        std::fs::write(t.path().join("Modlists/a.json"), r#"{"name":"A","Icon":"old","futureField":7,"mods":[{"modId":"x"}]}"#).unwrap();
+        let id = "Modlists/a.json";
+        assert_eq!(s.summary(id).unwrap().icon.as_deref(), Some("old"));
+        s.set_icon(id, Some("md-sword")).unwrap();
+        let raw: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(t.path().join(id)).unwrap()).unwrap();
+        assert_eq!((raw["icon"].as_str(), raw["futureField"].as_i64(), raw.get("Icon")), (Some("md-sword"), Some(7), None));
+        assert_eq!(s.summary(id).unwrap().icon.as_deref(), Some("md-sword"));
+        s.set_icon(id, Some("bad icon\"<")).unwrap();
+        assert_eq!(s.summary(id).unwrap().icon, None, "invalid names are dropped");
+
+        // Lenient files are rewritten; groups keep the icon in the definition.
+        std::fs::write(t.path().join("Modlists/b.json"), "{name: 'B', mods: [{modId: 'y'},],}").unwrap();
+        s.set_icon("Modlists/b.json", Some("fa-dragon")).unwrap();
+        assert_eq!(s.summary("Modlists/b.json").unwrap().icon.as_deref(), Some("fa-dragon"));
+        let g = s.save_group(None, &GroupDefinition { name: Some("G".into()), members: vec!["a.json".into()], ..Default::default() }).unwrap();
+        s.set_icon(&g, Some("md-castle")).unwrap();
+        assert_eq!(s.summary(&g).unwrap().icon.as_deref(), Some("md-castle"));
+        assert_eq!(s.read_group(&s.resolve(&g).unwrap().0).unwrap().members, ["a.json"]);
     }
 
     #[test]

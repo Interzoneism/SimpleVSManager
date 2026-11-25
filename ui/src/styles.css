@@ -488,6 +488,31 @@ button.library-stat[aria-pressed="true"] {
 .details-logo.placeholder { display: none; }
 
 /* --- Modlists --- */
+/* A subset of Symbols Nerd Font (licenses: public/licenses/SymbolsNerdFont.txt). */
+@font-face {
+  font-family: "Symbols Nerd Font";
+  src: url("./assets/fonts/symbols-nerd-font-subset.woff2") format("woff2");
+  font-display: block;
+}
+.nerd-icon { font-family: "Symbols Nerd Font"; font-style: normal; font-weight: normal; line-height: 1; speak: never; }
+.icon-picker { display: flex; flex-direction: column; gap: 10px; min-width: min(560px, 80vw); }
+.icon-picker-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px;
+  list-style: none; margin: 0; padding: 2px; max-height: min(52vh, 420px); overflow-y: auto;
+}
+.icon-choice {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 1; padding: 0;
+  border: 1px solid var(--border); border-radius: 6px; color: var(--palette-white);
+}
+.icon-choice .nerd-icon { font-size: 22px; }
+.icon-choice.selected { border-color: var(--accent); background: var(--selection); color: var(--accent); }
+.details-icon-button {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; flex: none;
+  color: var(--accent); background: var(--selection); border-radius: 8px; vertical-align: middle; margin-right: 8px;
+}
+.details-icon-button .nerd-icon { font-size: 22px; }
+.icon-field { display: flex; align-items: center; gap: 8px; }
+.disabled-mods-note ul { margin: 4px 0 0; padding-left: 18px; max-height: 120px; overflow-y: auto; }
 .modlist-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .modlist-section { margin-bottom: 16px; }
 .section-toggle { background: transparent; border: 0; padding: 4px 0; font-weight: 600; color: var(--palette-white); }
@@ -514,15 +539,20 @@ button.library-stat[aria-pressed="true"] {
   margin: 0;
 }
 .modlist-card-item { display: flex; min-width: 0; }
-.modlist-card { width: 100%; }
+.modlist-card { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; min-height: 0; }
+.modlist-card > .card-title { width: 100%; }
+.modlist-card-row { display: flex; gap: 12px; align-items: stretch; flex: 1; min-width: 0; min-height: 64px; }
 .modlist-card .card-stats { line-height: 1.4; }
 .modlist-card-icon {
   display: grid;
   place-items: center;
-  width: min(76px, 29%);
+  width: 64px;
+  height: 64px;
+  align-self: flex-start;
   color: var(--accent);
   background: var(--selection);
 }
+.modlist-card-icon .nerd-icon { font-size: 30px; }
 .modlist-card-icon.icon-settings { color: var(--palette-text-link); }
 .modlist-card-icon.icon-history { color: var(--palette-grey); background: var(--palette-interactive-surface); }
 .modlist-card-icon .ui-icon { width: 28px; height: 28px; }

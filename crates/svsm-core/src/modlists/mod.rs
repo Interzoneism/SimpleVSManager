@@ -9,7 +9,7 @@ pub mod pdf;
 pub mod store;
 
 pub use apply::{plan, ApplyPlan, LoadMode};
-pub use format::{parse_modlist, to_json, ConfigFile, ConfigList, Modlist, ModlistConfig, ModlistMod, OnlineSubscription};
+pub use format::{clean_icon, parse_modlist, to_json, ConfigFile, ConfigList, Modlist, ModlistConfig, ModlistMod, OnlineSubscription};
 pub use groups::{GroupConflict, GroupDefinition};
 pub use store::{read_modlist_file, LoadedModlist, ModlistKind, ModlistStore, ModlistSummary};
 
@@ -20,6 +20,7 @@ use crate::mods::{is_base_game_mod, InstalledMod};
 pub struct ModlistMeta {
     pub name: String,
     pub description: Option<String>,
+    pub icon: Option<String>,
     pub version: Option<String>,
     pub game_version: Option<String>,
     pub uploader: Option<String>,
@@ -45,6 +46,7 @@ pub fn from_installed(installed: &[InstalledMod], meta: ModlistMeta, with_versio
     Modlist {
         name: Some(meta.name.trim().to_string()),
         description: t(meta.description),
+        icon: format::clean_icon(meta.icon.as_deref()),
         version: t(meta.version),
         game_version: t(meta.game_version),
         uploader: t(meta.uploader),

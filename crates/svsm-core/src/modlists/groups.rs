@@ -22,6 +22,9 @@ pub struct GroupDefinition {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Card icon (Symbols Nerd Font glyph name).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -37,6 +40,7 @@ impl Default for GroupDefinition {
             schema_version: 1,
             name: None,
             description: None,
+            icon: None,
             version: None,
             game_version: None,
             members: Vec::new(),
@@ -298,6 +302,7 @@ pub fn merge(def: &GroupDefinition, sources: &[GroupSource]) -> MergeResult {
     let modlist = Modlist {
         name: Some(trimmed(&def.name).unwrap_or_else(|| "Unnamed Modlist Group".into())),
         description: trimmed(&def.description),
+        icon: super::format::clean_icon(def.icon.as_deref()),
         version: trimmed(&def.version),
         game_version: trimmed(&def.game_version),
         uploader: None,

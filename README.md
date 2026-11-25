@@ -121,3 +121,7 @@ Installers land in `target/release/bundle/`. To build only one type: `pnpm tauri
 - The UI calls the backend only through hooks in `ui/src/api`, never `commands` directly.
 - The frontend has no generic file system, shell or HTTP permissions (`src-tauri/capabilities`).
 - Don't write to `SimpleVSManagerConfiguration.json` or `firebase-auth.json`; 2.x owns them.
+
+## Third-party assets
+
+- Modlist icons use a subset of [Symbols Nerd Font](https://www.nerdfonts.com) (Nerd Fonts v3.5.1, MIT), with glyphs from Font Awesome Free (CC BY 4.0 / SIL OFL 1.1) and Material Design Icons (Apache 2.0). The font is bundled with the app (`ui/src/assets/fonts/`), never loaded from a CDN. License texts: `ui/public/licenses/SymbolsNerdFont.txt` (shipped with the app). To change the icon set, edit `scripts/nerd-font/icons.txt` and run `scripts/nerd-font/subset.py`.

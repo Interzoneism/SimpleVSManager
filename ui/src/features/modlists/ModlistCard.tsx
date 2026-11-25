@@ -1,10 +1,14 @@
 import type { MouseEvent, ReactNode } from "react";
-import { Icon, type IconName } from "../../components/Icon";
+import type { IconName } from "../../components/Icon";
+import { ModlistIcon } from "./ModlistIcon";
 
-export function ModlistCard({ title, icon, description, facts, date, badges, selected, onSelect, onLoad, onContextMenu }: {
+/** A modlist card: the title across the top, then the icon beside the facts. The description is
+ * only in the details panel. */
+export function ModlistCard({ title, icon, kindIcon, facts, date, badges, selected, onSelect, onLoad, onContextMenu }: {
   title: string;
-  icon: IconName;
-  description?: string | null;
+  /** Chosen Nerd Font icon name; `null` shows `kindIcon`. */
+  icon?: string | null;
+  kindIcon: IconName;
   facts: string[];
   date?: string;
   badges?: ReactNode;
@@ -30,13 +34,14 @@ export function ModlistCard({ title, icon, description, facts, date, badges, sel
           if (!event.repeat) onLoad();
         }}
       >
-        <span className={`card-logo modlist-card-icon icon-${icon}`}><Icon name={icon} /></span>
-        <span className="card-body">
-          <span className="card-title">{title}</span>
-          {badges && <span className="modlist-card-badges">{badges}</span>}
-          {description && <span className="card-summary small">{description}</span>}
-          <span className="muted small card-stats">{facts.join(" · ")}</span>
-          {date && <span className="muted small">{date}</span>}
+        <span className="card-title">{title}</span>
+        <span className="modlist-card-row">
+          <span className={`card-logo modlist-card-icon icon-${kindIcon}`}><ModlistIcon icon={icon} fallback={kindIcon} /></span>
+          <span className="card-body">
+            {badges && <span className="modlist-card-badges">{badges}</span>}
+            <span className="muted small card-stats">{facts.join(" · ")}</span>
+            {date && <span className="muted small">{date}</span>}
+          </span>
         </span>
       </button>
     </li>

@@ -49,6 +49,8 @@ pub struct RegistryEntry {
     pub registry_id: String,
     pub name: Option<String>,
     pub description: Option<String>,
+    /// Card icon (Symbols Nerd Font glyph name) chosen by the author.
+    pub icon: Option<String>,
     pub version: Option<String>,
     pub uploader: Option<String>,
     pub game_version: Option<String>,
@@ -120,6 +122,7 @@ pub fn parse_entry(registry_id: &str, node: &Value, complete: bool) -> Option<Re
         registry_id: registry_id.to_string(),
         name: s(content, "name"),
         description: s(content, "description"),
+        icon: crate::modlists::clean_icon(s(content, "icon").as_deref()),
         version: s(content, "version"),
         uploader: s(content, "uploader").or_else(|| s(content, "uploaderName")),
         game_version: s(content, "gameVersion").or_else(|| s(content, "vsVersion")),
@@ -142,7 +145,7 @@ pub fn summary_json(content: &Value, date_added: &str, revision: f64, created: &
     let uploader = s(content, "uploader").or_else(|| s(content, "uploaderName"));
     json!({
         "content": {
-            "name": s(content, "name"), "description": s(content, "description"), "version": s(content, "version"),
+            "name": s(content, "name"), "description": s(content, "description"), "icon": s(content, "icon"), "version": s(content, "version"),
             "uploader": uploader, "uploaderName": uploader, "gameVersion": game, "vsVersion": game, "mods": mods,
         },
         "dateAdded": date_added, "revision": revision, "createdAt": created, "updatedAt": updated,
@@ -690,6 +693,16 @@ mod tests {
         server.mock("GET", "/db/users/abc_def_1.json").match_query(Matcher::Any).with_body(r#"{"slot1":{"registryId":"r","content":{"name":"A","mods":[1,2]}}}"#).create();
         let slots = rt().block_on(store.my_slots(&me())).unwrap();
         assert_eq!((slots[0].slot.as_str(), slots[0].mod_count), ("slot1", 2));
+    }
+
+    #[test]
+    fn icons_are_published_in_the_summary() {
+        let content = json!({"name": "N", "icon": "md-sword", "mods": []});
+        let summary = summary_json(&content, "d", 1.0, "c", "u");
+        assert_eq!(summary["content"]["icon"], "md-sword");
+        assert_eq!(parse_entry("r", &summary, false).unwrap().icon.as_deref(), Some("md-sword"));
+        let bad = json!({"content": {"icon": "<script>"}});
+        assert_eq!(parse_entry("r", &bad, false).unwrap().icon, None);
     }
 
     #[test]

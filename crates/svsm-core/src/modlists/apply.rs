@@ -168,7 +168,11 @@ pub fn plan(list: &Modlist, installed: &[InstalledMod], mode: LoadMode, import_c
 
 /// The installed mods already are this list (same mods, versions and on/off state).
 pub fn matches_installed(list: &Modlist, installed: &[InstalledMod]) -> bool {
-    !list.entries().is_empty() && plan(list, installed, LoadMode::Replace, false).is_empty()
+    // Disabled mods the list doesn't mention don't change what runs (modlists leave them out).
+    let listed: Vec<String> = list.entries().iter().filter_map(|e| e.id()).map(str::to_ascii_lowercase).collect();
+    let relevant: Vec<InstalledMod> =
+        installed.iter().filter(|m| m.is_active || listed.contains(&m.mod_id.trim().to_ascii_lowercase())).cloned().collect();
+    !list.entries().is_empty() && plan(list, &relevant, LoadMode::Replace, false).is_empty()
 }
 
 /// How many of the plan's installs and version switches can come from the mod library
@@ -290,6 +294,8 @@ mod tests {
         assert!(!matches_installed(&l, &mods()));
         let same = parse_modlist(r#"{"mods":[{"modId":"keep","version":"1.0.0","isActive":false},{"modId":"upgrade","version":"1.0.0","isActive":true},{"modId":"extra","version":"1.0.0","isActive":true}]}"#).unwrap();
         assert!(matches_installed(&same, &mods()));
+        let without_disabled = parse_modlist(r#"{"mods":[{"modId":"upgrade","version":"1.0.0","isActive":true},{"modId":"extra","version":"1.0.0","isActive":true}]}"#).unwrap();
+        assert!(matches_installed(&without_disabled, &mods()), "a disabled mod the list leaves out still matches");
         assert!(!matches_installed(&parse_modlist("{}").unwrap(), &[]));
     }
 

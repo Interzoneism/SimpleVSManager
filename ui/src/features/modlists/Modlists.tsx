@@ -9,6 +9,7 @@ import {
   useModsChangedListener,
   useOpenKnownFolder,
   useResolveGroupConflict,
+  useSetModlistIcon,
   useSyncSubscription,
   useUnsubscribe,
 } from "../../api";
@@ -19,6 +20,7 @@ import { LoadModlistDialog } from "./LoadModlistDialog";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
+import { IconPicker, ModlistIcon } from "./ModlistIcon";
 import { CloseDetails, SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import type { IconName } from "../../components/Icon";
 import { useContextMenu } from "../../components/ContextMenu";
@@ -26,7 +28,8 @@ import { useContextMenu } from "../../components/ContextMenu";
 type Dialog =
   | { kind: "save"; as: "modlist" | "preset" }
   | { kind: "load"; source: ModlistSource; listKind: ModlistKind | null; title: string; mode?: LoadMode; quick?: boolean }
-  | { kind: "group"; group: ModlistSummary | null; members: string[] };
+  | { kind: "group"; group: ModlistSummary | null; members: string[] }
+  | { kind: "icon"; entry: ModlistSummary };
 
 interface Props {
   os: Os;
@@ -53,6 +56,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
   const resolve = useResolveGroupConflict();
   const sync = useSyncSubscription();
   const unsubscribe = useUnsubscribe();
+  const setIcon = useSetModlistIcon();
   const openMenu = useContextMenu();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -165,6 +169,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
       !entry.active && entry.kind !== "preset" && { label: quick ? "Quick switch" : "Switch to this…", disabled: cannotLoad, run: () => startLoad(entry, "replace", quick) },
       { label: "Load…", disabled: cannotLoad, run: () => startLoad(entry) },
       entry.kind === "group" && { label: "Edit group…", disabled: busy, run: () => setDialog({ kind: "group", group: entry, members: [] }) },
+      { label: "Change icon…", disabled: busy || !!entry.error, run: () => setDialog({ kind: "icon", entry }) },
     ], [
       { label: "Export JSON…", disabled: cannotLoad, run: () => doExport(entry, "json") },
       { label: "Export PDF…", disabled: cannotLoad, run: () => doExport(entry, "pdf") },
@@ -256,8 +261,8 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
                           <ModlistCard
                             key={m.id}
                             title={m.name}
-                            icon={kindIcons[m.kind]}
-                            description={m.description}
+                            icon={m.icon}
+                            kindIcon={kindIcons[m.kind]}
                             facts={facts}
                             date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
                             badges={(m.active || m.subscription) && <>
@@ -314,6 +319,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
             onExport={(f) => void doExport(chosen[0], f)}
             onCopy={() => void copy(serverCommands(chosen[0]), "server install commands")}
             onEditGroup={() => setDialog({ kind: "group", group: chosen[0], members: [] })}
+            onChangeIcon={() => setDialog({ kind: "icon", entry: chosen[0] })}
             onDelete={() => void remove([chosen[0]])}
             onSelectMember={showEntry}
             onResolve={(modId, reference) => resolve.mutate({ id: chosen[0].id, modId, reference })}
@@ -358,6 +364,19 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
           onClose={() => setDialog(null)}
         />
       )}
+      {dialog?.kind === "icon" && (
+        <IconPicker
+          current={dialog.entry.icon}
+          fallback={kindIcons[dialog.entry.kind]}
+          busy={setIcon.isPending}
+          error={setIcon.error?.message}
+          onPick={(icon) => setIcon.mutate({ id: dialog.entry.id, icon }, { onSuccess: () => setDialog(null) })}
+          onClose={() => {
+            setIcon.reset();
+            setDialog(null);
+          }}
+        />
+      )}
       {dialog?.kind === "group" && (
         <GroupDialog
           group={dialog.group}
@@ -382,6 +401,7 @@ interface DetailsProps {
   onExport: (format: "json" | "pdf") => void;
   onCopy: () => void;
   onEditGroup: () => void;
+  onChangeIcon: () => void;
   onDelete: () => void;
   onSelectMember: (id: string) => void;
   onResolve: (modId: string, reference: string) => void;
@@ -389,12 +409,22 @@ interface DetailsProps {
   onUnsubscribe: () => void;
 }
 
-function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe }: DetailsProps) {
+function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onChangeIcon, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe }: DetailsProps) {
   const hasCommands = entry.mods.some((m) => m.version);
   return (
     <>
       <div className="details-header">
         <h2>
+          <button
+            type="button"
+            className="details-icon-button"
+            title="Change icon"
+            aria-label="Change icon"
+            disabled={busy || !!entry.error}
+            onClick={onChangeIcon}
+          >
+            <ModlistIcon icon={entry.icon} fallback={kindIcons[entry.kind]} />
+          </button>
           {entry.name}
           <span className="badge">{kindLabel(entry.kind)}</span>
         </h2>
