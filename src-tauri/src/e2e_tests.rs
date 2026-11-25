@@ -403,3 +403,67 @@ fn data_backups_configs_and_profiles() {
     assert_eq!(env.settings.data_directory.as_deref(), Some(ours.as_str()));
     assert!(run(crate::m5_commands::change_profile(state.clone(), crate::m5_commands::ProfileChange::Delete { name: "Default".into() })).is_err());
 }
+
+fn zip_mod_with_deps(path: &Path, id: &str, version: &str, deps: &str) {
+    use std::io::Write;
+    let mut z = zip::ZipWriter::new(std::fs::File::create(path).unwrap());
+    z.start_file("modinfo.json", zip::write::SimpleFileOptions::default()).unwrap();
+    write!(z, r#"{{"type":"code","modid":"{id}","name":"{id}","version":"{version}","dependencies":{{{deps}}}}}"#).unwrap();
+    z.finish().unwrap();
+}
+
+fn key_of(state: &AppState, id: &str) -> String {
+    state.mods.read().unwrap().mods.iter().find(|x| x.mod_id == id).unwrap().key.clone()
+}
+
+#[test]
+fn fix_dependencies_enables_and_reports_what_it_cannot_fix() {
+    let m = machine();
+    let state = m.app.state::<AppState>();
+    state.update_settings(|s| s.offline_mode = true).unwrap();
+    zip_mod_with_deps(
+        &m.data.join("Mods/NeedsDeps.zip"),
+        "needsdeps",
+        "1.0.0",
+        r#""game":"1.21.0","handytweaks":"*","carryon":"1.14.3","missinglib":"*""#,
+    );
+    state.rescan().unwrap();
+    let key = key_of(&state, "needsdeps");
+
+    let report = run(crate::deps_commands::fix(m.app.handle(), &state, &key)).unwrap();
+    assert_eq!(report.done, ["Enabled handytweaks"]);
+    let ids: Vec<_> = report.failures.iter().map(|f| f.split(':').next().unwrap()).collect();
+    assert_eq!(ids, ["carryon", "missinglib"], "{:?}", report.failures);
+    let mods = report.list.mods;
+    assert!(mods.iter().find(|x| x.mod_id == "handytweaks").unwrap().is_active);
+    // Nothing was downloaded or removed.
+    assert_eq!(std::fs::read_dir(m.data.join("Mods")).unwrap().count(), 4);
+}
+
+#[test]
+#[ignore = "downloads from mods.vintagestory.at"]
+fn fix_dependencies_installs_and_updates_from_the_mod_db() {
+    let m = machine();
+    let state = m.app.state::<AppState>();
+    zip_mod_with_deps(
+        &m.data.join("Mods/NeedsDeps.zip"),
+        "needsdeps",
+        "1.0.0",
+        r#""game":"","carryon":"1.14.3","configlib":"*""#,
+    );
+    state.rescan().unwrap();
+    let key = key_of(&state, "needsdeps");
+
+    let report = run(crate::deps_commands::fix(m.app.handle(), &state, &key)).unwrap();
+    assert!(report.failures.is_empty(), "{:?}", report.failures);
+    println!("{:#?}", report.done);
+    let mods = report.list.mods;
+    let carry = mods.iter().find(|x| x.mod_id == "carryon").unwrap();
+    assert!(svsm_core::version::satisfies_minimum_version(Some("1.14.3"), carry.version.as_deref()));
+    assert!(mods.iter().any(|x| x.mod_id == "configlib"));
+    let root = mods.iter().find(|x| x.mod_id == "needsdeps").unwrap();
+    assert!(root.load_error.is_none(), "{:?}", root.load_error);
+    // Satisfied now, so a second run does nothing.
+    let again = run(crate::deps_commands::fix(m.app.handle(), &state, &key)).unwrap();
+    assert!(again.done.is_empty() && again.failures.is_empty());
+}

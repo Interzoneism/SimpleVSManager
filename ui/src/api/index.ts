@@ -247,6 +247,20 @@ export function useInstallMod() {
   });
 }
 
+/** Installs, updates and enables whatever a mod's dependencies need. */
+export function useFixDependencies() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => unwrap(commands.fixDependencies(key)),
+    onSuccess: (report) => {
+      client.setQueryData(queryKeys.mods, report.list);
+      void client.invalidateQueries({ queryKey: queryKeys.moddb });
+      void client.invalidateQueries({ queryKey: queryKeys.modlists });
+      void client.invalidateQueries({ queryKey: queryKeys.cacheStats });
+    },
+  });
+}
+
 /** Subscribes to per-mod download/install progress. */
 export function useUpdateProgress(onProgress: (p: UpdateProgress) => void) {
   useEffect(() => {

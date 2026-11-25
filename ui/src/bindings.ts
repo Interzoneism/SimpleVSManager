@@ -219,6 +219,18 @@ async installMod(modId: string, version: string | null) : Promise<Result<ModList
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Installs missing dependencies, updates ones that are too old, and enables disabled ones, for
+ * the mod with `key` and, in turn, for those dependencies. Emits `UpdateProgress` under `key`.
+ */
+async fixDependencies(key: string) : Promise<Result<DependencyFixReport, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fix_dependencies", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async browseFacets() : Promise<Result<BrowseFacets, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("browse_facets") };
@@ -837,6 +849,15 @@ export type Dependency = { modId: string;
  * Minimum version, `*` or empty for any.
  */
 version: string }
+export type DependencyFixReport = { 
+/**
+ * What was done, one line each ("Installed carryonlib 1.0.0").
+ */
+done: string[]; 
+/**
+ * What couldn't be fixed, one line each.
+ */
+failures: string[]; list: ModList }
 /**
  * Changes to a published modlist's details. `None` leaves a field as it is; an empty string
  * clears it. The name can't be changed (followers know the list by it), and there is no

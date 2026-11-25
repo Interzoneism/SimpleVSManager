@@ -6,6 +6,7 @@ import { iconUrl } from "../../lib/iconUrl";
 import { canToggleMod, modStatus, statusLabel, type DbIndex } from "./modView";
 import { Changelog, summarizeVersions } from "./UpdateDialog";
 import { Reports } from "./Reports";
+import { FixDependencies } from "./FixDependencies";
 import { Icon } from "../../components/Icon";
 import { CloseDetails } from "../../components/SplitWorkspace";
 
@@ -117,6 +118,8 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
           )}
         </div>
       )}
+
+      <FixDependencies mod={mod} busy={busy} />
 
       {mod.description && <p className="mod-details-description">{mod.description}</p>}
 

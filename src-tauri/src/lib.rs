@@ -2,6 +2,7 @@
 
 mod cloud_commands;
 mod commands;
+mod deps_commands;
 mod error;
 mod events;
 mod m5_commands;
@@ -43,6 +44,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             moddb_commands::update_mods,
             moddb_commands::cancel_updates,
             moddb_commands::install_mod,
+            deps_commands::fix_dependencies,
             moddb_commands::browse_facets,
             moddb_commands::browse_mods,
             moddb_commands::browse_thumbnails,

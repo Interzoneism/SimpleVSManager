@@ -38,7 +38,7 @@ export function progressLabel(p: UpdateProgress): string | null {
     case "queued":
       return "Waiting…";
     case "downloading":
-      return p.percent != null ? `Downloading ${Math.round(p.percent)}%` : "Downloading…";
+      return p.percent != null ? `Downloading ${Math.round(p.percent)}%` : (p.message ?? "Downloading…");
     case "installing":
       return "Installing…";
     default:

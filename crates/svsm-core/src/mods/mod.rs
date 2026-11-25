@@ -1,10 +1,12 @@
 //! Installed mods: discovery, manifest parsing and load-status checks.
 
+mod deps;
 mod discovery;
 mod model;
 mod modinfo;
 mod status;
 
+pub use deps::{plan_dependency_fixes, release_for_dependency, DependencyAction, DependencyPlan, DependencyProblem};
 pub use discovery::{discover_mods, search_paths, DiscoveryResult};
 pub use model::{Dependency, InstalledMod, ModSourceKind};
 pub use modinfo::{parse_modinfo, to_mod_id, ModInfo};
