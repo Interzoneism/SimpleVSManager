@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useModConfig, useModConfigs, useOpenKnownFolder, useSaveModConfig } from "../../api";
 import { coerce, matchesSearch, setAt, stringify, type Json, type PathPart } from "./jsonTree";
@@ -6,15 +6,24 @@ import { SplitWorkspace } from "../../components/SplitWorkspace";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 
 /** The Configs tab: mod config files in ModConfig, edited as a tree (JSON) or as text. */
-export function ConfigEditor({ enabled, focusMod }: { enabled: boolean; focusMod: string | null }) {
+/** `focusMod` is a request from "Edit config": a new object each time, handled once. */
+export function ConfigEditor({ enabled, focusMod }: { enabled: boolean; focusMod: { modId: string } | null }) {
   const list = useModConfigs(enabled);
   const openFolder = useOpenKnownFolder();
   const openMenu = useContextMenu();
   const [selected, setSelected] = useState<string | null>(null);
-  const [filter, setFilter] = useState(focusMod ?? "");
+  const [filter, setFilter] = useState("");
+  // The page stays mounted between visits (and its effects re-run when shown), so each request
+  // is applied once: filter to the mod, then open its first file once the list is there.
+  const handled = useRef<{ modId: string } | null>(null);
+  const [pendingFocus, setPendingFocus] = useState(false);
 
   useEffect(() => {
-    if (focusMod) setFilter(focusMod);
+    if (!focusMod || handled.current === focusMod) return;
+    handled.current = focusMod;
+    setFilter(focusMod.modId);
+    setSelected(null);
+    setPendingFocus(true);
   }, [focusMod]);
 
   const files = useMemo(() => {
@@ -25,8 +34,10 @@ export function ConfigEditor({ enabled, focusMod }: { enabled: boolean; focusMod
   }, [list.data, filter]);
 
   useEffect(() => {
-    if (focusMod && files.length > 0 && !selected) setSelected(files[0].relativePath);
-  }, [focusMod, files, selected]);
+    if (!pendingFocus || !list.isSuccess) return;
+    if (files.length > 0) setSelected(files[0].relativePath);
+    setPendingFocus(false);
+  }, [pendingFocus, list.isSuccess, files]);
 
   if (!enabled) return <p className="empty-state">The Vintage Story data folder wasn't found. Pick it on the <strong>Settings</strong> tab.</p>;
 

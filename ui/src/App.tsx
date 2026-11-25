@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Activity, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useAppInfo, useEnvironment, useLaunchGame, useManagerUpdate, useOpenUrl } from "./api";
 import { ModBrowser } from "./features/browser/ModBrowser";
@@ -10,6 +10,13 @@ import { ConfigEditor } from "./features/configs/ConfigEditor";
 import { HelpDialog } from "./features/help/HelpDialog";
 import { Icon, type IconName } from "./components/Icon";
 import { useLayoutPreference } from "./components/SplitWorkspace";
+
+// Memoized so a hidden page doesn't re-render whenever the app shell does (tab switches etc.).
+const InstalledModsPage = memo(InstalledMods);
+const ModlistsPage = memo(Modlists);
+const ModBrowserPage = memo(ModBrowser);
+const ConfigEditorPage = memo(ConfigEditor);
+const SetupOverviewPage = memo(SetupOverview);
 
 type Tab = "mods" | "modlists" | "browse" | "configs" | "settings";
 const pages: Record<Tab, { title: string; icon: IconName }> = {
@@ -30,12 +37,22 @@ export default function App() {
   const openUrl = useOpenUrl();
   const [droppedFile, setDroppedFile] = useState<string | null>(null);
   const clearDropped = useCallback(() => setDroppedFile(null), []);
-  const [configMod, setConfigMod] = useState<string | null>(null);
+  // A new object each time, so asking for the same mod again still selects its file.
+  const [configMod, setConfigMod] = useState<{ modId: string } | null>(null);
   const [help, setHelp] = useState(false);
   const editConfig = useCallback((modId: string) => {
-    setConfigMod(modId);
+    setConfigMod({ modId });
     setTab("configs");
   }, []);
+  // Pages stay mounted (hidden) once visited, so switching back is instant and keeps their
+  // scroll, search and selection. Each page starts at the top of the shared scroll area.
+  const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set([tab]));
+  if (!visited.has(tab)) setVisited(new Set([...visited, tab]));
+  const browse = useCallback(() => setTab("browse"), []);
+  const main = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    main.current?.scrollTo?.(0, 0);
+  }, [tab]);
 
   // Dropping a modlist (.json or .pdf) anywhere opens it on the Modlists tab.
   useEffect(() => {
@@ -154,36 +171,57 @@ export default function App() {
             )}
           </p>
         )}
-        <main className="app-main" key={tab}>
+        <main className="app-main" ref={main}>
           <div className="page-heading">
             <h1>{pages[tab].title}</h1>
           </div>
           {env.isPending && <p className="empty-state">Looking for Vintage Story…</p>}
           {env.isError && <p className="empty-state error-text">Detection failed: {env.error.message}</p>}
-          {env.data && !dataReady && tab !== "settings" ? (
+          {env.data && !dataReady && tab !== "settings" && (
             <div className="setup-empty">
               <span className="empty-icon"><Icon name="folder" /></span>
               <h2>Connect your game data folder</h2>
               <p className="muted">Choose your Vintage Story data folder to manage mods, modlists and configs.</p>
               <button type="button" className="primary" onClick={() => setTab("settings")}>Open Settings</button>
             </div>
-          ) : env.data && tab === "mods" && <InstalledMods os={env.data.os} enabled={dataReady} onEditConfig={editConfig} onBrowse={() => setTab("browse")} />}
-          {env.data && dataReady && tab === "modlists" && (
-            <Modlists
-              os={env.data.os}
-              offline={env.data.settings.offlineMode}
-              droppedFile={droppedFile}
-              onDroppedFileHandled={clearDropped}
-            />
           )}
-          {env.data && dataReady && tab === "browse" && <ModBrowser enabled={dataReady} />}
-          {env.data && dataReady && tab === "configs" && <ConfigEditor enabled={dataReady} focusMod={configMod} />}
-          {env.data && tab === "settings" && <SetupOverview env={env.data} />}
+          {env.data && dataReady && (
+            <>
+              <Page tab="mods" current={tab} visited={visited}>
+                <InstalledModsPage os={env.data.os} enabled={dataReady} onEditConfig={editConfig} onBrowse={browse} />
+              </Page>
+              <Page tab="modlists" current={tab} visited={visited}>
+                <ModlistsPage
+                  os={env.data.os}
+                  offline={env.data.settings.offlineMode}
+                  droppedFile={droppedFile}
+                  onDroppedFileHandled={clearDropped}
+                />
+              </Page>
+              <Page tab="browse" current={tab} visited={visited}>
+                <ModBrowserPage enabled={dataReady} />
+              </Page>
+              <Page tab="configs" current={tab} visited={visited}>
+                <ConfigEditorPage enabled={dataReady} focusMod={configMod} />
+              </Page>
+            </>
+          )}
+          {env.data && (
+            <Page tab="settings" current={tab} visited={visited}>
+              <SetupOverviewPage env={env.data} />
+            </Page>
+          )}
         </main>
       </div>
       {help && <HelpDialog onClose={() => setHelp(false)} />}
     </div>
   );
+}
+
+/** A page that has been opened at least once; hidden pages keep their state but run no effects. */
+function Page({ tab, current, visited, children }: { tab: Tab; current: Tab; visited: ReadonlySet<Tab>; children: ReactNode }) {
+  if (!visited.has(tab)) return null;
+  return <Activity mode={tab === current ? "visible" : "hidden"}>{children}</Activity>;
 }
 
 function NavButton({ current, value, onSelect }: { current: Tab; value: Tab; onSelect: (t: Tab) => void }) {

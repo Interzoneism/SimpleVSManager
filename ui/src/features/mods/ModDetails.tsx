@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { InstalledMod, ModDbSummary, Os } from "../../bindings";
 import { useModDbDetails, useOpenModWebsite, useOpenUrl, useRevealMod, useUpdatePreferences } from "../../api";
 import { formatCount, formatDate } from "../../lib/format";
@@ -242,7 +242,13 @@ function ModDbPanel(props: {
   const prefs = useUpdatePreferences();
   const openUrl = useOpenUrl();
   const [picked, setPicked] = useState<string>("");
-  useEffect(() => setPicked(""), [mod.key]);
+  // Reset the picked version for another mod (while rendering: effects re-run whenever the
+  // page is shown again, which would clear the choice).
+  const [pickedFor, setPickedFor] = useState(mod.key);
+  if (pickedFor !== mod.key) {
+    setPickedFor(mod.key);
+    setPicked("");
+  }
 
   if (!summary) {
     return (

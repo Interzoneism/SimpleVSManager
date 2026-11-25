@@ -583,6 +583,11 @@ button.library-stat[aria-pressed="true"] {
   margin: 0;
 }
 .modlist-card-item { display: flex; min-width: 0; }
+/* Hundreds of community cards: the browser skips layout and paint for cards off screen.
+ * 140px is one card's height, used until a card has been laid out once. */
+.modlist-card-item { content-visibility: auto; contain-intrinsic-size: auto 140px; }
+/* content-visibility clips to the card, so draw the focus ring inside it. */
+.modlist-card:focus-visible { outline-offset: -2px; }
 .modlist-card { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; min-height: 0; }
 .modlist-card > .card-title { width: 100%; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modlist-card-icon {
