@@ -1,24 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
-import type { BrowseEntry, BrowseQuery, BrowseSort, UpdateProgress } from "../../bindings";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import type { BrowseEntry, BrowseQuery, BrowseSort } from "../../bindings";
 import {
   defaultBrowseQuery,
   useBrowseFacets,
   useBrowseMods,
   useBrowseThumbnails,
   useEnvironment,
-  useInstallMod,
-  useModDbDetails,
   useOpenUrl,
   useRefreshCatalogue,
   useUpdatePreferences,
-  useUpdateProgress,
 } from "../../api";
-import { formatAgo, formatCount, formatDate } from "../../lib/format";
-import { linkClickHandler, sanitizeHtml } from "../../lib/html";
-import { progressLabel } from "../mods/InstalledMods";
-import { summarizeVersions } from "../mods/UpdateDialog";
-import { CloseDetails, SplitWorkspace } from "../../components/SplitWorkspace";
-import { ScreenshotGallery } from "./ScreenshotGallery";
+import { formatAgo, formatCount } from "../../lib/format";
+import { ModDetailsWindow } from "./ModDetailsWindow";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
 
@@ -96,7 +89,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <SplitWorkspace name="browse-mods">
+    <div className="installed browse-page">
       <div className="installed-main">
         <div className="mods-toolbar wrap">
           <input
@@ -189,16 +182,12 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
           )}
         </div>
       </div>
-      {selected ? (
-        <BrowseDetails entry={current ?? selected} offline={offline} onClose={() => setSelected(null)}
+      {selected && (
+        <ModDetailsWindow entry={current ?? selected} offline={offline} onClose={() => setSelected(null)}
           thumbUrl={thumbFor(current ?? selected)}
           onFavourite={() => toggleFavourite(current ?? selected)} favouriteBusy={prefs.isPending} />
-      ) : (
-        <aside className="details empty">
-          <p className="muted">Select a mod to see its description and versions.</p>
-        </aside>
       )}
-    </SplitWorkspace>
+    </div>
   );
 }
 
@@ -278,165 +267,5 @@ function Thumbnail({ url, name }: { url: string | null; name: string }) {
     <span className="db-card-thumb">
       <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} />
     </span>
-  );
-}
-
-function BrowseDetails({ entry, thumbUrl, offline, onClose, onFavourite, favouriteBusy }: {
-  entry: BrowseEntry;
-  thumbUrl: string | null;
-  offline: boolean;
-  onClose: () => void;
-  onFavourite: () => void;
-  favouriteBusy: boolean;
-}) {
-  const details = useModDbDetails(entry.modId);
-  const install = useInstallMod();
-  const openUrl = useOpenUrl();
-  const [picked, setPicked] = useState("");
-  const [progress, setProgress] = useState<string | null>(null);
-  useEffect(() => {
-    setPicked("");
-    install.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry.modId]);
-
-  const onProgress = useCallback(
-    (p: UpdateProgress) => {
-      if (p.key === `install:${entry.modId}`) setProgress(progressLabel(p));
-    },
-    [entry.modId],
-  );
-  useUpdateProgress(onProgress);
-
-  const info = details.data?.info;
-  const latestCompatible = info?.latestCompatibleIndex != null ? info.releases[info.latestCompatibleIndex] : null;
-  const chosen = picked ? info?.releases.find((r) => r.version === picked) : latestCompatible;
-  const html = useMemo(
-    () => (details.data?.descriptionHtml ? sanitizeHtml(details.data.descriptionHtml) : null),
-    [details.data?.descriptionHtml],
-  );
-  const links = [
-    ["Mod DB page", info?.pageUrl],
-    ["Homepage", info?.homepageUrl],
-    ["Source code", info?.sourceCodeUrl],
-    ["Issues", info?.issueTrackerUrl],
-    ["Wiki", info?.wikiUrl],
-  ].filter((l): l is [string, string] => !!l[1]);
-
-  return (
-    <aside className="details">
-      <div className="details-header">
-        <h2>{entry.name}</h2>
-        <CloseDetails onClose={onClose} />
-      </div>
-      <div className="details-hero">
-        {thumbUrl && <Logo url={thumbUrl} name={entry.name} className="details-logo" />}
-      </div>
-      <dl className="details-facts">
-        <dt>Author</dt>
-        <dd>{entry.author ?? "—"}</dd>
-        <dt>Mod ID</dt>
-        <dd>{entry.modIds.join(", ") || "—"}</dd>
-        <dt>Downloads</dt>
-        <dd>{formatCount(entry.downloads)}</dd>
-        <dt>Side</dt>
-        <dd>{entry.side ?? "—"}</dd>
-        {entry.lastReleasedMs != null && (
-          <>
-            <dt>Last release</dt>
-            <dd>{formatDate(entry.lastReleasedMs)}</dd>
-          </>
-        )}
-      </dl>
-      {entry.tags.length > 0 && (
-        <p className="tag-list">
-          {entry.tags.map((t) => (
-            <span key={t} className="badge">
-              {t}
-            </span>
-          ))}
-        </p>
-      )}
-
-      <div className="details-actions">
-        {entry.installed ? (
-          <span className="muted">Already installed. Find updates under Installed mods.</span>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="primary"
-              disabled={!chosen || install.isPending || install.isSuccess}
-              title={chosen && !chosen.compatible ? "This release isn't tagged for your target game version" : undefined}
-              onClick={() => chosen && install.mutate({ modId: entry.modId, version: chosen.version })}
-            >
-              {install.isSuccess ? "Installed" : install.isPending ? (progress ?? "Installing…") : `Install ${chosen?.version ?? ""}`}
-            </button>
-            {info && info.releases.length > 1 && (
-              <select aria-label="Version" value={picked} onChange={(e) => setPicked(e.target.value)}>
-                <option value="">{latestCompatible ? `Newest for your game (${latestCompatible.version})` : "Choose a version"}</option>
-                {info.releases.map((r) => (
-                  <option key={r.version} value={r.version}>
-                    {r.version}
-                    {r.compatible ? "" : " (other game version)"}
-                  </option>
-                ))}
-              </select>
-            )}
-          </>
-        )}
-        <button
-          type="button"
-          disabled={favouriteBusy}
-          onClick={onFavourite}
-        >
-          {entry.favourite ? "★ Favourite" : "☆ Favourite"}
-        </button>
-      </div>
-      {chosen && !chosen.compatible && (
-        <p className="notice warn-text small">
-          {chosen.version} is tagged for {summarizeVersions(chosen.gameVersions)}, not your target game version.
-        </p>
-      )}
-      {!latestCompatible && info && info.releases.length > 0 && !picked && (
-        <p className="notice warn-text small">No release is tagged for your target game version.</p>
-      )}
-      {install.error && <p className="error-text small">{install.error.message}</p>}
-      {links.length > 0 && (
-        <p className="link-row small">
-          {links.map(([label, url]) => (
-            <button key={label} type="button" className="link-button" onClick={() => openUrl.mutate(url)}>
-              {label}
-            </button>
-          ))}
-        </p>
-      )}
-      {details.isPending && <p className="muted small">Loading…</p>}
-      {details.isError && <p className="error-text small">{details.error.message}</p>}
-      {details.data && !info && (
-        <p className="notice warn-text small">
-          {details.data.error ??
-            (offline ? "Versions aren't available in offline mode until this mod has been looked up once." : "This mod has no downloadable releases.")}
-        </p>
-      )}
-      {info && !offline && <ScreenshotGallery screenshots={info.screenshots ?? []} modName={entry.name} />}
-      {chosen?.changelog && (
-        <section className="details-section">
-          <h3>Changes in {chosen.version}</h3>
-          <pre className="changelog">{chosen.changelog}</pre>
-        </section>
-      )}
-      {html && (
-        <section className="details-section">
-          <h3>Description</h3>
-          <div
-            className="mod-description"
-            onClick={linkClickHandler((url) => openUrl.mutate(url))}
-            // Sanitized with DOMPurify above.
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        </section>
-      )}
-    </aside>
   );
 }

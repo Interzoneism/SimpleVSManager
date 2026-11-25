@@ -1,33 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { ModDbScreenshot } from "../../bindings";
 
-/** Screenshots from the mod's Mod DB page: a strip of thumbnails, click one to view it large. */
-export function ScreenshotGallery({ screenshots, modName }: { screenshots: ModDbScreenshot[]; modName: string }) {
-  const [open, setOpen] = useState<number | null>(null);
-  useEffect(() => setOpen(null), [screenshots]);
-  if (screenshots.length === 0) return null;
-
-  return (
-    <section className="details-section">
-      <h3>Screenshots</h3>
-      <ul className="screenshot-strip" aria-label={`Screenshots of ${modName}`}>
-        {screenshots.map((s, i) => (
-          <li key={s.url}>
-            <button type="button" className="screenshot-thumb" onClick={() => setOpen(i)} title={s.fileName ?? undefined} aria-label={`Show screenshot ${i + 1} of ${screenshots.length}`}>
-              <img src={s.url} alt="" loading="lazy" />
-            </button>
-          </li>
-        ))}
-      </ul>
-      {open !== null && (
-        <Lightbox screenshots={screenshots} index={open} onIndex={setOpen} onClose={() => setOpen(null)} modName={modName} />
-      )}
-    </section>
-  );
-}
-
-function Lightbox({ screenshots, index, onIndex, onClose, modName }: {
+/** A screenshot shown full size over everything; arrows flip through the rest. */
+export function Lightbox({ screenshots, index, onIndex, onClose, modName }: {
   screenshots: ModDbScreenshot[];
   index: number;
   onIndex: (i: number) => void;

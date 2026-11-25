@@ -873,12 +873,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .mod-details .details-facts { gap: 5px 12px; }
 .mod-details .details-facts code { display: block; }
 
-/* --- Screenshot gallery (Browse mods details) --- */
-.screenshot-strip { list-style: none; margin: 0; padding: 0 0 4px; display: flex; gap: 8px; overflow-x: auto; }
-.screenshot-strip li { flex: none; }
-.screenshot-thumb { display: block; padding: 0; width: 148px; height: 92px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: var(--palette-interactive-surface); }
-.screenshot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.screenshot-thumb:hover:not(:disabled), .screenshot-thumb:focus-visible { border-color: var(--accent); }
+/* --- Screenshot lightbox (mod details window) --- */
 .lightbox {
   position: fixed; inset: 0; z-index: 1000;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -887,3 +882,77 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .lightbox img { max-width: 100%; max-height: calc(100% - 56px); object-fit: contain; border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); }
 .lightbox-bar { display: flex; align-items: center; gap: 12px; color: #fff; }
 .lightbox-bar button { min-width: 36px; }
+
+/* --- Mod details window (Browse mods), laid out like a mod page on the Mod DB --- */
+.browse-page { flex-direction: column; }
+.mod-window-backdrop {
+  position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center;
+  padding: clamp(12px, 4vh, 40px) clamp(12px, 4vw, 48px); background: rgba(0, 0, 0, 0.6);
+  animation: mod-window-fade 120ms ease-out;
+}
+.mod-window {
+  display: flex; flex-direction: column; width: min(880px, 100%); max-height: 100%; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55); outline: none;
+  animation: mod-window-rise 140ms ease-out;
+}
+@keyframes mod-window-fade { from { opacity: 0; } }
+@keyframes mod-window-rise { from { opacity: 0; transform: translateY(8px) scale(0.99); } }
+.mod-window-scroll { overflow-y: auto; min-height: 0; flex: 1; }
+.mod-window-hero {
+  position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  aspect-ratio: 16 / 9; max-height: min(50vh, 470px); width: 100%; background: #0b0d0c;
+}
+.mod-window-hero img.main { position: relative; max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; }
+.mod-window-hero.has-shots img.main { cursor: zoom-in; }
+.mod-window-hero img.backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(24px) brightness(0.45); transform: scale(1.15); }
+.mod-window-initial { font-size: 96px; font-weight: 600; color: var(--palette-grey); opacity: 0.6; }
+.mod-window-hero .hero-nav, .mod-window-hero .hero-close {
+  position: absolute; padding: 0; border: 0; border-radius: 50%; color: #fff;
+  background: rgba(10, 12, 11, 0.55); backdrop-filter: blur(4px);
+}
+.mod-window-hero .hero-nav { top: 50%; width: 40px; height: 40px; margin-top: -20px; font-size: 26px; line-height: 1; opacity: 0.75; }
+.mod-window-hero .hero-nav.prev { left: 12px; }
+.mod-window-hero .hero-nav.next { right: 12px; }
+.mod-window-hero .hero-close { top: 12px; right: 12px; width: 34px; height: 34px; }
+.mod-window-hero .hero-nav:hover:not(:disabled), .mod-window-hero .hero-close:hover:not(:disabled) { background: rgba(10, 12, 11, 0.85); opacity: 1; }
+.mod-window-hero .hero-counter {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  padding: 2px 10px; border-radius: 10px; font-size: 12px; color: #fff; background: rgba(10, 12, 11, 0.6);
+}
+.mod-window-head { display: flex; gap: 16px; align-items: flex-start; padding: 16px 22px 0; }
+.mod-window-title { flex: 1; min-width: 0; }
+.mod-window-title h2 { margin: 0; font-size: 22px; line-height: 1.25; color: var(--palette-white); overflow-wrap: anywhere; }
+.mod-window-title > p { margin: 4px 0 0; }
+.mod-window-title .tag-list { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+.mod-window-stats { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 0; color: var(--palette-grey); font-size: 13px; font-variant-numeric: tabular-nums; }
+.mod-window-stats > div { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.mod-window-stats dt { display: inline-flex; width: 15px; justify-content: center; }
+.mod-window-stats dd { margin: 0; min-width: 44px; text-align: right; }
+.mod-window-stats .ui-icon { width: 15px; height: 15px; }
+.mod-window-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 22px 0; }
+.mod-window-actions select { max-width: 260px; }
+.mod-window-actions .installed-badge { margin: 0; padding: 5px 12px; font-size: 13px; color: var(--palette-success); }
+.mod-window-note { margin: 8px 22px 0; }
+.mod-window-body { margin-top: 14px; padding: 16px 22px 22px; border-top: 1px solid var(--border); }
+.mod-window-description { font-size: 14px; line-height: 1.6; color: var(--palette-text-primary); }
+.mod-window-description > :first-child { margin-top: 0; }
+.mod-window-description :is(h1, h2, h3, h4, h5) { margin: 1.1em 0 0.4em; line-height: 1.3; color: var(--palette-white); }
+.mod-window-description h1 { font-size: 1.5em; }
+.mod-window-description h2 { font-size: 1.3em; }
+.mod-window-description h3 { font-size: 1.15em; }
+.mod-window-description p { margin: 0 0 0.8em; }
+.mod-window-description :is(ul, ol) { margin: 0 0 0.8em; padding-left: 1.5em; }
+.mod-window-description li { margin: 0.15em 0; }
+.mod-window-description img { max-width: 100%; height: auto; border-radius: 4px; vertical-align: middle; }
+.mod-window-description blockquote { margin: 0 0 0.8em; padding: 4px 12px; border-left: 3px solid var(--palette-bevel-highlight); color: var(--palette-grey); }
+.mod-window-description :is(code, pre) { font-family: var(--font-mono); font-size: 0.9em; background: var(--palette-base-surface-shadowed); border-radius: 3px; }
+.mod-window-description code { padding: 1px 4px; }
+.mod-window-description pre { padding: 8px 10px; overflow-x: auto; white-space: pre-wrap; }
+.mod-window-description table { border-collapse: collapse; margin: 0 0 0.8em; max-width: 100%; display: block; overflow-x: auto; }
+.mod-window-description :is(td, th) { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
+.mod-window-description th { background: var(--palette-interactive-surface); }
+.mod-window-description hr { border: 0; border-top: 1px solid var(--border); margin: 1em 0; }
+.mod-window-description details { margin: 0 0 0.8em; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; }
+.mod-window-changelog { margin-top: 18px; }
+.mod-window-changelog summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--palette-grey); }
