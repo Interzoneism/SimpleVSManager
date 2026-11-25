@@ -40,18 +40,18 @@ export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, dat
       >
         <span className="card-title">{title}</span>
         {rows ? (
-          <>
-            <span className="modlist-card-lines">
-              {rows.map((row) => <span key={row} className="small">{row}</span>)}
-            </span>
-            <span className="modlist-card-foot">
-              <span className={`card-logo modlist-card-icon${iconThemeClass(iconColor)}`}><ModlistIcon icon={icon} fallback={kindIcon} /></span>
-              <span className="modlist-card-foot-meta">
+          <span className="modlist-card-foot">
+            <span className={`card-logo modlist-card-icon${iconThemeClass(iconColor)}`}><ModlistIcon icon={icon} fallback={kindIcon} /></span>
+            <span className="modlist-card-foot-meta">
+              <span className="modlist-card-lines">
+                {rows.map((row) => <span key={row} className="small">{row}</span>)}
+              </span>
+              <span className="modlist-card-foot-line">
                 {badges && <span className="modlist-card-badges">{badges}</span>}
                 <span className="muted small">{[...facts, date].filter(Boolean).join(" · ")}</span>
               </span>
             </span>
-          </>
+          </span>
         ) : (
         <span className="modlist-card-row">
           <span className={`card-logo modlist-card-icon icon-${kindIcon}${iconThemeClass(iconColor)}`}><ModlistIcon icon={icon} fallback={kindIcon} /></span>

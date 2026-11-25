@@ -751,7 +751,9 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .modlist-card-lines { display: flex; flex-direction: column; gap: 2px; color: var(--palette-text-secondary, var(--palette-grey)); }
 .modlist-card-lines > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modlist-card-foot { display: flex; align-items: flex-end; gap: 12px; margin-top: auto; min-width: 0; }
+.online-card-grid .modlist-card { gap: 8px; padding: 12px 14px; }
 .modlist-card-foot .modlist-card-icon { width: 76px; height: 76px; }
 .modlist-card-foot .modlist-card-icon .nerd-icon { font-size: 38px; }
 .modlist-card-foot .modlist-card-icon .ui-icon { width: 34px; height: 34px; }
-.modlist-card-foot-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.modlist-card-foot-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.modlist-card-foot-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
