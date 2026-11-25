@@ -972,3 +972,54 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 body.pointer-dragging, body.pointer-dragging * { cursor: grabbing !important; user-select: none; }
 .modlist-quick-actions select { flex: 1; min-width: 0; max-width: 260px; }
 .modlist-quick-actions .ui-icon { width: 15px; height: 15px; margin-right: 5px; }
+
+/* --- Save modlist dialog --- */
+.save-hero { display: flex; gap: 16px; align-items: stretch; }
+.save-hero-icon {
+  position: relative; flex: none; width: 96px; height: 96px; padding: 0; display: grid; place-items: center; overflow: hidden;
+  border-radius: 14px; border: 0; color: var(--accent); background: var(--selection);
+}
+.save-hero-icon .nerd-icon { font-size: 46px; }
+.save-hero-icon .ui-icon { width: 40px; height: 40px; }
+.save-hero-icon-edit {
+  position: absolute; inset: auto 0 0 0; padding: 3px 0; font-size: 11px; font-weight: 600; text-align: center;
+  background: rgba(0, 0, 0, 0.45); color: #fff; opacity: 0; transition: opacity 120ms;
+}
+.save-hero-icon:hover .save-hero-icon-edit, .save-hero-icon:focus-visible .save-hero-icon-edit { opacity: 1; }
+.save-hero-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.save-hero-name, .save-hero-desc {
+  width: 100%; font: inherit; color: var(--palette-text-primary); background: transparent;
+  border: 1px solid transparent; border-radius: 8px; padding: 6px 10px;
+}
+.save-hero-name { font-size: 22px; font-weight: 700; color: var(--palette-white); background: var(--palette-base-surface-shadowed); border-color: var(--border); }
+.save-hero-desc { flex: 1; resize: none; background: var(--palette-base-surface-shadowed); border-color: var(--border); }
+.save-hero-name:focus, .save-hero-desc:focus { outline: none; border-color: var(--accent); }
+.save-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 10px; }
+.save-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; border-radius: 999px;
+  background: var(--palette-interactive-surface); color: var(--palette-grey); font-size: 13px;
+}
+.save-chip.strong { padding-right: 12px; color: var(--palette-white); font-weight: 600; background: var(--selection); }
+.save-chip .ui-icon { width: 15px; height: 15px; color: var(--accent); }
+.save-chip input {
+  width: 9em; font: inherit; color: var(--palette-white); background: transparent; border: 0; border-radius: 999px; padding: 2px 6px;
+}
+.save-chip input:focus { outline: 1px solid var(--accent); background: var(--palette-base-surface-shadowed); }
+.save-disabled { margin: 0 0 10px; }
+.save-disabled summary { cursor: pointer; font-weight: 600; color: var(--palette-white); }
+.save-disabled ul { margin: 6px 0 0; max-height: 110px; overflow-y: auto; }
+.save-configs { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--palette-base-surface-shadowed); }
+.save-configs-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.save-configs-head h3 { margin: 0; font-size: 14px; color: var(--palette-white); }
+.save-configs-help { margin: 4px 0 8px; }
+.save-config-list { list-style: none; margin: 0; padding: 0; max-height: 230px; overflow-y: auto; display: grid; gap: 2px; }
+.save-config-list li label {
+  display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 6px; cursor: pointer;
+}
+.save-config-list li label:hover { background: var(--palette-overlay-hover-tint); }
+.save-config-list li.on label { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.save-config-list li.first-other { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.save-config-list input { flex: none; }
+.save-config-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.save-config-mod { flex: none; padding: 0 8px; border-radius: 999px; font-size: 11px; line-height: 1.7; background: var(--selection); color: var(--accent); }
+.save-config-size { margin-left: auto; flex: none; }

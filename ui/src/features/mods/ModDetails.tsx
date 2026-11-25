@@ -63,10 +63,10 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
             </button>
           )}
           <button type="button" disabled={prefs.isPending} onClick={() => prefs.mutate({ updateExcluded: { modIds: ids, on: true } })}>
-            Leave out of Manage updates
+            Leave out of updates
           </button>
           <button type="button" disabled={prefs.isPending} onClick={() => prefs.mutate({ updateExcluded: { modIds: ids, on: false } })}>
-            Include in Manage updates
+            Include in updates
           </button>
           <button type="button" className="danger" disabled={busy} onClick={() => onDelete(mods)}>Delete…</button>
         </div>
@@ -296,7 +296,7 @@ function ModDbPanel(props: {
           onChange={(e) => prefs.mutate({ updateExcluded: { modIds: [mod.modId], on: !e.target.checked } })}
         />
         <span>
-          Include in "Manage updates"
+          Include in updates
           <span className="muted small">Turn off to keep this version when you update everything.</span>
         </span>
       </label>
