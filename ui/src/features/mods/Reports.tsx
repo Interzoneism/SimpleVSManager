@@ -31,19 +31,23 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
 
   return (
     <section className="details-section">
-      <h3>Player reports for {version}</h3>
+      <div className="details-section-head">
+        <h3>Player reports</h3>
+        <span className="muted small">for v{version}</span>
+      </div>
       {reports.isPending && <p className="muted small">Loading…</p>}
       {reports.isError && <p className="error-text small">{reports.error.message}</p>}
-      {r && total === 0 && <p className="muted small">No reports yet.</p>}
+      {r && total === 0 && <p className="muted small">No one has reported on this version yet.</p>}
       {r && total > 0 && (
-        <div className="report-counts small">
+        <ul className="report-bars small" aria-label={`${total} player reports`}>
           {REPORT_OPTIONS.filter((o) => count(o.value) > 0).map((o) => (
-            <span key={o.value} style={{ display: "contents" }}>
-              <span>{o.label}</span>
-              <span>{count(o.value)}</span>
-            </span>
+            <li key={o.value} className={`report-${o.value}`}>
+              <span className="report-label">{o.label}</span>
+              <span className="report-bar"><span style={{ width: `${(count(o.value) / total) * 100}%` }} /></span>
+              <span className="report-count">{count(o.value)} {count(o.value) === 1 ? "player" : "players"}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
       {r && r.problemComments.length > 0 && (
         <details className="small">
@@ -64,14 +68,11 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
       )}
       {canReport && (!r?.myVote || editing) && (
         <div className="report-form">
-          <select aria-label="Your report" value={option} onChange={(e) => setOption(e.target.value as VoteOption)}>
-            <option value="">How does it work for you?</option>
-            {REPORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          {needsComment(option) && (
-            <textarea rows={2} placeholder="What goes wrong? (required)" value={comment} onChange={(e) => setComment(e.target.value)} />
-          )}
-          <div className="link-row">
+          <div className="version-picker-row">
+            <select aria-label="Your report" value={option} onChange={(e) => setOption(e.target.value as VoteOption)}>
+              <option value="">How does it work for you?</option>
+              {REPORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
             <button
               type="button"
               disabled={!option || submit.isPending || (needsComment(option) && !comment.trim())}
@@ -79,10 +80,13 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
                 option && submit.mutate({ modId, version, option, comment: comment || null }, { onSuccess: () => setEditing(false) })
               }
             >
-              Send report
+              Send
             </button>
-            {editing && <button type="button" className="link-button small" onClick={() => setEditing(false)}>Cancel</button>}
           </div>
+          {needsComment(option) && (
+            <textarea rows={2} placeholder="What goes wrong? (required)" value={comment} onChange={(e) => setComment(e.target.value)} />
+          )}
+          {editing && <button type="button" className="link-button small" onClick={() => setEditing(false)}>Cancel</button>}
         </div>
       )}
       {!canReport && status.data?.legacyIdentity && <p className="muted small">Sending reports needs the move to the new cloud project.</p>}

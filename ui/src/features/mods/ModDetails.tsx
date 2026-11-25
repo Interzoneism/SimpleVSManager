@@ -3,7 +3,7 @@ import type { InstalledMod, ModDbSummary, Os } from "../../bindings";
 import { useModDbDetails, useOpenModWebsite, useOpenUrl, useRevealMod, useUpdatePreferences } from "../../api";
 import { formatCount, formatDate } from "../../lib/format";
 import { iconUrl } from "../../lib/iconUrl";
-import { canToggleMod, statusLabel, type DbIndex } from "./modView";
+import { canToggleMod, modStatus, statusLabel, type DbIndex } from "./modView";
 import { Changelog, summarizeVersions } from "./UpdateDialog";
 import { Reports } from "./Reports";
 import { Icon } from "../../components/Icon";
@@ -77,115 +77,129 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
   const mod = mods[0];
   const problem = mod.error ?? mod.loadError;
   const actionError = reveal.error ?? website.error;
+  const status = modStatus(mod);
+  const summary = db.get(mod.key);
+  const missing = new Set(mod.missingDependencies.map((d) => d.modId.toLowerCase()));
 
   return (
-    <aside className="details">
-      <DetailsHeader title={mod.name} onClose={onClose} />
-      <div className="details-hero">
+    <aside className="details mod-details">
+      <CloseDetails onClose={onClose} />
+      <header className="mod-details-head">
         {mod.iconKey ? (
           <img className="details-icon" src={iconUrl(os, mod.iconKey)} alt="" />
         ) : (
           <span className="details-icon placeholder" aria-hidden>{mod.name.slice(0, 1).toUpperCase()}</span>
         )}
-        <dl className="details-facts">
-          <dt>Version</dt>
-          <dd>{mod.version ?? "unknown"}</dd>
-          <dt>Mod ID</dt>
-          <dd>{mod.modId || "—"}</dd>
-          <dt>Status</dt>
-          <dd>{statusLabel(mod)}</dd>
-          {mod.side && (
-            <>
-              <dt>Side</dt>
-              <dd>{mod.side}</dd>
-            </>
+        <div className="mod-details-title">
+          <h2>{mod.name}</h2>
+          <p className="muted small">
+            {mod.version ? `v${mod.version}` : "Version unknown"}
+            {mod.authors.length > 0 && <> · by {mod.authors.join(", ")}</>}
+          </p>
+          <span className={`status-pill status-${status}`}>{statusLabel(mod)}</span>
+        </div>
+      </header>
+
+      {problem && (
+        <div className="callout callout-error" role="alert">
+          <strong>{status === "error" ? "This mod can't be used" : "This mod won't load"}</strong>
+          {mod.missingDependencies.length > 0 ? (
+            <ul>
+              {mod.missingDependencies.map((d) => (
+                <li key={d.modId}>
+                  It needs <strong>{d.modId}</strong>
+                  {d.version && d.version !== "*" ? ` ${d.version} or newer` : ""}, which isn't installed.
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>{problem}</p>
           )}
-        </dl>
-      </div>
+        </div>
+      )}
 
-      {problem && <p className="notice error-text">{problem}</p>}
+      {mod.description && <p className="mod-details-description">{mod.description}</p>}
 
-      <div className="details-actions">
+      <div className="mod-actions">
         {manageable.length > 0 && (
-          <button type="button" disabled={busy} onClick={() => onSetActive([mod], !mod.isActive)}>
+          <button type="button" className={mod.isActive ? undefined : "primary"} disabled={busy} onClick={() => onSetActive([mod], !mod.isActive)}>
             {mod.isActive ? "Disable" : "Enable"}
           </button>
         )}
-        <button type="button" onClick={() => reveal.mutate(mod.key)}>
-          Show in folder
-        </button>
-        {mod.website && (
-          <button type="button" onClick={() => website.mutate(mod.key)}>
-            Website
+        {summary?.update && (
+          <button type="button" className="primary" disabled={busy} title={summary.update.message} onClick={() => onUpdate([mod])}>
+            <Icon name="update" />Update to {summary.update.version}
           </button>
         )}
         {onEditConfig && mod.modId && (
           <button type="button" title="Edit this mod's config files" onClick={() => onEditConfig(mod.modId)}>
-            Config…
+            <Icon name="config" />Config
           </button>
         )}
-        <button type="button" className="danger" disabled={busy} onClick={() => onDelete([mod])}>
-          Delete…
+        <button type="button" title="Show the mod file in your file manager" onClick={() => reveal.mutate(mod.key)}>
+          <Icon name="folder" />Folder
         </button>
+        {mod.website && (
+          <button type="button" title={mod.website} onClick={() => website.mutate(mod.key)}>Website</button>
+        )}
+        <span className="header-spacer" />
+        <button type="button" className="danger" disabled={busy} onClick={() => onDelete([mod])}>Delete…</button>
       </div>
+      {progress.get(mod.key) && <p className="muted small">{progress.get(mod.key)}</p>}
       {actionError && <p className="error-text small">{actionError.message}</p>}
 
       {mod.modId && (
         <ModDbPanel
           mod={mod}
-          summary={db.get(mod.key)}
+          summary={summary}
           busy={busy}
-          progress={progress.get(mod.key)}
-          onUpdate={() => onUpdate([mod])}
           onInstallVersion={(v) => onInstallVersion(mod, v)}
         />
       )}
 
       {mod.modId && mod.version && <Reports modId={mod.modId} version={mod.version} />}
 
-      {mod.authors.length > 0 && (
-        <Section title="Authors">
-          <p>{mod.authors.join(", ")}</p>
-        </Section>
-      )}
-      {mod.description && (
-        <Section title="Description">
-          <p className="description">{mod.description}</p>
-        </Section>
-      )}
-      {mod.dependencies.length > 0 && (
-        <Section title="Dependencies">
-          <ul className="details-list">
-            {mod.dependencies.map((d) => {
-              const missing = mod.missingDependencies.some((m) => m.modId === d.modId);
-              return (
-                <li key={d.modId} className={missing ? "error-text" : undefined}>
-                  {d.modId}
-                  {d.version && d.version !== "*" ? ` ≥ ${d.version}` : ""}
-                  {missing && " (missing)"}
-                </li>
-              );
-            })}
-          </ul>
-        </Section>
-      )}
-      {mod.duplicates.length > 0 && (
-        <Section title="Other copies installed">
-          <ul className="details-list">
-            {mod.duplicates.map((d) => (
-              <li key={d}>
-                <code className="path small">{d}</code>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-      <Section title="File">
-        <code className="path small">{mod.sourcePath}</code>
+      <Section title="About this file">
+        <dl className="details-facts">
+          <dt>Mod ID</dt>
+          <dd>{mod.modId || "—"}</dd>
+          {mod.side && (<><dt>Runs on</dt><dd>{sideLabel(mod.side)}</dd></>)}
+          {mod.dependencies.length > 0 && (
+            <>
+              <dt>Needs</dt>
+              <dd>
+                <ul className="dependency-list">
+                  {mod.dependencies.map((d) => {
+                    const isMissing = missing.has(d.modId.toLowerCase());
+                    return (
+                      <li key={d.modId} className={isMissing ? "missing" : "ok"}>
+                        <span aria-hidden="true">{isMissing ? "✕" : "✓"}</span>
+                        {d.modId === "game" ? "Vintage Story" : d.modId}
+                        {d.version && d.version !== "*" ? ` ${d.version}+` : ""}
+                        {isMissing && <span className="sr-only"> (missing)</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </dd>
+            </>
+          )}
+          <dt>File</dt>
+          <dd><code className="path small">{mod.sourcePath}</code></dd>
+          {mod.duplicates.length > 0 && (
+            <>
+              <dt>Other copies</dt>
+              <dd>{mod.duplicates.map((d) => <code key={d} className="path small">{d}</code>)}</dd>
+            </>
+          )}
+        </dl>
       </Section>
     </aside>
   );
 }
+
+const sideLabel = (side: string) =>
+  ({ both: "Client and server", client: "Client only", server: "Server only", universal: "Client and server" } as Record<string, string>)[side.toLowerCase()] ?? side;
 
 function DetailsHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (
@@ -196,10 +210,13 @@ function DetailsHeader({ title, onClose }: { title: string; onClose: () => void 
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="details-section">
-      <h3>{title}</h3>
+      <div className="details-section-head">
+        <h3>{title}</h3>
+        {aside}
+      </div>
       {children}
     </section>
   );
@@ -210,8 +227,6 @@ function ModDbPanel(props: {
   mod: InstalledMod;
   summary: ModDbSummary | undefined;
   busy: boolean;
-  progress: string | undefined;
-  onUpdate: () => void;
   onInstallVersion: (version: string) => void;
 }) {
   const { mod, summary } = props;
@@ -233,80 +248,77 @@ function ModDbPanel(props: {
   const cached = new Set((details.data?.cachedVersions ?? []).map((c) => c.version));
   const pickedRelease = info?.releases.find((r) => r.version === picked);
   const excluded = summary.excludedFromBulkUpdate;
+  const upToDate = !summary.update && summary.latestVersion && summary.latestVersion === mod.version;
 
   return (
-    <Section title="Mod DB">
-      <dl className="details-facts">
-        <dt>Latest</dt>
-        <dd>
-          {summary.latestVersion ?? "—"}
-          {summary.latestCompatibleVersion && summary.latestCompatibleVersion !== summary.latestVersion && (
-            <span className="muted"> (for your game: {summary.latestCompatibleVersion})</span>
-          )}
-        </dd>
+    <Section
+      title="Mod DB"
+      aside={summary.pageUrl && (
+        <button type="button" className="link-button small" onClick={() => openUrl.mutate(summary.pageUrl!)}>Open page</button>
+      )}
+    >
+      <div className="stat-tiles">
+        <div>
+          <span>Latest</span>
+          <strong>{summary.latestVersion ?? "—"}</strong>
+          {upToDate && <em className="ok-text">You have it</em>}
+          {summary.update && <em className="accent-text">Update available</em>}
+        </div>
         {summary.downloads != null && (
-          <>
-            <dt>Downloads</dt>
-            <dd>{formatCount(summary.downloads)}</dd>
-          </>
+          <div><span>Downloads</span><strong>{formatCount(summary.downloads)}</strong></div>
         )}
         {info?.lastReleasedMs != null && (
-          <>
-            <dt>Last release</dt>
-            <dd>{formatDate(info.lastReleasedMs)}</dd>
-          </>
-        )}
-      </dl>
-      {summary.installedMayBeIncompatible && (
-        <p className="notice warn-text small">
-          The installed version is tagged for {summarizeVersions(summary.installedReleaseGameVersions)}, not your target
-          game version.
-        </p>
-      )}
-      {props.progress && <p className="muted small">{props.progress}</p>}
-      <div className="details-actions">
-        {summary.update && (
-          <button type="button" className="primary" disabled={props.busy} title={summary.update.message} onClick={props.onUpdate}>
-            Update to {summary.update.version}
-          </button>
-        )}
-        {summary.update && (
-          <button
-            type="button"
-            disabled={prefs.isPending}
-            title="Don't offer this version again; newer ones will still be offered"
-            onClick={() => prefs.mutate({ skip: { modId: mod.modId, version: summary.update!.version } })}
-          >
-            Skip this version
-          </button>
-        )}
-        {summary.skippedVersion && (
-          <button type="button" disabled={prefs.isPending} onClick={() => prefs.mutate({ skip: { modId: mod.modId, version: null } })}>
-            Stop skipping {summary.skippedVersion}
-          </button>
-        )}
-        {summary.pageUrl && (
-          <button type="button" onClick={() => openUrl.mutate(summary.pageUrl!)}>
-            Mod DB page
-          </button>
+          <div><span>Last release</span><strong>{formatDate(info.lastReleasedMs)}</strong></div>
         )}
       </div>
-      <label className="checkbox small">
+      {summary.latestCompatibleVersion && summary.latestCompatibleVersion !== summary.latestVersion && (
+        <p className="muted small">Newest for your game version: {summary.latestCompatibleVersion}</p>
+      )}
+      {summary.installedMayBeIncompatible && (
+        <p className="callout callout-warn small">
+          The installed version is made for {summarizeVersions(summary.installedReleaseGameVersions)}, not your game version.
+        </p>
+      )}
+
+      <label className="setting-line">
         <input
           type="checkbox"
           checked={!excluded}
           disabled={prefs.isPending}
           onChange={(e) => prefs.mutate({ updateExcluded: { modIds: [mod.modId], on: !e.target.checked } })}
         />
-        Include in "Update all"
+        <span>
+          Include in "Update all"
+          <span className="muted small">Turn off to keep this version when you update everything.</span>
+        </span>
       </label>
+      {(summary.update || summary.skippedVersion) && (
+        <div className="link-row">
+          {summary.update && (
+            <button
+              type="button"
+              className="link-button small"
+              disabled={prefs.isPending}
+              title="Don't offer this version again; newer ones will still be offered"
+              onClick={() => prefs.mutate({ skip: { modId: mod.modId, version: summary.update!.version } })}
+            >
+              Skip {summary.update.version}
+            </button>
+          )}
+          {summary.skippedVersion && (
+            <button type="button" className="link-button small" disabled={prefs.isPending} onClick={() => prefs.mutate({ skip: { modId: mod.modId, version: null } })}>
+              Stop skipping {summary.skippedVersion}
+            </button>
+          )}
+        </div>
+      )}
 
       {info && info.releases.length > 0 && (
         <div className="version-picker">
-          <label className="small">
-            Install a specific version{" "}
-            <select value={picked} onChange={(e) => setPicked(e.target.value)} aria-label="Version">
-              <option value="">Choose…</option>
+          <label className="small muted" htmlFor="other-version">Other versions</label>
+          <div className="version-picker-row">
+            <select id="other-version" value={picked} onChange={(e) => setPicked(e.target.value)}>
+              <option value="">Choose a version…</option>
               {info.releases.map((r) => (
                 <option key={r.version} value={r.version}>
                   {r.version}
@@ -316,28 +328,20 @@ function ModDbPanel(props: {
                 </option>
               ))}
             </select>
-          </label>
-          <button
-            type="button"
-            disabled={!picked || picked === mod.version || props.busy}
-            onClick={() => props.onInstallVersion(picked)}
-          >
-            Install
-          </button>
+            <button type="button" disabled={!picked || picked === mod.version || props.busy} onClick={() => props.onInstallVersion(picked)}>
+              Install
+            </button>
+          </div>
           {pickedRelease && (
             <p className="muted small">
               {pickedRelease.gameVersions.length > 0 ? `For ${summarizeVersions(pickedRelease.gameVersions)}. ` : ""}
-              {formatDate(pickedRelease.createdMs)}
+              Released {formatDate(pickedRelease.createdMs)}.
             </p>
           )}
         </div>
       )}
       {(picked || summary.update) && (
-        <Changelog
-          modId={mod.modId}
-          installed={mod.version}
-          target={picked || summary.update!.version}
-        />
+        <Changelog modId={mod.modId} installed={mod.version} target={picked || summary.update!.version} />
       )}
       {details.data?.error && <p className="warn-text small">{details.data.error}</p>}
     </Section>
