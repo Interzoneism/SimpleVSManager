@@ -51,6 +51,7 @@ pub struct RegistryEntry {
     pub description: Option<String>,
     /// Card icon (Symbols Nerd Font glyph name) chosen by the author.
     pub icon: Option<String>,
+    pub icon_color: Option<String>,
     pub version: Option<String>,
     pub uploader: Option<String>,
     pub game_version: Option<String>,
@@ -100,6 +101,7 @@ pub struct DetailsEdit {
     pub version: Option<String>,
     pub game_version: Option<String>,
     pub icon: Option<String>,
+    pub icon_color: Option<String>,
 }
 
 impl DetailsEdit {
@@ -124,6 +126,8 @@ impl DetailsEdit {
         }
         let icon = self.icon.as_ref().map(|i| crate::modlists::clean_icon(Some(i)).unwrap_or_default());
         set(&mut map, "icon", icon);
+        let color = self.icon_color.as_ref().map(|c| crate::modlists::clean_icon(Some(c)).unwrap_or_default());
+        set(&mut map, "iconColor", color);
         Value::Object(map)
     }
 }
@@ -161,6 +165,7 @@ pub fn parse_entry(registry_id: &str, node: &Value, complete: bool) -> Option<Re
         name: s(content, "name"),
         description: s(content, "description"),
         icon: crate::modlists::clean_icon(s(content, "icon").as_deref()),
+        icon_color: crate::modlists::clean_icon(s(content, "iconColor").as_deref()),
         version: s(content, "version"),
         uploader: s(content, "uploader").or_else(|| s(content, "uploaderName")),
         game_version: s(content, "gameVersion").or_else(|| s(content, "vsVersion")),
@@ -183,7 +188,7 @@ pub fn summary_json(content: &Value, date_added: &str, revision: f64, created: &
     let uploader = s(content, "uploader").or_else(|| s(content, "uploaderName"));
     json!({
         "content": {
-            "name": s(content, "name"), "description": s(content, "description"), "icon": s(content, "icon"), "version": s(content, "version"),
+            "name": s(content, "name"), "description": s(content, "description"), "icon": s(content, "icon"), "iconColor": s(content, "iconColor"), "version": s(content, "version"),
             "uploader": uploader, "uploaderName": uploader, "gameVersion": game, "vsVersion": game, "mods": mods,
         },
         "dateAdded": date_added, "revision": revision, "createdAt": created, "updatedAt": updated,
@@ -712,9 +717,9 @@ mod tests {
     #[test]
     fn details_edits_keep_name_and_mods() {
         let content = json!({"name": "Mine", "description": "old", "vsVersion": "1.20", "version": "1", "mods": [{"modId": "x"}]});
-        let edit = DetailsEdit { description: Some(" new ".into()), version: Some("".into()), game_version: Some("1.21".into()), icon: Some("md-sword".into()) };
+        let edit = DetailsEdit { description: Some(" new ".into()), version: Some("".into()), game_version: Some("1.21".into()), icon: Some("md-sword".into()), icon_color: Some("teal".into()) };
         let out = edit.apply(&content);
-        assert_eq!(out, json!({"name": "Mine", "description": "new", "gameVersion": "1.21", "icon": "md-sword", "mods": [{"modId": "x"}]}));
+        assert_eq!(out, json!({"name": "Mine", "description": "new", "gameVersion": "1.21", "icon": "md-sword", "iconColor": "teal", "mods": [{"modId": "x"}]}));
         let untouched = DetailsEdit::default().apply(&content);
         assert_eq!(untouched, content);
         let bad_icon = DetailsEdit { icon: Some("<x>".into()), ..Default::default() }.apply(&out);
@@ -788,9 +793,10 @@ mod tests {
 
     #[test]
     fn icons_are_published_in_the_summary() {
-        let content = json!({"name": "N", "icon": "md-sword", "mods": []});
+        let content = json!({"name": "N", "icon": "md-sword", "iconColor": "rose", "mods": []});
         let summary = summary_json(&content, "d", 1.0, "c", "u");
         assert_eq!(summary["content"]["icon"], "md-sword");
+        assert_eq!(parse_entry("r", &summary, false).unwrap().icon_color.as_deref(), Some("rose"));
         assert_eq!(parse_entry("r", &summary, false).unwrap().icon.as_deref(), Some("md-sword"));
         let bad = json!({"content": {"icon": "<script>"}});
         assert_eq!(parse_entry("r", &bad, false).unwrap().icon, None);

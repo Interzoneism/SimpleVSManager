@@ -8,6 +8,7 @@ const entry = (id: string, over: Partial<OnlineEntry["entry"]> = {}, extra: Part
     name: id,
     description: null,
     icon: null,
+    iconColor: null,
     version: null,
     uploader: "Bob",
     gameVersion: null,

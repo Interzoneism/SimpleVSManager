@@ -17,7 +17,7 @@ import { ModlistCard } from "../modlists/ModlistCard";
 import { PublishDialog } from "./PublishDialog";
 import { filterOnline, splitOwn, type OnlineSort } from "./onlineView";
 import { EditPublishedDialog } from "./EditPublishedDialog";
-import { ModlistIcon } from "../modlists/ModlistIcon";
+import { iconThemeClass, ModlistIcon } from "../modlists/ModlistIcon";
 import { CloseDetails, SplitWorkspace } from "../../components/SplitWorkspace";
 import { useContextMenu } from "../../components/ContextMenu";
 
@@ -114,6 +114,7 @@ export function OnlineModlists({ os, enabled, onShowLocal }: Props) {
         key={entry.registryId}
         title={entry.name ?? "Unnamed modlist"}
         icon={entry.icon}
+        iconColor={entry.iconColor}
         kindIcon="community"
         facts={facts}
         date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
@@ -257,7 +258,7 @@ function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHid
     <>
       <div className="details-header">
         <h2>
-          <span className="details-icon-button" aria-hidden="true"><ModlistIcon icon={e.icon} fallback="community" /></span>
+          <span className={`details-icon-button${iconThemeClass(e.iconColor)}`} aria-hidden="true"><ModlistIcon icon={e.icon} fallback="community" /></span>
           {e.name ?? "Unnamed modlist"}
         </h2>
       </div>

@@ -2,13 +2,14 @@ import { useState } from "react";
 import type { OnlineEntry } from "../../bindings";
 import { useEditPublished } from "../../api";
 import { Modal } from "../modlists/Modal";
-import { IconPicker, ModlistIcon } from "../modlists/ModlistIcon";
+import { IconPicker, iconThemeClass, ModlistIcon } from "../modlists/ModlistIcon";
 
 /** Edits one of your published modlists: icon, description and versions. The name stays. */
 export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEntry; onDone: (message: string) => void; onClose: () => void }) {
   const e = list.entry;
   const save = useEditPublished();
   const [icon, setIcon] = useState<string | null>(e.icon);
+  const [iconColor, setIconColor] = useState<string | null>(e.iconColor);
   const [description, setDescription] = useState(e.description ?? "");
   const [version, setVersion] = useState(e.version ?? "");
   const [gameVersion, setGameVersion] = useState(e.gameVersion ?? "");
@@ -17,7 +18,7 @@ export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEnt
 
   const submit = () =>
     save.mutate(
-      { registryId: e.registryId, edit: { description, version, gameVersion, icon: icon ?? "" } },
+      { registryId: e.registryId, edit: { description, version, gameVersion, icon: icon ?? "", iconColor: iconColor ?? "" } },
       {
         onSuccess: (slot) => {
           onDone(`Updated "${name}" (revision ${slot.revision}).`);
@@ -33,7 +34,7 @@ export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEnt
         <input id="ep-name" type="text" value={name} disabled title="The name of a published modlist can't be changed" />
         <span className="form-label">Icon</span>
         <div className="icon-field">
-          <button type="button" className="details-icon-button" aria-label="Choose an icon" title="Choose an icon" onClick={() => setPicking(true)}>
+          <button type="button" className={`details-icon-button${iconThemeClass(iconColor)}`} aria-label="Choose an icon" title="Choose an icon" onClick={() => setPicking(true)}>
             <ModlistIcon icon={icon} fallback="community" />
           </button>
           <button type="button" className="link-button small" onClick={() => setPicking(true)}>Choose…</button>
@@ -60,9 +61,11 @@ export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEnt
       {picking && (
         <IconPicker
           current={icon}
+          currentColor={iconColor}
           fallback="community"
-          onPick={(picked) => {
+          onPick={(picked, color) => {
             setIcon(picked);
+            setIconColor(color);
             setPicking(false);
           }}
           onClose={() => setPicking(false)}

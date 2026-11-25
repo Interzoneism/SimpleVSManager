@@ -366,7 +366,10 @@ export const useResolveGroupConflict = () =>
     upsert,
   );
 export const useSetModlistIcon = () =>
-  useModlistMutation((a: { id: string; icon: string | null }) => unwrap(commands.setModlistIcon(a.id, a.icon)), upsert);
+  useModlistMutation(
+    (a: { id: string; icon: string | null; color: string | null }) => unwrap(commands.setModlistIcon(a.id, a.icon, a.color)),
+    upsert,
+  );
 export const useDeleteModlists = () =>
   useModlistMutation((ids: string[]) => unwrap(commands.deleteModlists(ids)), (r) => r);
 export const useImportModlist = () =>

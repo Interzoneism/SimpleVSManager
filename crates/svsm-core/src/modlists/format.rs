@@ -23,6 +23,9 @@ pub struct Modlist {
     /// Card icon: a Symbols Nerd Font glyph name such as `md-sword` (3.x only; 2.x ignores it).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Card icon colors: a theme id such as `sage` (3.x only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_color: Option<String>,
     /// The modlist's own version (set by its author), not a game version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -235,6 +238,10 @@ impl Modlist {
 
     pub fn icon(&self) -> Option<String> {
         clean_icon(self.icon.as_deref())
+    }
+
+    pub fn icon_color(&self) -> Option<String> {
+        clean_icon(self.icon_color.as_deref())
     }
 
     /// Mods with a usable id, in file order, first entry per id (case-insensitive).

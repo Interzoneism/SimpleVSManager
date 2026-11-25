@@ -26,6 +26,8 @@ pub struct GroupDefinition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub game_version: Option<String>,
@@ -41,6 +43,7 @@ impl Default for GroupDefinition {
             name: None,
             description: None,
             icon: None,
+            icon_color: None,
             version: None,
             game_version: None,
             members: Vec::new(),
@@ -303,6 +306,7 @@ pub fn merge(def: &GroupDefinition, sources: &[GroupSource]) -> MergeResult {
         name: Some(trimmed(&def.name).unwrap_or_else(|| "Unnamed Modlist Group".into())),
         description: trimmed(&def.description),
         icon: super::format::clean_icon(def.icon.as_deref()),
+        icon_color: super::format::clean_icon(def.icon_color.as_deref()),
         version: trimmed(&def.version),
         game_version: trimmed(&def.game_version),
         uploader: None,

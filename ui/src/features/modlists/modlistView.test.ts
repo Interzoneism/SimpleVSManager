@@ -9,6 +9,7 @@ const summary = (over: Partial<ModlistSummary>): ModlistSummary => ({
   name: "A",
   description: null,
   icon: null,
+  iconColor: null,
   version: null,
   gameVersion: null,
   uploader: null,

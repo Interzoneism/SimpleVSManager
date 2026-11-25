@@ -96,6 +96,7 @@ fn save_export_import_and_switch_states() {
             configs: vec![ConfigChoice { relative_path: "CarryOn.json".into(), mod_id: Some("carryon".into()) }],
             overwrite: false,
             icon: Some("md-sword".into()),
+            icon_color: Some("sage".into()),
         },
     ))
     .unwrap();
@@ -192,6 +193,7 @@ fn switching_between_lists_uses_the_library_offline() {
                 configs: vec![],
                 overwrite: false,
                 icon: None,
+                icon_color: None,
             },
         ))
         .unwrap()

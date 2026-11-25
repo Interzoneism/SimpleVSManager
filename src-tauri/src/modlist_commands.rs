@@ -176,6 +176,8 @@ pub struct SaveModlistRequest {
     pub overwrite: bool,
     /// Card icon; `null` keeps the icon of the file being replaced (if any).
     pub icon: Option<String>,
+    /// Icon color theme; `null` keeps the one of the file being replaced (if any).
+    pub icon_color: Option<String>,
 }
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -205,11 +207,12 @@ fn build_from_installed(state: &AppState, req: &SaveModlistRequest) -> AppResult
         req.configs.iter().filter(|c| !gone(&c.mod_id)).map(|c| (c.relative_path.clone(), c.mod_id.clone())).collect();
     let (configs, warnings) = configs::read_for_modlist(&data, &chosen);
     let s = store(state);
-    let replaced_icon = || s.summary(&s.id_for_name(req.kind, name)).ok().and_then(|e| e.icon);
+    let replaced = || if req.overwrite { s.summary(&s.id_for_name(req.kind, name)).ok() } else { None };
     let meta = ModlistMeta {
         name: name.to_string(),
         description: if preset { None } else { req.description.clone() },
-        icon: req.icon.clone().or_else(|| if req.overwrite { replaced_icon() } else { None }),
+        icon: req.icon.clone().or_else(|| replaced().and_then(|e| e.icon)),
+        icon_color: req.icon_color.clone().or_else(|| replaced().and_then(|e| e.icon_color)),
         version: if preset { None } else { req.version.clone() },
         game_version: req.game_version.clone().or_else(|| state.environment().game_version),
         uploader: if preset { None } else { req.uploader.clone() },
@@ -233,9 +236,9 @@ pub async fn save_modlist(state: State<'_, AppState>, request: SaveModlistReques
 /// Sets (or clears with `null`) the card icon of a modlist, preset, backup or group.
 #[tauri::command]
 #[specta::specta]
-pub async fn set_modlist_icon(state: State<'_, AppState>, id: String, icon: Option<String>) -> AppResult<ModlistSummary> {
+pub async fn set_modlist_icon(state: State<'_, AppState>, id: String, icon: Option<String>, color: Option<String>) -> AppResult<ModlistSummary> {
     let s = store(&state);
-    s.set_icon(&id, icon.as_deref())?;
+    s.set_icon(&id, icon.as_deref(), color.as_deref())?;
     Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
 }
 

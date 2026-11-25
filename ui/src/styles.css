@@ -498,7 +498,7 @@ button.library-stat[aria-pressed="true"] {
 .icon-picker { display: flex; flex-direction: column; gap: 10px; min-width: min(560px, 80vw); }
 .icon-picker-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px;
-  list-style: none; margin: 0; padding: 2px; max-height: min(52vh, 420px); overflow-y: auto;
+  list-style: none; margin: 0; padding: 2px; max-height: min(44vh, 400px); overflow-y: auto;
 }
 .icon-choice {
   display: grid; place-items: center; width: 100%; aspect-ratio: 1; padding: 0;
@@ -708,3 +708,27 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
   .json-leaf input[type="text"] { min-width: 0; max-width: 100%; }
 }
 .online-section-title { margin: 4px 0 8px; font-size: 14px; font-weight: 600; color: var(--palette-white); }
+
+/* Modlist icon colors (muted tile + glyph pairs). Ids are stored with the modlist. */
+.icon-theme-sage.icon-theme-sage { background: #34423a; color: #a9c5a4; }
+.icon-theme-slate.icon-theme-slate { background: #2f3843; color: #a4b6ca; }
+.icon-theme-plum.icon-theme-plum { background: #3c3141; color: #c8abcc; }
+.icon-theme-clay.icon-theme-clay { background: #48342d; color: #e1aa8e; }
+.icon-theme-ochre.icon-theme-ochre { background: #463d2a; color: #dcc490; }
+.icon-theme-teal.icon-theme-teal { background: #283e3e; color: #90c9c1; }
+.icon-theme-rose.icon-theme-rose { background: #48333a; color: #e5b0be; }
+.icon-theme-indigo.icon-theme-indigo { background: #31344b; color: #aeb5e3; }
+.icon-theme-moss.icon-theme-moss { background: #3b3f29; color: #c7cc90; }
+.icon-theme-parchment.icon-theme-parchment { background: #ddd5c4; color: #4a4236; }
+.icon-preview-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.icon-preview { width: 56px; height: 56px; margin: 0; }
+.icon-preview .nerd-icon { font-size: 30px; }
+.icon-preview .ui-icon { width: 28px; height: 28px; }
+.icon-swatches { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.icon-swatch {
+  width: 30px; height: 30px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid transparent; outline: 1px solid var(--border);
+}
+.icon-swatch-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.icon-swatch-default { background: var(--selection); color: var(--accent); }
+.icon-swatch.selected { border-color: var(--palette-white); }

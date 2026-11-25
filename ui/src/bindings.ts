@@ -302,9 +302,9 @@ async saveModlist(request: SaveModlistRequest) : Promise<Result<SaveResult, AppE
 /**
  * Sets (or clears with `null`) the card icon of a modlist, preset, backup or group.
  */
-async setModlistIcon(id: string, icon: string | null) : Promise<Result<ModlistSummary, AppError>> {
+async setModlistIcon(id: string, icon: string | null, color: string | null) : Promise<Result<ModlistSummary, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("set_modlist_icon", { id, icon }) };
+    return { status: "ok", data: await TAURI_INVOKE("set_modlist_icon", { id, icon, color }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -804,7 +804,7 @@ version: string }
  * Changes to a published modlist's details. `None` leaves a field as it is; an empty string
  * clears it. The name can't be changed (followers know the list by it).
  */
-export type DetailsEdit = { description: string | null; version: string | null; gameVersion: string | null; icon: string | null }
+export type DetailsEdit = { description: string | null; version: string | null; gameVersion: string | null; icon: string | null; iconColor: string | null }
 export type DetectedEnvironment = { os: Os; settings: Settings; managerDir: DetectedPath; dataDir: DetectedPath | null; gameDir: DetectedPath | null; gameExecutable: string | null; gameVersion: string | null; 
 /**
  * Name of the active profile in the WPF config, if one was found.
@@ -1070,7 +1070,11 @@ export type ModlistSummary = { id: string; kind: ModlistKind; fileName: string; 
 /**
  * Card icon (Symbols Nerd Font glyph name); `null` = the default icon for the kind.
  */
-icon: string | null; version: string | null; gameVersion: string | null; uploader: string | null; modifiedMs: number | null; mods: ModlistModView[]; configCount: number; hasVersions: boolean; 
+icon: string | null; 
+/**
+ * Card icon color theme id; `null` = the default colors.
+ */
+iconColor: string | null; version: string | null; gameVersion: string | null; uploader: string | null; modifiedMs: number | null; mods: ModlistModView[]; configCount: number; hasVersions: boolean; 
 /**
  * The file couldn't be read.
  */
@@ -1182,7 +1186,7 @@ export type RegistryEntry = { registryId: string; name: string | null; descripti
 /**
  * Card icon (Symbols Nerd Font glyph name) chosen by the author.
  */
-icon: string | null; version: string | null; uploader: string | null; gameVersion: string | null; mods: RegistryMod[]; revision: number; createdMs: number | null; updatedMs: number | null; 
+icon: string | null; iconColor: string | null; version: string | null; uploader: string | null; gameVersion: string | null; mods: RegistryMod[]; revision: number; createdMs: number | null; updatedMs: number | null; 
 /**
  * Full content (with configs) or only the summary.
  */
@@ -1227,7 +1231,11 @@ overwrite: boolean;
 /**
  * Card icon; `null` keeps the icon of the file being replaced (if any).
  */
-icon: string | null }
+icon: string | null; 
+/**
+ * Icon color theme; `null` keeps the one of the file being replaced (if any).
+ */
+iconColor: string | null }
 export type SaveResult = { saved: ModlistSummary; 
 /**
  * Config files that couldn't be read (the rest were saved).

@@ -3,7 +3,7 @@ import type { ModlistKind, ModlistSummary } from "../../bindings";
 import { useModlistSaveDefaults, useSaveModlist } from "../../api";
 import { formatBytes } from "../../lib/format";
 import { Modal } from "./Modal";
-import { IconPicker, ModlistIcon } from "./ModlistIcon";
+import { IconPicker, iconThemeClass, ModlistIcon } from "./ModlistIcon";
 
 interface Props {
   initialKind: "modlist" | "preset";
@@ -25,6 +25,7 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
   const [configs, setConfigs] = useState<Set<string>>(new Set());
   const [warnings, setWarnings] = useState<string[]>([]);
   const [icon, setIcon] = useState<string | null>(null);
+  const [iconColor, setIconColor] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
 
   useEffect(() => {
@@ -57,6 +58,7 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
           .map((c) => ({ relativePath: c.relativePath, modId: c.modId })),
         overwrite,
         icon,
+        iconColor,
       },
       {
         onSuccess: (r) => {
@@ -88,7 +90,7 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
           <>
             <span className="form-label">Icon</span>
             <div className="icon-field">
-              <button type="button" className="details-icon-button" aria-label="Choose an icon" title="Choose an icon" onClick={() => setPicking(true)}>
+              <button type="button" className={`details-icon-button${iconThemeClass(iconColor)}`} aria-label="Choose an icon" title="Choose an icon" onClick={() => setPicking(true)}>
                 <ModlistIcon icon={icon} fallback="lists" />
               </button>
               <button type="button" className="link-button small" onClick={() => setPicking(true)}>Choose…</button>
@@ -177,9 +179,11 @@ export function SaveModlistDialog({ initialKind, existing, onSaved, onClose }: P
       {picking && (
         <IconPicker
           current={icon}
+          currentColor={iconColor}
           fallback="lists"
-          onPick={(picked) => {
+          onPick={(picked, color) => {
             setIcon(picked);
+            setIconColor(color);
             setPicking(false);
           }}
           onClose={() => setPicking(false)}

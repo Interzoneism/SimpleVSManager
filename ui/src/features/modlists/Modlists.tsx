@@ -20,7 +20,7 @@ import { LoadModlistDialog } from "./LoadModlistDialog";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
-import { IconPicker, ModlistIcon } from "./ModlistIcon";
+import { IconPicker, iconThemeClass, ModlistIcon } from "./ModlistIcon";
 import { CloseDetails, SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import type { IconName } from "../../components/Icon";
 import { useContextMenu } from "../../components/ContextMenu";
@@ -262,6 +262,7 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
                             key={m.id}
                             title={m.name}
                             icon={m.icon}
+                            iconColor={m.iconColor}
                             kindIcon={kindIcons[m.kind]}
                             facts={facts}
                             date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
@@ -367,10 +368,11 @@ export function Modlists({ os, enabled, droppedFile, onDroppedFileHandled, focus
       {dialog?.kind === "icon" && (
         <IconPicker
           current={dialog.entry.icon}
+          currentColor={dialog.entry.iconColor}
           fallback={kindIcons[dialog.entry.kind]}
           busy={setIcon.isPending}
           error={setIcon.error?.message}
-          onPick={(icon) => setIcon.mutate({ id: dialog.entry.id, icon }, { onSuccess: () => setDialog(null) })}
+          onPick={(icon, color) => setIcon.mutate({ id: dialog.entry.id, icon, color }, { onSuccess: () => setDialog(null) })}
           onClose={() => {
             setIcon.reset();
             setDialog(null);
@@ -417,7 +419,7 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
         <h2>
           <button
             type="button"
-            className="details-icon-button"
+            className={`details-icon-button${iconThemeClass(entry.iconColor)}`}
             title="Change icon"
             aria-label="Change icon"
             disabled={busy || !!entry.error}
