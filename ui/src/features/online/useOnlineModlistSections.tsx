@@ -34,13 +34,19 @@ interface Options {
   onShowLocal: (id: string) => void;
   dialog: OnlineModlistDialog | null;
   onDialogChange: (dialog: OnlineModlistDialog | null) => void;
+  /** Collapsed sections; the online listing is only fetched while one of them is open. */
+  publishedCollapsed: boolean;
+  communityCollapsed: boolean;
+  onTogglePublished: () => void;
+  onToggleCommunity: () => void;
 }
 
 export function useOnlineModlistSections({
   offline, search, selected, onSelect, onDeselect, onLoad, onShowLocal, dialog, onDialogChange,
+  publishedCollapsed, communityCollapsed, onTogglePublished, onToggleCommunity,
 }: Options) {
   const status = useCloudStatus(!offline);
-  const listing = useOnlineModlists(!offline);
+  const listing = useOnlineModlists(!offline && !(publishedCollapsed && communityCollapsed));
   const hide = useHideOnline();
   const copy = useSaveOnlineCopy();
   const canPublish = !offline && !!status.data && !status.data.offline && !status.data.legacyIdentity && !status.data.playerProblem && !status.data.signInProblem;
@@ -175,9 +181,8 @@ export function useOnlineModlistSections({
 
   const noMatches = search.trim() ? "No matches." : null;
   const publishSlot = canPublish && firstFree >= 0 && !noMatches ? `slot${firstFree + 1}` : null;
-  const sections = (
-    <>
-      <div className="mods-toolbar wrap">
+  const communityToolbar = (
+    <div className="mods-toolbar wrap section-toolbar">
         <select aria-label="Sort online modlists" value={sort} onChange={(e) => setSort(e.target.value as OnlineSort)}>
           <option value="newest">Recently updated</option>
           <option value="subscribers">Most followed</option>
@@ -191,8 +196,14 @@ export function useOnlineModlistSections({
           </button>
         )}
         <div className="header-spacer" />
-        <button type="button" disabled={listing.isFetching} onClick={() => void listing.refetch()}>Refresh online modlists</button>
-      </div>
+        <button type="button" disabled={listing.isFetching} onClick={() => void listing.refetch()}>
+          {listing.isFetching ? "Refreshing…" : "Refresh online modlists"}
+        </button>
+    </div>
+  );
+  const loaded = listing.isSuccess;
+  const sections = (
+    <>
       {status.data?.legacyIdentity && (
         <p className="notice warn-text">
           Your cloud identity is from the old cloud project. You can browse, follow and load modlists; publishing and
@@ -215,14 +226,14 @@ export function useOnlineModlistSections({
       {flash && <p className="notice" role="status">{flash}</p>}
       {error && <p className="notice error-text">{error.message}</p>}
       {listing.data?.error && <p className="notice warn-text">Showing the saved list: {listing.data.error}</p>}
-      {listing.isPending && <p className="empty-state">Loading online modlists…</p>}
       {listing.isError && <p className="empty-state error-text">{listing.error.message}</p>}
-      {!listing.isPending && (
-        <>
+      <>
           <ModlistSection
             title="Your published modlists"
-            count={own.mine.length}
-            empty={own.mine.length || publishSlot ? undefined : noMatches ?? "No published modlists to show."}
+            count={loaded ? own.mine.length : undefined}
+            collapsed={publishedCollapsed}
+            onToggle={onTogglePublished}
+            empty={!loaded ? "Loading online modlists…" : own.mine.length || publishSlot ? undefined : noMatches ?? "No published modlists to show."}
           >
             {own.mine.map(card)}
             {publishSlot && (
@@ -239,13 +250,15 @@ export function useOnlineModlistSections({
           </ModlistSection>
           <ModlistSection
             title="From the community"
-            count={own.others.length}
-            empty={own.others.length ? undefined : noMatches ?? "No community modlists to show."}
+            count={loaded && !communityCollapsed ? own.others.length : undefined}
+            collapsed={communityCollapsed}
+            onToggle={onToggleCommunity}
+            toolbar={communityToolbar}
+            empty={!loaded ? "Loading online modlists…" : own.others.length ? undefined : noMatches ?? "No community modlists to show."}
           >
             {own.others.map(card)}
           </ModlistSection>
-        </>
-      )}
+      </>
     </>
   );
 

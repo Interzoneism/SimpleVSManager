@@ -122,3 +122,25 @@ test("keeps saved modlists available in offline mode", async () => {
   expect(commands.cloudStatus).not.toHaveBeenCalled();
   expect(commands.onlineModlists).not.toHaveBeenCalled();
 });
+
+test("collapsed online sections don't load the online listing, and the sort sits under From the community", async () => {
+  const stored = new Map<string, string>([
+    ["svsm-layout:modlists-published-collapsed", "true"],
+    ["svsm-layout:modlists-community-collapsed", "true"],
+  ]);
+  vi.stubGlobal("localStorage", {
+    getItem: (k: string) => stored.get(k) ?? null,
+    setItem: (k: string, v: string) => void stored.set(k, v),
+    removeItem: (k: string) => void stored.delete(k),
+  });
+  renderModlists();
+  expect(await screen.findByRole("list", { name: "Saved modlists" })).toBeVisible();
+  expect(screen.queryByRole("combobox", { name: "Sort online modlists" })).toBeNull();
+  expect(commands.onlineModlists).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: /From the community/ }));
+  expect(await screen.findByRole("list", { name: "From the community" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Sort online modlists" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /Refresh online modlists/ })).toBeVisible();
+  expect(commands.onlineModlists).toHaveBeenCalled();
+});

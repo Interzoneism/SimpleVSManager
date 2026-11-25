@@ -67,7 +67,10 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
   const selectLocal = (ids: string[]) => setSelection({ kind: "local", ids });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [backupsCollapsed, setBackupsCollapsed] = useState(true);
+  const [backupsCollapsed, setBackupsCollapsed] = useLayoutPreference<boolean>("modlists-backups-collapsed", true);
+  const [savedCollapsed, setSavedCollapsed] = useLayoutPreference<boolean>("modlists-saved-collapsed", false);
+  const [publishedCollapsed, setPublishedCollapsed] = useLayoutPreference<boolean>("modlists-published-collapsed", false);
+  const [communityCollapsed, setCommunityCollapsed] = useLayoutPreference<boolean>("modlists-community-collapsed", false);
   const [revealId, setRevealId] = useState<string | null>(null);
   const revealCard = useRef<HTMLButtonElement>(null);
   const [rememberedSwitch, setRememberedSwitch] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch", "review");
@@ -142,6 +145,10 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     onLoad: (id, title) => setDialog({ kind: "load", source: { id: null, file: null, online: id }, listKind: null, title }),
     dialog: dialog?.kind === "publish" || dialog?.kind === "editPublished" ? dialog : null,
     onDialogChange: setDialog,
+    publishedCollapsed,
+    communityCollapsed,
+    onTogglePublished: () => setPublishedCollapsed(!publishedCollapsed),
+    onToggleCommunity: () => setCommunityCollapsed(!communityCollapsed),
   });
 
   const remove = async (targets: ModlistSummary[]) => {
@@ -309,6 +316,8 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             <ModlistSection
               title="Saved modlists"
               count={saved.length}
+              collapsed={savedCollapsed}
+              onToggle={() => setSavedCollapsed(!savedCollapsed)}
               empty={saved.length ? undefined : search.trim() ? "No matches." : "Save your current mods, import a file, or create a group."}
             >
               {saved.map(card)}
