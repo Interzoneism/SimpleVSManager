@@ -260,8 +260,8 @@ ${entry.summary}` : entry.name}
 }
 
 /**
- * The card picture, shown whole (as on the Mod DB) over a blurred copy of itself so pictures
- * that aren't 3:2 still fill the space. Falls back to the mod's initial.
+ * The card picture, fit to the card's width and hung from the top as on the Mod DB. Falls back
+ * to the mod's initial.
  */
 function Thumbnail({ url, name }: { url: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
@@ -275,7 +275,6 @@ function Thumbnail({ url, name }: { url: string | null; name: string }) {
   }
   return (
     <span className="db-card-thumb">
-      <img className="backdrop" src={url} alt="" loading="lazy" aria-hidden />
       <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} />
     </span>
   );
