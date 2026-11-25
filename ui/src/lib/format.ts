@@ -14,14 +14,19 @@ export function formatBytes(bytes: number): string {
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
 }
 
+// One formatter each: `toLocaleDateString(locale, options)` builds a new formatter on every call,
+// which is slow enough to show when hundreds of cards or table rows render.
+const dateFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" });
+const dateTimeFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
 export function formatDate(ms: number | null | undefined): string {
   if (ms == null) return "";
-  return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return dateFormat.format(ms);
 }
 
 export function formatDateTime(ms: number | null | undefined): string {
   if (ms == null) return "";
-  return new Date(ms).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return dateTimeFormat.format(ms);
 }
 
 /** "5 minutes ago", "3 hours ago", or a date. */
