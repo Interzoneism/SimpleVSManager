@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { InstalledMod, Os } from "../../bindings";
 import { iconUrl } from "../../lib/iconUrl";
 import { canToggleMod, latestShown, modStatus, modTags, statusLabel, type DbIndex, type SortDirection, type SortKey } from "./modView";
 import { formatDateTime } from "../../lib/format";
-import { useLayoutPreference } from "../../components/SplitWorkspace";
-import { useContextMenu } from "../../components/ContextMenu";
-import { COLUMN_DEFS, DEFAULT_LAYOUT, gridFor, parseLayout, setWidth, toggleHidden, visibleColumns, type ColumnId, type ColumnLayout } from "./columns";
+import { COLUMN_DEFS, type ColumnId } from "./columns";
+import { TableHeader, useColumnLayout } from "../../components/TableHeader";
 
 const HEADER_HEIGHT = 42;
 
@@ -56,54 +55,8 @@ export function ModTable(props: Props) {
 
   useEffect(() => virtualizer.measure(), [rowHeight, virtualizer]);
 
-  const [savedLayout, setSavedLayout] = useLayoutPreference<string>("installed-columns", JSON.stringify(DEFAULT_LAYOUT));
-  const layout = parseLayout(savedLayout);
-  const saveLayout = (next: ColumnLayout) => setSavedLayout(JSON.stringify(next));
-  // While dragging a column edge: the live width, saved on release.
-  const [drag, setDrag] = useState<{ id: ColumnId; width: number } | null>(null);
-  const shownLayout = drag ? setWidth(layout, drag.id, drag.width) : layout;
-  const columns = visibleColumns(shownLayout);
-  const grid = gridFor(shownLayout);
-  const openMenu = useContextMenu();
-
-  const onHeaderMenu = (event: MouseEvent<HTMLDivElement>) => {
-    let current = layout;
-    openMenu(event, "Columns", [
-      COLUMN_DEFS.filter((d) => d.hideable).map((d) => ({
-        label: d.label,
-        checked: !layout.hidden.includes(d.id),
-        keepOpen: true,
-        run: () => {
-          current = toggleHidden(current, d.id);
-          saveLayout(current);
-        },
-      })),
-      [{ label: "Reset columns", run: () => saveLayout(DEFAULT_LAYOUT) }],
-    ]);
-  };
-
-  const startResize = (e: ReactPointerEvent<HTMLSpanElement>, id: ColumnId, width: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const handle = e.currentTarget;
-    handle.setPointerCapture?.(e.pointerId);
-    const startX = e.clientX;
-    let latest = width;
-    const move = (ev: PointerEvent) => {
-      latest = width + ev.clientX - startX;
-      setDrag({ id, width: latest });
-    };
-    const end = () => {
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", end);
-      handle.removeEventListener("pointercancel", end);
-      setDrag(null);
-      if (latest !== width) saveLayout(setWidth(layout, id, latest));
-    };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", end);
-    handle.addEventListener("pointercancel", end);
-  };
+  const table = useColumnLayout<ColumnId, SortKey>("installed-columns", COLUMN_DEFS, "name");
+  const { columns, grid } = table;
 
   const cell = (id: ColumnId, mod: InstalledMod): ReactNode => {
     switch (id) {
@@ -199,38 +152,9 @@ export function ModTable(props: Props) {
   };
 
   return (
-    <div className={`mod-table rows-${props.rowSize}${drag ? " resizing" : ""}`} style={{ "--mod-icon-size": `${size.icon}px`, "--table-columns": grid.template, "--table-min-width": `${grid.minWidth}px` } as CSSProperties} role="grid" aria-label="Installed mods" aria-rowcount={mods.length + 1} tabIndex={0} onKeyDown={onKeyDown}>
+    <div className={`mod-table rows-${props.rowSize}${table.resizing ? " resizing" : ""}`} style={{ "--mod-icon-size": `${size.icon}px`, "--table-columns": grid.template, "--table-min-width": `${grid.minWidth}px` } as CSSProperties} role="grid" aria-label="Installed mods" aria-rowcount={mods.length + 1} tabIndex={0} onKeyDown={onKeyDown}>
       <div className="mod-scroll" ref={scrollRef}>
-        <div className="mod-row mod-header" role="row" aria-rowindex={1} style={{ height: HEADER_HEIGHT }} onContextMenu={onHeaderMenu} title="Right-click to choose columns">
-          {columns.map((c) => (
-            <div key={c.id} role="columnheader" className={`cell col-${c.id}`}
-              aria-sort={c.sort && props.sortKey === c.sort ? (props.sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-              {c.sort ? (
-                <button type="button" className="sort-button" onClick={() => props.onSort(c.sort!)}>
-                  {c.label}
-                  {props.sortKey === c.sort && <span aria-hidden>{props.sortDirection === "asc" ? " ▲" : " ▼"}</span>}
-                </button>
-              ) : (
-                <span className="sr-only">{c.label}</span>
-              )}
-              {c.resizable && (
-                <span
-                  className={`col-resize${drag?.id === c.id ? " dragging" : ""}`}
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-label={`Resize ${c.label} column`}
-                  title="Drag to resize, double-click to reset"
-                  onPointerDown={(e) => startResize(e, c.id, c.current)}
-                  onClick={(e) => e.stopPropagation()}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    saveLayout(setWidth(layout, c.id, null));
-                  }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+        <TableHeader table={table} sortKey={props.sortKey} sortDirection={props.sortDirection} onSort={props.onSort} height={HEADER_HEIGHT} />
         {mods.length === 0 ? (
           props.empty
         ) : (

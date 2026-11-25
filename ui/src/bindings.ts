@@ -377,6 +377,30 @@ async updateModlistMods(id: string) : Promise<Result<ModlistSummary, AppError>> 
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * The newest compatible version of each mod, for mods dropped into the modlist builder.
+ */
+async builderVersions(modIds: string[]) : Promise<Result<BuilderVersion[], AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("builder_versions", { modIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Saves the modlist builder's mods, as a new modlist or over a saved one. Mods without a
+ * version get the newest compatible one. A saved list keeps its name, description, icon and
+ * the configs of mods it still has.
+ */
+async saveBuiltModlist(request: SaveBuiltModlistRequest) : Promise<Result<ModlistSummary, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_built_modlist", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async saveModlistGroup(request: SaveGroupRequest) : Promise<Result<ModlistSummary, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_modlist_group", { request }) };
@@ -828,6 +852,24 @@ export type BrowseSort =
  * Newest mods first (by Mod DB id, which grows over time).
  */
 "recentlyAdded" | "name"
+/**
+ * The version a builder entry gets when the list doesn't pin one.
+ */
+export type BuilderVersion = { modId: string; 
+/**
+ * Newest release for the game version, else the newest release; `null` if unknown (offline,
+ * not on the Mod DB).
+ */
+version: string | null; 
+/**
+ * `version` is tagged for the installed game version.
+ */
+compatible: boolean }
+export type BuiltModlistMod = { modId: string; 
+/**
+ * `null`: the newest compatible version.
+ */
+version: string | null }
 export type CachedVersion = { version: string; path: string; sizeBytes: number }
 export type CloudSlotView = { info: SlotInfo; subscribers: number }
 export type CloudSlots = { playerName: string; 
@@ -1316,6 +1358,11 @@ export type ReportRequest = { modId: string; version: string;
  * `null` removes your report.
  */
 option: VoteOption | null; comment: string | null }
+export type SaveBuiltModlistRequest = { 
+/**
+ * Saved modlist to replace the mods of; `null` saves a new modlist called `name`.
+ */
+id: string | null; name: string; mods: BuiltModlistMod[] }
 export type SaveDefaults = { 
 /**
  * Player name from clientsettings.json, used as "Made by".

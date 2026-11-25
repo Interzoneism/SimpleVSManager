@@ -854,7 +854,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .lightbox-bar button { min-width: 36px; }
 
 /* --- Mod details window (Browse the Mod DB), laid out like a mod page on the Mod DB --- */
-.browse-page { flex-direction: column; }
 .mod-window-backdrop {
   position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center;
   padding: clamp(12px, 4vh, 40px) clamp(12px, 4vw, 48px); background: rgba(0, 0, 0, 0.6);
@@ -935,3 +934,39 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .details.with-toolbar.empty { display: flex; flex-direction: column; place-items: stretch; text-align: left; }
 .details.with-toolbar.empty > * { max-width: none; }
 .details.with-toolbar.empty > .details-empty-text { margin: auto; max-width: 235px; text-align: center; }
+
+/* --- Modlist builder (beside the Mod DB cards) --- */
+.builder-closed > .workspace-divider { display: none; }
+.builder-pane { display: flex; flex-direction: column; gap: 10px; overflow: hidden; transition: box-shadow 80ms, border-color 80ms; }
+.builder-pane.drop-active { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.builder-pane.drag-out .mod-row.dragging { opacity: 0.35; }
+.builder-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.builder-head h2 { margin: 0; font-size: 16px; color: var(--palette-white); }
+.builder-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.builder-fields > * { flex: 1 1 170px; min-width: 0; }
+.builder-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+.builder-confirm-actions { display: flex; gap: 6px; margin-left: auto; }
+.builder-table { min-height: 140px; }
+.builder-table .mod-row:not(.mod-header) { cursor: grab; }
+.builder-table .mod-name-button { display: flex; align-items: center; }
+.builder-table .mod-row.dragging { opacity: 0.6; }
+.builder-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 36px 18px; text-align: center; }
+.builder-empty strong { color: var(--palette-white); }
+.builder-empty .muted { max-width: 300px; line-height: 1.5; }
+.builder-pane > .notice { margin: 0; }
+.builder-footer { display: flex; align-items: center; gap: 8px; }
+.builder-toggle.active { border-color: var(--accent); color: var(--palette-white); }
+.builder-toggle .ui-icon { width: 15px; height: 15px; }
+.count-badge { margin-left: 6px; padding: 0 7px; border-radius: 9px; font-size: 11px; font-weight: 700; line-height: 1.6; background: var(--accent); color: var(--on-accent); }
+.db-card.can-drag { cursor: grab; }
+.db-card-badge.in-list { background: var(--accent); color: var(--on-accent); }
+.drag-ghost {
+  position: fixed; top: 0; left: 0; z-index: 2000; pointer-events: none;
+  display: flex; align-items: center; gap: 8px; max-width: 280px; padding: 6px 12px 6px 6px;
+  background: var(--surface); color: var(--palette-white); font-weight: 600; white-space: nowrap;
+  border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.drag-ghost > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.drag-ghost-icon { width: 28px; height: 28px; flex: none; border-radius: 6px; object-fit: cover; }
+.drag-ghost-icon.placeholder { display: inline-flex; align-items: center; justify-content: center; background: var(--palette-interactive-surface); color: var(--palette-grey); }
+body.pointer-dragging, body.pointer-dragging * { cursor: grabbing !important; user-select: none; }

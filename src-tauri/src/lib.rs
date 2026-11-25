@@ -59,6 +59,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             modlist_commands::save_modlist,
             modlist_commands::set_modlist_icon,
             modlist_commands::update_modlist_mods,
+            modlist_commands::builder_versions,
+            modlist_commands::save_built_modlist,
             modlist_commands::save_modlist_group,
             modlist_commands::resolve_group_conflict,
             modlist_commands::import_modlist,

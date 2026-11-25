@@ -25,8 +25,9 @@ export function useLayoutPreference<T extends number | boolean | string>(key: st
   return [value, setValue] as const;
 }
 
-export function SplitWorkspace({ name, side = "right", widePane = false, children }: {
+export function SplitWorkspace({ name, side = "right", widePane = false, className, children }: {
   name: string;
+  className?: string;
   side?: "left" | "right";
   widePane?: boolean;
   children: [leftPane: ReactNode, rightPane: ReactNode, ...dialogs: ReactNode[]];
@@ -55,7 +56,7 @@ export function SplitWorkspace({ name, side = "right", widePane = false, childre
   const width = clamp(preferredWidth || defaultWidth);
   const direction = isLeft ? 1 : -1;
   return (
-    <div ref={host} className={`installed split-workspace split-${side}${widePane ? " split-wide" : ""}`} style={{ "--pane-width": `${width}px` } as CSSProperties}>
+    <div ref={host} className={`installed split-workspace split-${side}${widePane ? " split-wide" : ""}${className ? ` ${className}` : ""}`} style={{ "--pane-width": `${width}px` } as CSSProperties}>
       {leftPane}
       <div
         className="workspace-divider"

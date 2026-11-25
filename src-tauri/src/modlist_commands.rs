@@ -258,6 +258,142 @@ pub async fn update_modlist_mods(state: State<'_, AppState>, id: String) -> AppR
     Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
 }
 
+// ---------------------------------------------------------------------------------------------
+// Modlist builder (Browse the Mod DB)
+// ---------------------------------------------------------------------------------------------
+
+/// The version a builder entry gets when the list doesn't pin one.
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BuilderVersion {
+    pub mod_id: String,
+    /// Newest release for the game version, else the newest release; `null` if unknown (offline,
+    /// not on the Mod DB).
+    pub version: Option<String>,
+    /// `version` is tagged for the installed game version.
+    pub compatible: bool,
+}
+
+pub(crate) fn newest_versions(found: &std::collections::HashMap<String, svsm_core::moddb::CachedMod>, env: &svsm_core::DetectedEnvironment, mod_ids: &[String]) -> Vec<BuilderVersion> {
+    mod_ids
+        .iter()
+        .map(|id| {
+            let info = found.get(&id.to_ascii_lowercase()).and_then(|c| crate::moddb_commands::info_from(c, id, env));
+            let compatible = info.as_ref().and_then(|i| i.latest_compatible()).map(|r| r.version.clone());
+            let latest = info.as_ref().and_then(|i| i.latest_release()).map(|r| r.version.clone());
+            BuilderVersion { mod_id: id.clone(), compatible: compatible.is_some(), version: compatible.or(latest) }
+        })
+        .collect()
+}
+
+/// The newest compatible version of each mod, for mods dropped into the modlist builder.
+#[tauri::command]
+#[specta::specta]
+pub async fn builder_versions(state: State<'_, AppState>, mod_ids: Vec<String>) -> AppResult<Vec<BuilderVersion>> {
+    let db = state.moddb()?;
+    let found = db.lookup(&mod_ids, false).await.mods;
+    Ok(newest_versions(&found, &state.environment(), &mod_ids))
+}
+
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BuiltModlistMod {
+    pub mod_id: String,
+    /// `null`: the newest compatible version.
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveBuiltModlistRequest {
+    /// Saved modlist to replace the mods of; `null` saves a new modlist called `name`.
+    pub id: Option<String>,
+    pub name: String,
+    pub mods: Vec<BuiltModlistMod>,
+}
+
+/// Builds the mod entries of a builder list (enabled, in the given order, one per mod id).
+pub(crate) fn built_entries(mods: &[BuiltModlistMod], resolved: &[BuilderVersion]) -> Vec<modlists::ModlistMod> {
+    let mut seen = std::collections::HashSet::new();
+    mods.iter()
+        .filter(|m| !m.mod_id.trim().is_empty() && seen.insert(m.mod_id.trim().to_ascii_lowercase()))
+        .map(|m| {
+            let pinned = m.version.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(String::from);
+            let version = pinned.or_else(|| {
+                resolved.iter().find(|r| r.mod_id.eq_ignore_ascii_case(&m.mod_id)).and_then(|r| r.version.clone())
+            });
+            modlists::ModlistMod { mod_id: Some(m.mod_id.trim().to_string()), version, is_active: Some(true), ..Default::default() }
+        })
+        .collect()
+}
+
+/// Saves the modlist builder's mods, as a new modlist or over a saved one. Mods without a
+/// version get the newest compatible one. A saved list keeps its name, description, icon and
+/// the configs of mods it still has.
+#[tauri::command]
+#[specta::specta]
+pub async fn save_built_modlist(state: State<'_, AppState>, request: SaveBuiltModlistRequest) -> AppResult<ModlistSummary> {
+    if request.mods.is_empty() {
+        return Err(AppError::msg("Add some mods first."));
+    }
+    let s = store(&state);
+    let existing = match request.id.as_deref() {
+        Some(id) => {
+            let loaded = s.load(id)?;
+            if loaded.kind != ModlistKind::Modlist {
+                return Err(AppError::msg("Only saved modlists can be changed here."));
+            }
+            if loaded.modlist.online_subscription.is_some() {
+                return Err(AppError::msg("This modlist follows an online modlist, so the next update would replace your changes. Stop following it first."));
+            }
+            Some(loaded.modlist)
+        }
+        None => None,
+    };
+    let name = request.name.trim();
+    if existing.is_none() && name.is_empty() {
+        return Err(AppError::msg("Give it a name."));
+    }
+    let missing: Vec<String> =
+        request.mods.iter().filter(|m| m.version.as_deref().is_none_or(|v| v.trim().is_empty())).map(|m| m.mod_id.clone()).collect();
+    let resolved = if missing.is_empty() {
+        Vec::new()
+    } else {
+        let db = state.moddb()?;
+        let found = db.lookup(&missing, false).await.mods;
+        newest_versions(&found, &state.environment(), &missing)
+    };
+    let entries = built_entries(&request.mods, &resolved);
+    let all_versions = entries.iter().all(|m| m.version.is_some());
+    let game_version = state.environment().game_version;
+    match (request.id, existing) {
+        (Some(id), Some(mut list)) => {
+            let keep: std::collections::HashSet<String> = entries.iter().filter_map(|m| m.id()).map(str::to_ascii_lowercase).collect();
+            list.mods = Some(entries);
+            list.include_mod_status = Some(true);
+            list.include_mod_versions = Some(all_versions);
+            list.exclusive = Some(true);
+            list.disabled_entries = None;
+            if let Some(configs) = list.configurations.as_mut() {
+                configs.retain(|c| c.mod_id.as_deref().is_some_and(|id| keep.contains(&id.to_ascii_lowercase())));
+            }
+            if game_version.is_some() {
+                list.game_version = game_version;
+            }
+            s.overwrite(&id, &list)?;
+            Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
+        }
+        _ => {
+            let meta = ModlistMeta { name: name.to_string(), game_version, ..Default::default() };
+            let mut list = from_installed(&[], meta, Vec::new());
+            list.mods = Some(entries);
+            list.include_mod_versions = Some(all_versions);
+            let id = s.save(ModlistKind::Modlist, name, &list, false)?;
+            Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
+        }
+    }
+}
+
 /// Sets (or clears with `null`) the card icon of a modlist, backup or group.
 #[tauri::command]
 #[specta::specta]

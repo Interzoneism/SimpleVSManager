@@ -1,19 +1,18 @@
 // Installed mods table columns: which are shown and how wide, saved between sessions.
 import type { SortKey } from "./modView";
+import {
+  clampColumnWidth,
+  parseTableLayout,
+  setTableColumnWidth,
+  tableGrid,
+  toggleTableColumn,
+  visibleTableColumns,
+  type TableColumnDef,
+  type TableLayout,
+} from "../../lib/tableColumns";
 
 export type ColumnId = "active" | "name" | "version" | "latest" | "authors" | "tags" | "side" | "modified" | "status";
-
-export interface ColumnDef {
-  id: ColumnId;
-  label: string;
-  sort: SortKey | null;
-  width: number;
-  min: number;
-  /** Can be hidden from the header menu. */
-  hideable: boolean;
-  /** Can be dragged wider or narrower. */
-  resizable: boolean;
-}
+export type ColumnDef = TableColumnDef<ColumnId, SortKey>;
 
 export const COLUMN_DEFS: ColumnDef[] = [
   { id: "active", label: "Active", sort: null, width: 38, min: 38, hideable: false, resizable: false },
@@ -27,55 +26,13 @@ export const COLUMN_DEFS: ColumnDef[] = [
   { id: "status", label: "Status", sort: "status", width: 120, min: 60, hideable: true, resizable: true },
 ];
 
-export interface ColumnLayout {
-  widths: Partial<Record<ColumnId, number>>;
-  hidden: ColumnId[];
-}
+export type ColumnLayout = TableLayout<ColumnId>;
 
 export const DEFAULT_LAYOUT: ColumnLayout = { widths: {}, hidden: [] };
 
-/** Reads a saved layout, dropping anything unknown or out of range. */
-export function parseLayout(text: string): ColumnLayout {
-  try {
-    const raw = JSON.parse(text) as Partial<ColumnLayout>;
-    const widths: ColumnLayout["widths"] = {};
-    for (const def of COLUMN_DEFS) {
-      const w = raw.widths?.[def.id];
-      if (def.resizable && typeof w === "number" && Number.isFinite(w)) widths[def.id] = clampWidth(def, w);
-    }
-    const hidden = Array.isArray(raw.hidden)
-      ? COLUMN_DEFS.filter((d) => d.hideable && raw.hidden!.includes(d.id)).map((d) => d.id)
-      : [];
-    return { widths, hidden };
-  } catch {
-    return DEFAULT_LAYOUT;
-  }
-}
-
-export const clampWidth = (def: ColumnDef, w: number) => Math.round(Math.min(800, Math.max(def.min, w)));
-
-export function visibleColumns(layout: ColumnLayout): (ColumnDef & { current: number })[] {
-  return COLUMN_DEFS.filter((d) => !layout.hidden.includes(d.id)).map((d) => ({ ...d, current: layout.widths[d.id] ?? d.width }));
-}
-
-/** CSS grid columns and the table's minimum width. The name column takes any spare room. */
-export function gridFor(layout: ColumnLayout): { template: string; minWidth: number } {
-  const cols = visibleColumns(layout);
-  return {
-    template: cols.map((c) => (c.id === "name" ? `minmax(${c.current}px, 1fr)` : `${c.current}px`)).join(" "),
-    minWidth: cols.reduce((sum, c) => sum + c.current, 0),
-  };
-}
-
-export function toggleHidden(layout: ColumnLayout, id: ColumnId): ColumnLayout {
-  const hidden = layout.hidden.includes(id) ? layout.hidden.filter((h) => h !== id) : [...layout.hidden, id];
-  return { ...layout, hidden };
-}
-
-export function setWidth(layout: ColumnLayout, id: ColumnId, width: number | null): ColumnLayout {
-  const def = COLUMN_DEFS.find((d) => d.id === id)!;
-  const widths = { ...layout.widths };
-  if (width === null) delete widths[id];
-  else widths[id] = clampWidth(def, width);
-  return { ...layout, widths };
-}
+export const parseLayout = (text: string): ColumnLayout => parseTableLayout(COLUMN_DEFS, text);
+export const clampWidth = clampColumnWidth;
+export const visibleColumns = (layout: ColumnLayout) => visibleTableColumns(COLUMN_DEFS, layout);
+export const gridFor = (layout: ColumnLayout) => tableGrid(COLUMN_DEFS, layout, "name");
+export const toggleHidden = toggleTableColumn<ColumnId>;
+export const setWidth = (layout: ColumnLayout, id: ColumnId, width: number | null) => setTableColumnWidth(COLUMN_DEFS, layout, id, width);

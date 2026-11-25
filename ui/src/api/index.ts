@@ -15,6 +15,7 @@ import {
   type ModlistSummary,
   type SaveGroupRequest,
   type SaveModlistRequest,
+  type SaveBuiltModlistRequest,
   type KnownFolder,
   type LookupMode,
   type ModDbStatus,
@@ -446,6 +447,8 @@ export const useResolveGroupConflict = () =>
     (a: { id: string; modId: string; reference: string }) => unwrap(commands.resolveGroupConflict(a.id, a.modId, a.reference)),
     upsert,
   );
+export const useSaveBuiltModlist = () =>
+  useModlistMutation((r: SaveBuiltModlistRequest) => unwrap(commands.saveBuiltModlist(r)), upsert);
 export const useUpdateModlistMods = () =>
   useModlistMutation((id: string) => unwrap(commands.updateModlistMods(id)), upsert);
 export const useSetModlistIcon = () =>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { BrowseEntry, BrowseQuery, BrowseSort } from "../../bindings";
 import {
   defaultBrowseQuery,
@@ -14,6 +14,11 @@ import { formatAgo, formatCount } from "../../lib/format";
 import { ModDetailsWindow } from "./ModDetailsWindow";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
+import { SplitWorkspace } from "../../components/SplitWorkspace";
+import { pointIn, usePointerDrag } from "../../components/pointerDrag";
+import { recall, remember, useRememberedScroll } from "../../lib/pageMemory";
+import { builder, entryFromBrowse, useBuilder, type BuilderEntry } from "./builderStore";
+import { ModlistBuilder } from "./ModlistBuilder";
 
 const SORTS: { value: BrowseSort; label: string }[] = [
   { value: "relevance", label: "Best match" },
@@ -28,6 +33,14 @@ const SORTS: { value: BrowseSort; label: string }[] = [
 
 const PAGE = 60;
 
+/** A remembered query is only used if it still looks like one. */
+function isBrowseQuery(v: unknown): v is BrowseQuery {
+  const q = v as BrowseQuery;
+  return !!q && typeof q === "object" && typeof q.sort === "string" && SORTS.some((s) => s.value === q.sort)
+    && Array.isArray(q.tags) && typeof q.limit === "number" && q.limit > 0 && typeof q.offset === "number"
+    && typeof q.onlyFavourites === "boolean" && typeof q.hideInstalled === "boolean" && typeof q.reverse === "boolean";
+}
+
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -41,9 +54,13 @@ function useDebounced<T>(value: T, ms: number): T {
 export function ModBrowser({ enabled }: { enabled: boolean }) {
   const env = useEnvironment();
   const offline = !!env.data?.settings.offlineMode;
-  const [text, setText] = useState("");
-  const [query, setQuery] = useState<BrowseQuery>(defaultBrowseQuery);
-  const [gameVersion, setGameVersion] = useState<string>("");
+  // Search, filters and how many cards are shown stay put when you leave the page and come back.
+  const [text, setText] = useState(() => recall("browse-text", ""));
+  const [query, setQuery] = useState<BrowseQuery>(() => recall("browse-query", defaultBrowseQuery(), isBrowseQuery));
+  const [gameVersion, setGameVersion] = useState<string>(() => recall("browse-game-version", ""));
+  useEffect(() => remember("browse-text", text), [text]);
+  useEffect(() => remember("browse-query", query), [query]);
+  useEffect(() => remember("browse-game-version", gameVersion), [gameVersion]);
   const [selected, setSelected] = useState<BrowseEntry | null>(null);
   const debouncedText = useDebounced(text, 200);
 
@@ -55,8 +72,13 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   const openUrl = useOpenUrl();
   const openMenu = useContextMenu();
 
-  // New search: back to the first page.
-  useEffect(() => setQuery((q) => ({ ...q, limit: PAGE })), [debouncedText, gameVersion]);
+  // New search: back to the first page. (Not when the page comes back with its old search.)
+  const lastSearch = useRef({ debouncedText, gameVersion });
+  useEffect(() => {
+    if (lastSearch.current.debouncedText === debouncedText && lastSearch.current.gameVersion === gameVersion) return;
+    lastSearch.current = { debouncedText, gameVersion };
+    setQuery((q) => ({ ...q, limit: PAGE }));
+  }, [debouncedText, gameVersion]);
 
   const set = <K extends keyof BrowseQuery>(k: K, v: BrowseQuery[K]) => setQuery((q) => ({ ...q, [k]: v, limit: PAGE }));
   const page = results.data;
@@ -68,6 +90,36 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   };
   const current = selected && page?.items.find((i) => i.modId === selected.modId);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useRememberedScroll("browse-scroll", scrollRef, !!page);
+
+  // The modlist builder: cards are dragged into it.
+  const b = useBuilder();
+  const inList = useMemo(() => new Set(b.entries.map((e) => e.modId.toLowerCase())), [b.entries]);
+  const builderPane = useRef<HTMLElement | null>(null);
+  const [overBuilder, setOverBuilder] = useState(false);
+  const cardDrag = usePointerDrag<BuilderEntry>({
+    onMove: (p) => setOverBuilder(pointIn(builderPane.current, p)),
+    onDrop: (p, entry) => {
+      if (pointIn(builderPane.current, p)) builder.add([entry]);
+    },
+    onEnd: () => setOverBuilder(false),
+  });
+  const startCardDrag = (event: ReactPointerEvent, entry: BrowseEntry) => {
+    if (!b.open) return;
+    const thumb = thumbFor(entry);
+    cardDrag.begin(event, entryFromBrowse(entry, thumb), (
+      <>
+        <Logo url={thumb} name={entry.name} className="drag-ghost-icon" />
+        <span>{entry.name}</span>
+      </>
+    ));
+  };
+  const addToBuilder = (entry: BrowseEntry) => {
+    builder.setOpen(true);
+    builder.add([entryFromBrowse(entry, thumbFor(entry))]);
+  };
+
   const toggleFavourite = (entry: BrowseEntry) =>
     prefs.mutate({ favourite: { modIds: [entry.modId], on: !entry.favourite } });
 
@@ -75,9 +127,14 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
     const pageUrl = entry.urlAlias
       ? `https://mods.vintagestory.at/${encodeURIComponent(entry.urlAlias)}`
       : entry.assetId != null ? `https://mods.vintagestory.at/show/mod/${entry.assetId}` : null;
+    const listed = inList.has(entry.modId.toLowerCase());
     openMenu(event, `Actions for ${entry.name}`, [[
       { label: entry.installed ? "View details" : "View versions and install options", run: () => setSelected(entry) },
       { label: entry.favourite ? "Remove from favourites" : "Add to favourites", disabled: prefs.isPending, run: () => toggleFavourite(entry) },
+    ], [
+      listed
+        ? { label: "Remove from the modlist builder", run: () => builder.remove([entry.modId]) }
+        : { label: "Add to the modlist builder", run: () => addToBuilder(entry) },
     ], [
       !!pageUrl && { label: "Open Mod DB page", run: () => openUrl.mutate(pageUrl) },
       { label: "Copy mod ID", run: () => copyText(entry.modId) },
@@ -89,7 +146,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <div className="installed browse-page">
+    <SplitWorkspace name="browse-builder" widePane className={`browse-page${b.open ? "" : " builder-closed"}`}>
       <div className="installed-main">
         <div className="mods-toolbar wrap">
           <input
@@ -149,6 +206,16 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
           )}
           <button
             type="button"
+            className={`builder-toggle${b.open ? " active" : ""}`}
+            aria-pressed={b.open}
+            title={b.open ? "Hide the modlist builder (your list is kept)" : "Build a modlist by dragging mods into it"}
+            onClick={() => builder.setOpen(!b.open)}
+          >
+            <Icon name="lists" />
+            Modlist builder{b.entries.length > 0 && <span className="count-badge">{b.entries.length}</span>}
+          </button>
+          <button
+            type="button"
             disabled={refresh.isPending || offline}
             title={offline ? "Offline mode is on (Settings)" : "Download the Mod DB list again"}
             onClick={() => refresh.mutate()}
@@ -164,13 +231,18 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
           </p>
         )}
         {(prefs.error || openUrl.error) && <p className="notice error-text">{(prefs.error ?? openUrl.error)?.message}</p>}
-        <div className="browse-scroll">
+        <div className="browse-scroll" ref={scrollRef}>
           {results.isPending && <p className="empty-state">Loading the Mod DB… (the first time takes a few seconds)</p>}
           {page && page.items.length === 0 && <p className="empty-state">No mods match.</p>}
           <div className="db-card-grid" role="list">
             {page?.items.map((e) => (
               <ModCard key={e.modId} entry={e} thumbUrl={thumbFor(e)} selected={selected?.modId === e.modId}
-                onSelect={() => setSelected(e)} onContextMenu={(event) => onCardMenu(event, e)} />
+                inList={inList.has(e.modId.toLowerCase())} draggable={b.open}
+                onSelect={() => {
+                  if (!cardDrag.endedDrag()) setSelected(e);
+                }}
+                onPointerDown={(event) => startCardDrag(event, e)}
+                onContextMenu={(event) => onCardMenu(event, e)} />
             ))}
           </div>
           {page && page.items.length < page.total && (
@@ -182,12 +254,14 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
           )}
         </div>
       </div>
+      {b.open ? <ModlistBuilder paneRef={builderPane} dropActive={overBuilder} onClose={() => builder.setOpen(false)} /> : null}
       {selected && (
         <ModDetailsWindow entry={current ?? selected} offline={offline} onClose={() => setSelected(null)}
           thumbUrl={thumbFor(current ?? selected)}
           onFavourite={() => toggleFavourite(current ?? selected)} favouriteBusy={prefs.isPending} />
       )}
-    </div>
+      {cardDrag.overlay}
+    </SplitWorkspace>
   );
 }
 
@@ -202,33 +276,39 @@ export function Logo({ url, name, className }: { url: string | null; name: strin
       </span>
     );
   }
-  return <img className={className} src={url} alt="" loading="lazy" onError={() => setFailed(true)} />;
+  return <img className={className} src={url} alt="" loading="lazy" draggable={false} onError={() => setFailed(true)} />;
 }
 
 /** Mod DB style card: the mod's picture on top, name, summary and counts below. */
-function ModCard({ entry, thumbUrl, selected, onSelect, onContextMenu }: {
+function ModCard({ entry, thumbUrl, selected, inList, draggable, onSelect, onPointerDown, onContextMenu }: {
   entry: BrowseEntry;
   thumbUrl: string | null;
   selected: boolean;
+  inList: boolean;
+  draggable: boolean;
   onSelect: () => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
       role="listitem"
-      className={`db-card${selected ? " selected" : ""}`}
+      className={`db-card${selected ? " selected" : ""}${draggable ? " can-drag" : ""}`}
       onClick={onSelect}
+      onPointerDown={onPointerDown}
+      onDragStart={(e) => e.preventDefault()}
       onContextMenu={onContextMenu}
       aria-haspopup="menu"
       title={entry.summary ? `${entry.name}
 ${entry.summary}` : entry.name}
     >
       <Thumbnail url={thumbUrl} name={entry.name} />
-      {(entry.installed || entry.favourite) && (
+      {(entry.installed || entry.favourite || inList) && (
         <span className="db-card-badges">
           {entry.favourite && <span className="db-card-badge fav" aria-label="Favourite">★</span>}
           {entry.installed && <span className="db-card-badge">Installed</span>}
+          {inList && <span className="db-card-badge in-list">In list</span>}
         </span>
       )}
       <span className="db-card-desc">
@@ -265,7 +345,7 @@ function Thumbnail({ url, name }: { url: string | null; name: string }) {
   }
   return (
     <span className="db-card-thumb">
-      <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} />
+      <img src={url} alt="" loading="lazy" draggable={false} onError={() => setFailed(true)} />
     </span>
   );
 }

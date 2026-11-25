@@ -512,3 +512,67 @@ fn custom_shortcut_and_moving_the_manager_folder() {
     assert_eq!(std::path::PathBuf::from(&env.manager_dir.path), m.manager);
     assert!(env.settings.close_after_launch);
 }
+
+#[test]
+fn modlist_builder_saves_new_lists_and_edits_saved_ones() {
+    let m = machine();
+    let state = m.app.state::<AppState>();
+    let pinned = |id: &str, v: &str| BuiltModlistMod { mod_id: id.into(), version: Some(v.into()) };
+
+    // A new list, from mods that don't have to be installed.
+    let req = |id: Option<String>, name: &str, mods: Vec<BuiltModlistMod>| SaveBuiltModlistRequest { id, name: name.into(), mods };
+    let new = run(save_built_modlist(state.clone(), req(None, "Built", vec![pinned("primitivesurvival", "3.7.0"), pinned("carryon", "1.14.0"), pinned("CarryOn", "9")]))).unwrap();
+    assert_eq!(new.name, "Built");
+    let got: Vec<_> = new.mods.iter().map(|x| (x.mod_id.as_str(), x.version.as_deref(), x.is_active)).collect();
+    assert_eq!(got, [("primitivesurvival", Some("3.7.0"), Some(true)), ("carryon", Some("1.14.0"), Some(true))]);
+    assert!(new.has_versions);
+    // Same name again, empty lists and no name are refused.
+    assert!(run(save_built_modlist(state.clone(), req(None, "Built", vec![pinned("carryon", "1")]))).is_err());
+    assert!(run(save_built_modlist(state.clone(), req(None, "Other", vec![]))).is_err());
+    assert!(run(save_built_modlist(state.clone(), req(None, "  ", vec![pinned("carryon", "1")]))).is_err());
+
+    // Editing a saved list: its details and the configs of mods it keeps stay.
+    let saved = run(save_modlist(
+        state.clone(),
+        SaveModlistRequest {
+            name: "Mine".into(),
+            description: Some("desc".into()),
+            game_version: None,
+            uploader: None,
+            configs: vec![ConfigChoice { relative_path: "CarryOn.json".into(), mod_id: Some("carryon".into()) }],
+            overwrite: false,
+            icon: Some("md-sword".into()),
+            icon_color: None,
+        },
+    ))
+    .unwrap()
+    .saved;
+    let edited = run(save_built_modlist(state.clone(), req(Some(saved.id.clone()), "ignored", vec![pinned("carryon", "1.14.0"), pinned("newmod", "2.0.0")]))).unwrap();
+    assert_eq!(edited.id, saved.id);
+    assert_eq!((edited.name.as_str(), edited.description.as_deref(), edited.icon.as_deref(), edited.config_count), ("Mine", Some("desc"), Some("md-sword"), 1));
+    let ids: Vec<_> = edited.mods.iter().map(|x| x.mod_id.as_str()).collect();
+    assert_eq!(ids, ["carryon", "newmod"]);
+    // Dropping carryon drops its config too.
+    let edited = run(save_built_modlist(state.clone(), req(Some(saved.id.clone()), "", vec![pinned("newmod", "2.0.0")]))).unwrap();
+    assert_eq!(edited.config_count, 0);
+    // Backups can't be edited in the builder.
+    let backup = crate::modlist_commands::snapshot_installed(&state, "Test", Vec::new()).unwrap();
+    assert!(run(save_built_modlist(state.clone(), req(Some(backup), "", vec![pinned("carryon", "1")]))).is_err());
+}
+
+#[test]
+fn modlist_builder_fills_in_versions_it_looked_up() {
+    let mods = vec![
+        BuiltModlistMod { mod_id: "a".into(), version: None },
+        BuiltModlistMod { mod_id: "b".into(), version: Some(" 1.0.0 ".into()) },
+        BuiltModlistMod { mod_id: "c".into(), version: Some(String::new()) },
+    ];
+    let resolved = vec![
+        BuilderVersion { mod_id: "A".into(), version: Some("2.0.0".into()), compatible: true },
+        BuilderVersion { mod_id: "b".into(), version: Some("9.9.9".into()), compatible: true },
+    ];
+    let out = built_entries(&mods, &resolved);
+    let got: Vec<_> = out.iter().map(|m| (m.mod_id.as_deref().unwrap(), m.version.as_deref())).collect();
+    // Pinned versions win; a version nobody knows stays empty.
+    assert_eq!(got, [("a", Some("2.0.0")), ("b", Some("1.0.0")), ("c", None)]);
+}
