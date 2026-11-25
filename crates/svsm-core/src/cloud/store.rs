@@ -192,6 +192,10 @@ impl<'a> CloudStore<'a> {
             u.push('/');
             u.push_str(&encode_component(p));
         }
+        if path.is_empty() {
+            // The database root is `<db>/.json`; without the slash ".json" ends up on the host.
+            u.push('/');
+        }
         u.push_str(".json");
         let mut params: Vec<String> = Vec::new();
         if let Some(t) = token {
@@ -564,6 +568,27 @@ mod tests {
     }
 
     #[test]
+    fn root_url_keeps_a_slash_before_json() {
+        let (server, t, auth) = setup();
+        let mut cfg = CloudConfig::for_tests(&server.url());
+        cfg.db_url = "https://example-rtdb.firebasedatabase.app/".into();
+        let store = CloudStore::new(&auth, cfg, &t.path().join("cache")).unwrap();
+        assert_eq!(store.url(&[], Some("t"), None), "https://example-rtdb.firebasedatabase.app/.json?auth=t");
+        assert_eq!(store.url(&["a", "b"], None, None), "https://example-rtdb.firebasedatabase.app/a/b.json");
+    }
+
+    #[test]
+    fn network_errors_do_not_include_the_token() {
+        let rt = rt();
+        let err = rt
+            .block_on(reqwest::Client::new().get("http://nonexistent.invalid/x.json?auth=SECRET").send())
+            .unwrap_err();
+        let msg = CloudError::from(err).to_string();
+        assert!(!msg.contains("SECRET"), "{msg}");
+        assert!(msg.contains("nonexistent.invalid/x.json"), "{msg}");
+    }
+
+    #[test]
     fn registry_listing_uses_etag_cache() {
         let (mut server, t, auth) = setup();
         let store = CloudStore::new(&auth, CloudConfig::for_tests(&server.url()), &t.path().join("cache")).unwrap();
@@ -607,7 +632,7 @@ mod tests {
             .with_body(r#"{"slot2":{"registryId":"rid","content":{"name":"Old"},"revision":2,"createdAt":"2026-01-01T00:00:00Z"}}"#)
             .create();
         let patch = server
-            .mock("PATCH", "/db.json")
+            .mock("PATCH", "/db/.json")
             .match_query(Matcher::Any)
             .match_body(Matcher::AllOf(vec![
                 Matcher::Regex(r#""/users/abc_def_1/slot2":\{"#.into()),

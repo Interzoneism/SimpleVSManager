@@ -184,7 +184,7 @@ mod tests {
         new.mock("GET", "/db/owners/P1.json").match_query(Matcher::Any).with_body("null").create();
         new.mock("PUT", "/db/owners/P1.json").match_query(Matcher::Any).with_body("\"new\"").create();
         new.mock("GET", "/db/users/P1.json").match_query(Matcher::Any).with_body("null").create();
-        let publishes = new.mock("PATCH", "/db.json").match_query(Matcher::Any).with_body("{}").expect(2).create();
+        let publishes = new.mock("PATCH", "/db/.json").match_query(Matcher::Any).with_body("{}").expect(2).create();
 
         let report = rt()
             .block_on(migrate(&mgr, Some(backup.clone()), &player(), CloudConfig::for_tests(&old.url()), CloudConfig::for_tests(&new.url()), t.path()))

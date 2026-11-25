@@ -78,7 +78,17 @@ pub type CloudResult<T> = Result<T, CloudError>;
 
 impl From<reqwest::Error> for CloudError {
     fn from(e: reqwest::Error) -> Self {
+        // Cloud URLs carry `?auth=<id token>` or `?key=<api key>`: log the URL without its query.
+        let url = e.url().map(|u| {
+            let mut u = u.clone();
+            u.set_query(None);
+            u.to_string()
+        });
+        let e = e.without_url();
         let mut msg = e.to_string();
+        if let Some(u) = url {
+            msg.push_str(&format!(" ({u})"));
+        }
         let mut src = std::error::Error::source(&e);
         while let Some(s) = src {
             msg.push_str(": ");

@@ -241,7 +241,7 @@ fn follow_update_and_publish_against_a_fake_cloud() {
     let rev1 = r#"{"content":{"name":"Cozy","uploader":"Bob","mods":[{"modId":"carryon","version":"1.14.0","isActive":true}],"includeModStatus":true,"includeModVersions":true},"revision":1,"updatedAt":"2026-01-01T00:00:00Z"}"#;
     let reg = server.mock("GET", "/db/registry/r1.json").match_query(Matcher::Missing).with_body(rev1).create();
     server.mock("GET", "/db/modlistSubscriptions/r1/fb1.json").match_query(Matcher::Any).with_body("null").create();
-    let subscribe = server.mock("PATCH", "/db.json").match_query(Matcher::Any).match_body(Matcher::Regex("modlistSubscriptions/r1/fb1".into())).with_body("{}").expect(1).create();
+    let subscribe = server.mock("PATCH", "/db/.json").match_query(Matcher::Any).match_body(Matcher::Regex("modlistSubscriptions/r1/fb1".into())).with_body("{}").expect(1).create();
 
     let copy = run(crate::cloud_commands::save_online_copy(state.clone(), "r1".into(), true)).unwrap();
     subscribe.assert();
@@ -284,7 +284,7 @@ fn follow_update_and_publish_against_a_fake_cloud() {
     ));
     assert!(rude.unwrap_err().message.contains("can't contain"));
     let publish = server
-        .mock("PATCH", "/db.json")
+        .mock("PATCH", "/db/.json")
         .match_query(Matcher::Any)
         .match_body(Matcher::AllOf(vec![Matcher::Regex("/users/PlayerUid_1/slot1".into()), Matcher::Regex("\"uploader\":\"Tester\"".into())]))
         .with_body("{}")
