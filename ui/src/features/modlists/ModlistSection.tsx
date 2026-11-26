@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Icon } from "../../components/Icon";
 
 /** A titled group of modlist cards. With `onToggle` the title collapses it; nothing inside
  * (toolbar, cards) is rendered while collapsed. */
@@ -19,7 +20,7 @@ export function ModlistSection({ title, count, empty, collapsed = false, onToggl
       <h2 className="modlist-section-title">
         {onToggle ? (
           <button type="button" className="section-toggle" aria-expanded={!collapsed} onClick={onToggle}>
-            <span aria-hidden="true">{collapsed ? "▸" : "▾"} </span>{heading}
+            <Icon name={collapsed ? "chevronRight" : "chevronDown"} size={15} />{heading}
           </button>
         ) : heading}
       </h2>

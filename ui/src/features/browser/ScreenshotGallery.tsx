@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { ModDbScreenshot } from "../../bindings";
+import { Icon } from "../../components/Icon";
 
 /** A screenshot shown full size over everything; arrows flip through the rest. */
 export function Lightbox({ screenshots, index, onIndex, onClose, modName }: {
@@ -30,10 +31,10 @@ export function Lightbox({ screenshots, index, onIndex, onClose, modName }: {
     <div className="lightbox" role="dialog" aria-modal="true" aria-label={`${modName} screenshot ${index + 1} of ${count}`} onClick={onClose}>
       <img src={shot.url} alt={shot.fileName ?? `Screenshot ${index + 1}`} onClick={(e) => e.stopPropagation()} />
       <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
-        {count > 1 && <button type="button" onClick={() => go(-1)} aria-label="Previous screenshot">‹</button>}
+        {count > 1 && <button type="button" onClick={() => go(-1)} aria-label="Previous screenshot"><Icon name="chevronLeft" /></button>}
         <span>{index + 1} / {count}</span>
-        {count > 1 && <button type="button" onClick={() => go(1)} aria-label="Next screenshot">›</button>}
-        <button type="button" onClick={onClose} aria-label="Close">✕</button>
+        {count > 1 && <button type="button" onClick={() => go(1)} aria-label="Next screenshot"><Icon name="chevronRight" /></button>}
+        <button type="button" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
       </div>
     </div>,
     document.body,

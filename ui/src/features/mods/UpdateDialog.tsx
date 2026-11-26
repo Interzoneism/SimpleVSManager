@@ -3,6 +3,7 @@ import type { InstalledMod, UpdateReport } from "../../bindings";
 import { cancelUpdates, useModDbDetails } from "../../api";
 import { releasesBetween } from "./changelog";
 import type { DbIndex } from "./modView";
+import { Icon } from "../../components/Icon";
 
 interface Props {
   mods: InstalledMod[];
@@ -81,7 +82,7 @@ export function UpdateDialog({ mods, db, progress, running, report, onStart, onC
                     aria-expanded={open === m.key}
                     onClick={() => setOpen(open === m.key ? null : m.key)}
                   >
-                    {open === m.key ? "Hide changes" : "Changes"}
+                    <Icon name={open === m.key ? "chevronUp" : "chevronDown"} size={13} />{open === m.key ? "Hide changes" : "Changes"}
                   </button>
                 </div>
                 {open === m.key && s?.update && (
@@ -96,16 +97,16 @@ export function UpdateDialog({ mods, db, progress, running, report, onStart, onC
           <span className="header-spacer" />
           {running ? (
             <button type="button" onClick={() => void cancelUpdates()}>
-              Stop after this one
+              <Icon name="stop" />Stop after this one
             </button>
           ) : done ? (
             <button type="button" className="primary" onClick={onClose}>
-              Close
+              <Icon name="close" />Close
             </button>
           ) : (
             <>
               <button type="button" onClick={onClose}>
-                Cancel
+                <Icon name="close" />Cancel
               </button>
               <button
                 type="button"
@@ -113,7 +114,7 @@ export function UpdateDialog({ mods, db, progress, running, report, onStart, onC
                 disabled={chosen.size === 0}
                 onClick={() => onStart(mods.filter((m) => chosen.has(m.key)).map((m) => m.key))}
               >
-                Update {chosen.size === 1 ? "1 mod" : `${chosen.size} mods`}
+                <Icon name="update" />Update {chosen.size === 1 ? "1 mod" : `${chosen.size} mods`}
               </button>
             </>
           )}

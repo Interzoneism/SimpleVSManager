@@ -6,6 +6,7 @@ import { canToggleMod, latestShown, modStatus, modTags, statusLabel, type DbInde
 import { formatDateTime } from "../../lib/format";
 import { COLUMN_DEFS, type ColumnId } from "./columns";
 import { TableHeader, useColumnLayout } from "../../components/TableHeader";
+import { Icon } from "../../components/Icon";
 
 const HEADER_HEIGHT = 42;
 
@@ -228,7 +229,7 @@ function LatestCell(props: {
             props.onUpdate(props.mod);
           }}
         >
-          ↑ {s.update.version}
+          <Icon name="update" size={12} />{s.update.version}
         </button>
       </div>
     );

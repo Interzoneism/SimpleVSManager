@@ -4,6 +4,10 @@ import { useModConfig, useModConfigs, useOpenKnownFolder, useSaveModConfig } fro
 import { coerce, matchesSearch, setAt, stringify, type Json, type PathPart } from "./jsonTree";
 import { SplitWorkspace } from "../../components/SplitWorkspace";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
+import { Icon } from "../../components/Icon";
+import { toast, useErrorToast } from "../../components/Toast";
+
+const SAVED = "Saved. Changes apply the next time the game (or world) loads.";
 
 /** The Configs tab: mod config files in ModConfig, edited as a tree (JSON) or as text. */
 /** `focusMod` is a request from "Edit config": a new object each time, handled once. */
@@ -74,7 +78,7 @@ export function ConfigEditor({ enabled, focusMod }: { enabled: boolean; focusMod
           ))}
         </ul>
         <div className="link-row">
-          <button type="button" className="link-button small" onClick={() => openFolder.mutate("modConfig")}>Open the ModConfig folder</button>
+          <button type="button" className="link-button small" onClick={() => openFolder.mutate("modConfig")}><Icon name="folder" size={13} />Open the ModConfig folder</button>
         </div>
       </aside>
       <div className="installed-main config-main">
@@ -87,6 +91,7 @@ export function ConfigEditor({ enabled, focusMod }: { enabled: boolean; focusMod
 function FileEditor({ path }: { path: string }) {
   const file = useModConfig(path);
   const save = useSaveModConfig();
+  useErrorToast(save.error);
   const [text, setText] = useState<string | null>(null);
   const [tree, setTree] = useState<Json | null>(null);
   const [mode, setMode] = useState<"tree" | "text">("tree");
@@ -129,8 +134,8 @@ function FileEditor({ path }: { path: string }) {
         <strong>{doc.relativePath}</strong>
         {isJson && tree !== null && (
           <div className="segmented" role="group" aria-label="Editor">
-            <button type="button" aria-pressed={mode === "tree"} onClick={() => switchMode("tree")}>Fields</button>
-            <button type="button" aria-pressed={mode === "text"} onClick={() => switchMode("text")}>Text</button>
+            <button type="button" aria-pressed={mode === "tree"} onClick={() => switchMode("tree")}><Icon name="lists" />Fields</button>
+            <button type="button" aria-pressed={mode === "text"} onClick={() => switchMode("text")}><Icon name="code" />Text</button>
           </div>
         )}
         {mode === "tree" && <input type="search" placeholder="Find a setting" aria-label="Find a setting" value={search} onChange={(e) => setSearch(e.target.value)} />}
@@ -141,22 +146,20 @@ function FileEditor({ path }: { path: string }) {
             title="Put back the file as it was before your last save here"
             onClick={async () =>
               (await ask("Put back the version from before your last save?", { title: "Undo last save" })) &&
-              save.mutate({ relativePath: path, text: file.data!.previous! })
+              save.mutate({ relativePath: path, text: file.data!.previous! }, { onSuccess: () => toast.success(SAVED) })
             }
           >
-            Undo last save
+            <Icon name="undo" />Undo last save
           </button>
         )}
         <button type="button" disabled={!dirty || save.isPending} onClick={() => { setText(original); setTree(doc.tree ? (JSON.parse(doc.tree) as Json) : null); }}>
-          Discard changes
+          <Icon name="reset" />Discard changes
         </button>
-        <button type="button" className="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate({ relativePath: path, text: current })}>
-          Save
+        <button type="button" className="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate({ relativePath: path, text: current }, { onSuccess: () => toast.success(SAVED) })}>
+          <Icon name="save" />Save
         </button>
       </div>
       {doc.parseError && <p className="notice warn-text">{doc.parseError} Edit it as text.</p>}
-      {save.isError && <p className="notice error-text">{save.error.message}</p>}
-      {save.isSuccess && !dirty && <p className="notice" role="status">Saved. Changes apply the next time the game (or world) loads.</p>}
       {mode === "tree" && tree !== null ? (
         <div className="json-tree">
           <Node name={null} value={tree} path={[]} search={search} onChange={(p, v) => setTree(setAt(tree, p, v))} />

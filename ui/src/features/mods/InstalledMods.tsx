@@ -32,11 +32,12 @@ import { UpdateDialog } from "./UpdateDialog";
 import { SaveModlistDialog } from "../modlists/SaveModlistDialog";
 import { LoadModlistDialog } from "../modlists/LoadModlistDialog";
 import { canQuickSwitch } from "../modlists/modlistView";
-import { quickSwitchNotice, useQuickSwitch } from "../modlists/quickSwitch";
+import { quickSwitchNotice, showQuickSwitchToast, useQuickSwitch } from "../modlists/quickSwitch";
 import type { ModlistSummary } from "../../bindings";
 import { Icon, type IconName } from "../../components/Icon";
 import { SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
+import { toast, useErrorToast } from "../../components/Toast";
 
 /** Short progress label for the table, from an UpdateProgress event. */
 export function progressLabel(p: UpdateProgress): string | null {
@@ -83,7 +84,6 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   const [savingModlist, setSavingModlist] = useState(false);
   const [loadingModlist, setLoadingModlist] = useState<ModlistSummary | null>(null);
   const quickSwitch = useQuickSwitch();
-  const [modlistFlash, setModlistFlash] = useState<string | null>(null);
   const loadable = (modlists.data ?? []).filter((m) => m.kind !== "backup" && !m.error);
 
   // Check the Mod DB once per session, after the first scan.
@@ -123,6 +123,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   // Toggling doesn't lock the table: toggles are queued and shown right away.
   const busy = deleteMods.isPending || updateMods.isPending;
   const actionError = setActive.error ?? deleteMods.error ?? updateMods.error ?? reveal.error ?? website.error;
+  useErrorToast(actionError);
 
   const onSort = (key: SortKey) => {
     if (key === sortKey) setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
@@ -173,6 +174,11 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   /** Installs specific versions right away (version picker, single update pill). */
   const installVersions = (requests: { key: string; version: string | null }[]) => updateMods.mutate(requests);
 
+  const dbProblem = refreshDb.error?.message ?? moddb.data?.error ?? null;
+  useEffect(() => {
+    if (dbProblem) toast.warning(`Some mods couldn't be checked, so older data is shown: ${dbProblem}`, { id: "moddb-check", title: "Mod DB check incomplete" });
+  }, [dbProblem]);
+
   if (!enabled) {
     return (
       <p className="empty-state">
@@ -210,12 +216,6 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
           </button>
         ))}
       </div>
-      {modlistFlash && (
-        <p className="notice" role="status">
-          {modlistFlash}{" "}
-          <button type="button" className="link-button small" onClick={() => setModlistFlash(null)}>Dismiss</button>
-        </p>
-      )}
       <SplitWorkspace name="installed-mods">
         <div className="installed-main">
           <div className="mods-toolbar wrap library-toolbar">
@@ -260,7 +260,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
                 ))}
               </select>
               <button type="button" title="Save the enabled mods as a new modlist" onClick={() => setSavingModlist(true)}>
-                <Icon name="lists" />Save current mods…
+                <Icon name="save" />Save current mods…
               </button>
             </div>
             <div className="header-spacer" />
@@ -296,13 +296,6 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
               enabling and disabling mods writes a new one.
             </p>
           )}
-          {(refreshDb.error || dbState?.error) && (
-            <p className="notice warn-text">
-              Some mods couldn't be checked on the Mod DB, so older data is shown:{" "}
-              {refreshDb.error?.message ?? dbState?.error}
-            </p>
-          )}
-          {actionError && <p className="notice error-text">{actionError.message}</p>}
           <ModTable
             os={os}
             mods={visible}
@@ -326,7 +319,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
             ) : (
               <div className="empty-state">
                 <p>No mods match the current filters.</p>
-                <button type="button" onClick={() => { setSearch(""); setStatus("all"); }}>Clear filters</button>
+                <button type="button" onClick={() => { setSearch(""); setStatus("all"); }}><Icon name="eraser" />Clear filters</button>
               </div>
             )}
           />
@@ -349,7 +342,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
             existing={modlists.data ?? []}
             onSaved={(s) => {
               setSavingModlist(false);
-              setModlistFlash(`Saved "${s.name}" (${s.mods.length} mods). Find it on the Modlists page.`);
+              toast.success(`Saved "${s.name}" (${s.mods.length} mods). Find it on the Modlists page.`);
             }}
             onClose={() => setSavingModlist(false)}
           />
@@ -365,7 +358,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
               preference: quickSwitch.enabled ? quickSwitch.preference : "review",
               onRemember: quickSwitch.remember,
               onDone: (report) => {
-                setModlistFlash(quickSwitchNotice(loadingModlist.name, report, os).text);
+                showQuickSwitchToast(quickSwitchNotice(loadingModlist.name, report, os));
                 setLoadingModlist(null);
               },
             } : undefined}

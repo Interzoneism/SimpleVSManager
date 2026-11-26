@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import type { InstalledMod } from "../../bindings";
 import { useFixDependencies } from "../../api";
+import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 
 /** Whether "Fix dependencies" can help: something it depends on is missing, too old, disabled or broken. */
 export function canFixDependencies(mod: InstalledMod): boolean {
@@ -13,6 +15,7 @@ export function canFixDependencies(mod: InstalledMod): boolean {
  */
 export function FixDependencies({ mod, busy }: { mod: InstalledMod; busy: boolean }) {
   const fix = useFixDependencies();
+  useErrorToast(fix.error);
   const { reset } = fix;
   useEffect(() => reset(), [mod.key, reset]);
 
@@ -29,7 +32,7 @@ export function FixDependencies({ mod, busy }: { mod: InstalledMod; busy: boolea
           title="Install missing dependencies from the Mod DB, update outdated ones and enable disabled ones"
           onClick={() => fix.mutate(mod.key)}
         >
-          {fix.isPending ? "Fixing dependencies…" : "Fix dependencies"}
+          <Icon name="wrench" />{fix.isPending ? "Fixing dependencies…" : "Fix dependencies"}
         </button>
       )}
       {report && report.done.length > 0 && (
@@ -49,7 +52,6 @@ export function FixDependencies({ mod, busy }: { mod: InstalledMod; busy: boolea
           ))}
         </ul>
       )}
-      {fix.error && <p className="error-text small">{fix.error.message}</p>}
     </div>
   );
 }

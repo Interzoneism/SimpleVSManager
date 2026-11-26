@@ -1,5 +1,7 @@
 import { useOpenUrl } from "../../api";
 import { Modal } from "../modlists/Modal";
+import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 
 /** Same links as 2.3's Help menu. */
 export const DISCORD_URL = "https://discord.gg/Zhm3QnD2s9";
@@ -55,6 +57,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
 /** One help page instead of 2.x's Help, Guide and Menu Guide dialogs. */
 export function HelpDialog({ onClose }: { onClose: () => void }) {
   const openUrl = useOpenUrl();
+  useErrorToast(openUrl.error);
   return (
     <Modal title="Help" onClose={onClose}>
       <div className="help">
@@ -66,11 +69,10 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="modal-actions">
-        <button type="button" onClick={() => openUrl.mutate(DISCORD_URL)} title={DISCORD_URL}>Discord</button>
-        <button type="button" onClick={() => openUrl.mutate(MANAGER_MODDB_URL)} title={MANAGER_MODDB_URL}>Mod DB page</button>
-        {openUrl.isError && <span className="error-text small">{openUrl.error.message}</span>}
+        <button type="button" onClick={() => openUrl.mutate(DISCORD_URL)} title={DISCORD_URL}><Icon name="comment" />Discord</button>
+        <button type="button" onClick={() => openUrl.mutate(MANAGER_MODDB_URL)} title={MANAGER_MODDB_URL}><Icon name="external" />Mod DB page</button>
         <span className="header-spacer" />
-        <button type="button" className="primary" onClick={onClose}>Close</button>
+        <button type="button" className="primary" onClick={onClose}><Icon name="close" />Close</button>
       </div>
     </Modal>
   );

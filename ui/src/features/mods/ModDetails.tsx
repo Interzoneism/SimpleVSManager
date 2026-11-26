@@ -52,20 +52,20 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
       <aside className="details">
         <DetailsHeader title={`${mods.length} mods selected`} onClose={onClose} />
         <div className="details-actions">
-          <button type="button" disabled={busy} onClick={() => onSetActive(manageable, true)}>Enable all</button>
-          <button type="button" disabled={busy} onClick={() => onSetActive(manageable, false)}>Disable all</button>
+          <button type="button" disabled={busy} onClick={() => onSetActive(manageable, true)}><Icon name="toggleOn" />Enable all</button>
+          <button type="button" disabled={busy} onClick={() => onSetActive(manageable, false)}><Icon name="toggleOff" />Disable all</button>
           {withUpdates.length > 0 && (
             <button type="button" className="primary" disabled={busy} onClick={() => onUpdate(withUpdates)}>
-              Update {withUpdates.length}
+              <Icon name="update" />Update {withUpdates.length}
             </button>
           )}
           <button type="button" disabled={prefs.isPending} onClick={() => prefs.mutate({ updateExcluded: { modIds: ids, on: true } })}>
-            Leave out of updates
+            <Icon name="skip" />Leave out of updates
           </button>
           <button type="button" disabled={prefs.isPending} onClick={() => prefs.mutate({ updateExcluded: { modIds: ids, on: false } })}>
-            Include in updates
+            <Icon name="update" />Include in updates
           </button>
-          <button type="button" className="danger" disabled={busy} onClick={() => onDelete(mods)}>Delete…</button>
+          <button type="button" className="danger" disabled={busy} onClick={() => onDelete(mods)}><Icon name="trash" />Delete…</button>
         </div>
         <ul className="details-list">
           {mods.map((m) => (
@@ -127,7 +127,7 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
       <div className="mod-actions">
         {manageable.length > 0 && (
           <button type="button" className={mod.isActive ? undefined : "primary"} disabled={busy} onClick={() => onSetActive([mod], !mod.isActive)}>
-            {mod.isActive ? "Disable" : "Enable"}
+            <Icon name={mod.isActive ? "toggleOff" : "toggleOn"} />{mod.isActive ? "Disable" : "Enable"}
           </button>
         )}
         {summary?.update && (
@@ -144,10 +144,10 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
           <Icon name="folder" />Folder
         </button>
         {mod.website && (
-          <button type="button" title={mod.website} onClick={() => website.mutate(mod.key)}>Website</button>
+          <button type="button" title={mod.website} onClick={() => website.mutate(mod.key)}><Icon name="globe" />Website</button>
         )}
         <span className="header-spacer" />
-        <button type="button" className="danger" disabled={busy} onClick={() => onDelete([mod])}>Delete…</button>
+        <button type="button" className="danger" disabled={busy} onClick={() => onDelete([mod])}><Icon name="trash" />Delete…</button>
       </div>
       {progress.get(mod.key) && <p className="muted small">{progress.get(mod.key)}</p>}
       {actionError && <p className="error-text small">{actionError.message}</p>}
@@ -264,7 +264,7 @@ function ModDbPanel(props: {
     <Section
       title="Mod DB"
       aside={summary.pageUrl && (
-        <button type="button" className="link-button small" onClick={() => openUrl.mutate(summary.pageUrl!)}>Open page</button>
+        <button type="button" className="link-button small" onClick={() => openUrl.mutate(summary.pageUrl!)}><Icon name="external" size={13} />Open page</button>
       )}
     >
       <div className="stat-tiles">
@@ -312,12 +312,12 @@ function ModDbPanel(props: {
               title="Don't offer this version again; newer ones will still be offered"
               onClick={() => prefs.mutate({ skip: { modId: mod.modId, version: summary.update!.version } })}
             >
-              Skip {summary.update.version}
+              <Icon name="skip" size={13} />Skip {summary.update.version}
             </button>
           )}
           {summary.skippedVersion && (
             <button type="button" className="link-button small" disabled={prefs.isPending} onClick={() => prefs.mutate({ skip: { modId: mod.modId, version: null } })}>
-              Stop skipping {summary.skippedVersion}
+              <Icon name="undo" size={13} />Stop skipping {summary.skippedVersion}
             </button>
           )}
         </div>
@@ -339,7 +339,7 @@ function ModDbPanel(props: {
               ))}
             </select>
             <button type="button" disabled={!picked || picked === mod.version || props.busy} onClick={() => props.onInstallVersion(picked)}>
-              Install
+              <Icon name="download" />Install
             </button>
           </div>
           {pickedRelease && (

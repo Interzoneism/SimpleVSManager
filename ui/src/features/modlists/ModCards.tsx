@@ -5,10 +5,12 @@ import { copyText } from "../../components/ContextMenu";
 import { useLayoutPreference } from "../../components/SplitWorkspace";
 import { ModlistModsTable, RowSizePicker, useRowSize, type ModlistSortKey, type RowMenu } from "./ModlistModsTable";
 import { SORT_KEYS } from "./modlistTable";
+import { useErrorToast } from "../../components/Toast";
 
 /** The list's mods as a table like Installed mods: names and pictures from the Mod DB, and where each one is. */
 export function ModCards({ mods }: { mods: ModlistModView[] }) {
   const openUrl = useOpenUrl();
+  useErrorToast(openUrl.error);
   const [rowSize, setRowSize] = useRowSize("modlist-mods-row-size");
   const [sort, setSort] = useLayoutPreference<string>("modlist-mods-sort", "");
   const [key, dir] = sort.split(":");
@@ -30,7 +32,6 @@ export function ModCards({ mods }: { mods: ModlistModView[] }) {
         <h3>Mods ({mods.length})</h3>
         <RowSizePicker value={rowSize} onChange={setRowSize} />
       </div>
-      {openUrl.error && <p className="notice error-text">{openUrl.error.message}</p>}
       <ModlistModsTable rows={rows} label="Mods in this modlist" layoutKey="modlist-mods-columns" rowSize={rowSize}
         sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} rowMenu={rowMenu}
         empty={<p className="muted small modlist-mods-empty">This list has no mods.</p>} />

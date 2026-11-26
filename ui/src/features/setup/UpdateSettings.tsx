@@ -3,6 +3,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import type { DetectedEnvironment } from "../../bindings";
 import { useBrowseFacets, useClearModCache, useModCacheStats, useUpdatePreferences } from "../../api";
 import { formatBytes } from "../../lib/format";
+import { Icon } from "../../components/Icon";
 
 const CACHE_CHOICES = [0, 512, 1024, 2048, 5120, 10240];
 
@@ -115,7 +116,7 @@ export function UpdateSettings({ env }: { env: DetectedEnvironment }) {
             if (ok) clear.mutate();
           }}
         >
-          Clear cache
+          <Icon name="trash" />Clear cache
         </button>
       </div>
       <p className="muted small">

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Icon, type IconName } from "../../components/Icon";
 import { Modal } from "./Modal";
 import { NERD_ICONS } from "./nerdIcons";
+import { useErrorToast } from "../../components/Toast";
 
 const byName = new Map(NERD_ICONS.map(([name, label, codePoint]) => [name, { label, glyph: String.fromCodePoint(codePoint) }]));
 
@@ -53,6 +54,7 @@ export function IconPicker({ current, currentColor, fallback, busy = false, erro
   onPick: (icon: string | null, color: string | null) => void;
   onClose: () => void;
 }) {
+  useErrorToast(error);
   const [query, setQuery] = useState("");
   const [icon, setIcon] = useState<string | null>(nerdGlyph(current) ? current! : null);
   const [color, setColor] = useState<string | null>(iconThemeClass(currentColor) ? currentColor! : null);
@@ -134,14 +136,13 @@ export function IconPicker({ current, currentColor, fallback, busy = false, erro
           ))}
         </ul>
         {shown.length === 0 && <p className="muted small">No icons match.</p>}
-        {error && <p className="notice error-text">{error}</p>}
         <p className="muted small">Icons from Symbols Nerd Font (Font Awesome Free and Material Design Icons).</p>
       </div>
       <div className="modal-actions">
         <span className="header-spacer" />
-        <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
+        <button type="button" onClick={onClose} disabled={busy}><Icon name="close" />Cancel</button>
         <button type="button" className="primary" disabled={busy} onClick={() => onPick(icon, color)}>
-          {busy ? "Saving…" : "Use this icon"}
+          <Icon name="check" />{busy ? "Saving…" : "Use this icon"}
         </button>
       </div>
     </Modal>

@@ -3,6 +3,8 @@ import type { ModlistSummary } from "../../bindings";
 import { useSaveModlistGroup } from "../../api";
 import { kindLabel } from "./modlistView";
 import { Modal } from "./Modal";
+import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 
 interface Props {
   /** Group being edited, or `null` for a new one. */
@@ -16,6 +18,7 @@ interface Props {
 /** Creates or edits a modlist group: a name and the modlists it combines, in order. */
 export function GroupDialog({ group, all, initialMembers, onSaved, onClose }: Props) {
   const save = useSaveModlistGroup();
+  useErrorToast(save.error);
   const [name, setName] = useState(group?.name ?? "");
   const [description, setDescription] = useState(group?.description ?? "");
   // Members as ids for our modlists, references for anything else (kept as they are).
@@ -62,10 +65,9 @@ export function GroupDialog({ group, all, initialMembers, onSaved, onClose }: Pr
           ))}
         </ul>
       </section>
-      {save.isError && <p className="notice error-text">{save.error.message}</p>}
       <div className="modal-actions">
         <span className="header-spacer" />
-        <button type="button" onClick={onClose} disabled={save.isPending}>Cancel</button>
+        <button type="button" onClick={onClose} disabled={save.isPending}><Icon name="close" />Cancel</button>
         <button
           type="button"
           className="primary"
@@ -77,7 +79,7 @@ export function GroupDialog({ group, all, initialMembers, onSaved, onClose }: Pr
             )
           }
         >
-          Save group
+          <Icon name="save" />Save group
         </button>
       </div>
     </Modal>

@@ -17,7 +17,7 @@ import {
 import { formatAgo } from "../../lib/format";
 import { canQuickSwitch, filterModlists, kindLabel, serverCommands, sortSaved } from "./modlistView";
 import { LoadModlistDialog } from "./LoadModlistDialog";
-import { quickSwitchNotice, useQuickSwitch } from "./quickSwitch";
+import { quickSwitchNotice, showQuickSwitchToast, useQuickSwitch } from "./quickSwitch";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
@@ -28,6 +28,8 @@ import { IconPicker, iconThemeClass, ModlistIcon } from "./ModlistIcon";
 import { CloseDetails, SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import type { IconName } from "../../components/Icon";
 import { useContextMenu } from "../../components/ContextMenu";
+import { toast, useErrorToast } from "../../components/Toast";
+import { Icon } from "../../components/Icon";
 
 type Dialog =
   | { kind: "load"; source: ModlistSource; listKind: ModlistKind | null; title: string; mode?: LoadMode; quick?: boolean }
@@ -65,15 +67,12 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
   const selected = selection.kind === "local" ? selection.ids : [];
   const selectLocal = (ids: string[]) => setSelection({ kind: "local", ids });
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [flash, setFlash] = useState<string | null>(null);
   const [backupsCollapsed, setBackupsCollapsed] = useLayoutPreference<boolean>("modlists-backups-collapsed", true);
   const [savedCollapsed, setSavedCollapsed] = useLayoutPreference<boolean>("modlists-saved-collapsed", false);
   const [communityCollapsed, setCommunityCollapsed] = useLayoutPreference<boolean>("modlists-community-collapsed", false);
   const [revealId, setRevealId] = useState<string | null>(null);
   const revealCard = useRef<HTMLButtonElement>(null);
   const { enabled: quickSwitchEnabled, preference: rememberedSwitch, remember: rememberSwitch } = useQuickSwitch();
-  // A Quick switch that left mods out stays on screen until dismissed.
-  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (droppedFile) {
@@ -81,12 +80,6 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
       onDroppedFileHandled();
     }
   }, [droppedFile, onDroppedFileHandled]);
-
-  useEffect(() => {
-    if (!flash) return;
-    const t = setTimeout(() => setFlash(null), 4000);
-    return () => clearTimeout(t);
-  }, [flash]);
 
   const all = useMemo(() => lists.data ?? [], [lists.data]);
 
@@ -100,7 +93,8 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
 
   const chosen = all.filter((m) => selected.includes(m.id));
   const error = del.error ?? importFile.error ?? exportList.error ?? resolve.error ?? openFolder.error ?? sync.error ?? unsubscribe.error ?? updateMods.error;
-  const publishing = usePublishing({ offline, onFlash: setFlash });
+  useErrorToast(error);
+  const publishing = usePublishing({ offline, onFlash: toast.success });
   const busy = del.isPending || resolve.isPending || exportList.isPending || sync.isPending || unsubscribe.isPending || updateMods.isPending || publishing.busy;
   const canUpdateMods = (entry: ModlistSummary) => entry.kind === "modlist" && !entry.subscription && !entry.error;
 
@@ -116,7 +110,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     if (!ok) return;
     updateMods.mutate(entry.id, {
       onSuccess: (s) => {
-        setFlash(`Updated "${s.name}": ${s.mods.length} mods.`);
+        toast.success(`Updated "${s.name}": ${s.mods.length} mods.`);
         if (s.published?.changed && !publishing.blocked) publishing.publish(s);
       },
     });
@@ -164,7 +158,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     const published = targets.filter((t) => t.published);
     const bin = os === "windows" ? "Recycle Bin" : "Trash";
     if (published.length && publishing.blocked) {
-      setFlash(`Published modlists can only be deleted while the cloud is reachable, since they are unpublished first. ${publishing.blocked}`);
+      toast.warning(`Published modlists can only be deleted while the cloud is reachable, since they are unpublished first. ${publishing.blocked}`);
       return;
     }
     const names = published.map((t) => `"${t.name}"`).join(", ");
@@ -187,7 +181,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
       {
         onSuccess: (s) => {
           showEntry(s.id);
-          setFlash(`Imported "${s.name}".`);
+          toast.success(`Imported "${s.name}".`);
         },
       },
     );
@@ -199,15 +193,15 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
       filters: [{ name: format.toUpperCase(), extensions: [format] }],
     });
     if (!path) return;
-    exportList.mutate({ id: entry.id, path, format }, { onSuccess: () => setFlash(`Exported to ${path}`) });
+    exportList.mutate({ id: entry.id, path, format }, { onSuccess: () => toast.success(`Exported to ${path}`) });
   };
 
   const copy = async (text: string, what: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setFlash(`Copied ${what}.`);
+      toast.success(`Copied ${what}.`);
     } catch {
-      setFlash("Couldn't use the clipboard.");
+      toast.error("Couldn't use the clipboard.");
     }
   };
 
@@ -309,10 +303,10 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             title="Combine the selected modlists (or pick them in the next step)"
             onClick={() => setDialog({ kind: "group", group: null, members: chosen.filter((c) => c.kind !== "group").map((c) => c.id) })}
           >
-            New group…
+            <Icon name="plus" />New group…
           </button>
-          <button type="button" onClick={() => void doImport()} disabled={importFile.isPending}>Import file…</button>
-          <button type="button" onClick={() => openFolder.mutate("modlists")}>Open folder</button>
+          <button type="button" onClick={() => void doImport()} disabled={importFile.isPending}><Icon name="import" />Import file…</button>
+          <button type="button" onClick={() => openFolder.mutate("modlists")}><Icon name="folder" />Open folder</button>
         </div>
         <div className="mods-toolbar wrap">
           <input
@@ -324,15 +318,6 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        {flash && <p className="notice" role="status">{flash}</p>}
-        {switchNotice && (
-          <p className="notice warn-text" role="status">
-            {switchNotice}{" "}
-            <button type="button" className="link-button small" onClick={() => setSwitchNotice(null)}>Dismiss</button>
-          </p>
-        )}
-        {error && <p className="notice error-text">{error.message}</p>}
-        {publishing.banner}
         {lists.isPending && <p className="empty-state">Loading modlists…</p>}
         {lists.isError && <p className="empty-state error-text">{lists.error.message}</p>}
         <div className="modlist-scroll">
@@ -380,9 +365,9 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
                 disabled={chosen.every((c) => c.kind === "group")}
                 onClick={() => setDialog({ kind: "group", group: null, members: chosen.filter((c) => c.kind !== "group").map((c) => c.id) })}
               >
-                New group from these…
+                <Icon name="plus" />New group from these…
               </button>
-              <button type="button" className="danger" disabled={del.isPending} onClick={() => void remove(chosen)}>Delete…</button>
+              <button type="button" className="danger" disabled={del.isPending} onClick={() => void remove(chosen)}><Icon name="trash" />Delete…</button>
             </div>
             <ul className="details-list">{chosen.map((c) => <li key={c.id}>{c.name}</li>)}</ul>
           </>
@@ -400,8 +385,8 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             onDelete={() => void remove([chosen[0]])}
             onSelectMember={showEntry}
             onResolve={(modId, reference) => resolve.mutate({ id: chosen[0].id, modId, reference })}
-            onSync={() => sync.mutate(chosen[0].id, { onSuccess: (s) => setFlash(`Updated "${s.name}" to the latest online revision.`) })}
-            onUnsubscribe={() => unsubscribe.mutate(chosen[0].id, { onSuccess: (s) => setFlash(`"${s.name}" is now a normal modlist.`) })}
+            onSync={() => sync.mutate(chosen[0].id, { onSuccess: (s) => toast.success(`Updated "${s.name}" to the latest online revision.`) })}
+            onUnsubscribe={() => unsubscribe.mutate(chosen[0].id, { onSuccess: (s) => toast.success(`"${s.name}" is now a normal modlist.`) })}
             publishing={publishing}
             busy={busy}
           />
@@ -420,14 +405,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             onRemember: rememberSwitch,
             onDone: (report) => {
               setDialog(null);
-              const notice = quickSwitchNotice(dialog.title, report, os);
-              if (notice.problems) {
-                setFlash(null);
-                setSwitchNotice(notice.text);
-              } else {
-                setSwitchNotice(null);
-                setFlash(notice.text);
-              }
+              showQuickSwitchToast(quickSwitchNotice(dialog.title, report, os));
             },
           } : undefined}
           onShowBackup={(id) => {
@@ -521,14 +499,14 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
           <div className="link-row">
             {entry.published.changed && (
               <button type="button" className="primary" disabled={busy || !!publishing.blocked} title={blockedTitle} onClick={() => publishing.publish(entry)}>
-                Publish changes
+                <Icon name="published" />Publish changes
               </button>
             )}
             <button type="button" disabled={busy || !!publishing.blocked} title={blockedTitle ?? "Description, game version and icon, online and here"} onClick={() => publishing.editDetails(entry)}>
-              Edit online details…
+              <Icon name="edit" />Edit online details…
             </button>
             <button type="button" className="link-button small" disabled={busy || !!publishing.blocked} title={blockedTitle} onClick={() => void publishing.unpublish(entry)}>
-              Unpublish…
+              <Icon name="unpublish" size={13} />Unpublish…
             </button>
           </div>
         </div>
@@ -543,9 +521,9 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
           {!entry.subscription.sourceGone && "It always matches what the author published, so it can't be edited here. Stop following to make it your own copy."}
           <div className="link-row">
             {entry.subscription.updateAvailable && !entry.subscription.sourceGone && (
-              <button type="button" className="primary" disabled={busy} onClick={onSync}>Get the update</button>
+              <button type="button" className="primary" disabled={busy} onClick={onSync}><Icon name="update" />Get the update</button>
             )}
-            <button type="button" className="link-button small" disabled={busy} onClick={onUnsubscribe}>Stop following</button>
+            <button type="button" className="link-button small" disabled={busy} onClick={onUnsubscribe}><Icon name="unfollow" size={13} />Stop following</button>
           </div>
         </div>
       )}
@@ -567,7 +545,7 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
               title={entry.downloadsNeeded ? `${entry.downloadsNeeded} mods need downloading` : "Everything needed is installed or in your mod library"}
               onClick={onQuickSwitch ?? (() => onLoad("replace"))}
             >
-              {onQuickSwitch ? "Quick switch" : "Switch to this…"}
+              <Icon name="swap" />{onQuickSwitch ? "Quick switch" : "Switch to this…"}
             </button>
         )}
         <button
@@ -575,12 +553,12 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
           disabled={!!entry.error || busy}
           onClick={() => onLoad()}
         >
-          Load…
+          <Icon name="load" />Load…
         </button>
         {onUpdateMods && !entry.active && (
-          <button type="button" disabled={busy} title="Replace its mods with the mods you have enabled now" onClick={onUpdateMods}>Update</button>
+          <button type="button" disabled={busy} title="Replace its mods with the mods you have enabled now" onClick={onUpdateMods}><Icon name="save" />Update</button>
         )}
-        {entry.kind === "group" && <button type="button" disabled={busy} onClick={onEditGroup}>Edit group…</button>}
+        {entry.kind === "group" && <button type="button" disabled={busy} onClick={onEditGroup}><Icon name="edit" />Edit group…</button>}
         {canBePublished(entry) && !entry.published && (
           <button
             type="button"
@@ -588,17 +566,17 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
             title={blockedTitle ?? `Share it with other players (${publishing.usedSlots} of 5 published)`}
             onClick={() => publishing.publish(entry)}
           >
-            Publish
+            <Icon name="published" />Publish
           </button>
         )}
-        <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("pdf")}>Export PDF…</button>
-        <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("json")}>Export JSON…</button>
+        <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("pdf")}><Icon name="export" />Export PDF…</button>
+        <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("json")}><Icon name="export" />Export JSON…</button>
         {hasCommands && (
           <button type="button" title="/moddb install commands for a server console" onClick={onCopy}>
-            Copy server commands
+            <Icon name="copy" />Copy server commands
           </button>
         )}
-        <button type="button" className="danger" disabled={busy} onClick={onDelete}>Delete…</button>
+        <button type="button" className="danger" disabled={busy} onClick={onDelete}><Icon name="trash" />Delete…</button>
       </div>
 
       {entry.group && (

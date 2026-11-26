@@ -8,6 +8,7 @@ import { Icon } from "../../components/Icon";
 import { progressLabel } from "../mods/InstalledMods";
 import { summarizeVersions } from "../mods/UpdateDialog";
 import { Lightbox } from "./ScreenshotGallery";
+import { useErrorToast } from "../../components/Toast";
 
 /**
  * A mod from the Mod DB in a window over the browser, as 2.3 did it: the first screenshot as
@@ -26,6 +27,7 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
   const details = useModDbDetails(entry.modId);
   const install = useInstallMod();
   const openUrl = useOpenUrl();
+  useErrorToast(install.error ?? openUrl.error);
   const [picked, setPicked] = useState("");
   const [progress, setProgress] = useState<string | null>(null);
   const [shot, setShot] = useState(0);
@@ -109,8 +111,8 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
             )}
             {count > 1 && (
               <>
-                <button type="button" className="hero-nav prev" onClick={() => step(-1)} aria-label="Previous screenshot">‹</button>
-                <button type="button" className="hero-nav next" onClick={() => step(1)} aria-label="Next screenshot">›</button>
+                <button type="button" className="hero-nav prev" onClick={() => step(-1)} aria-label="Previous screenshot"><Icon name="chevronLeft" size={22} /></button>
+                <button type="button" className="hero-nav next" onClick={() => step(1)} aria-label="Next screenshot"><Icon name="chevronRight" size={22} /></button>
                 <span className="hero-counter">{shot + 1} / {count}</span>
               </>
             )}
@@ -152,7 +154,7 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
                   title={chosen && !chosen.compatible ? "This release isn't tagged for your target game version" : undefined}
                   onClick={() => chosen && install.mutate({ modId: entry.modId, version: chosen.version })}
                 >
-                  {install.isSuccess ? "Installed" : install.isPending ? (progress ?? "Installing…") : `Install ${chosen?.version ?? ""}`}
+                  <Icon name="download" />{install.isSuccess ? "Installed" : install.isPending ? (progress ?? "Installing…") : `Install ${chosen?.version ?? ""}`}
                 </button>
                 {info && info.releases.length > 1 && (
                   <select aria-label="Version" value={picked} onChange={(e) => setPicked(e.target.value)}>
@@ -168,10 +170,10 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
               </>
             )}
             <button type="button" disabled={favouriteBusy} onClick={onFavourite}>
-              {entry.favourite ? "★ Favourite" : "☆ Favourite"}
+              <Icon name="star" filled={entry.favourite} />{entry.favourite ? "★ Favourite" : "☆ Favourite"}
             </button>
             {pageUrl && (
-              <button type="button" onClick={() => openUrl.mutate(pageUrl)}>Open in web browser</button>
+              <button type="button" onClick={() => openUrl.mutate(pageUrl)}><Icon name="external" />Open in web browser</button>
             )}
           </div>
           {entry.installed && <p className="muted small mod-window-note">Already installed. Find updates under Installed mods.</p>}
@@ -183,13 +185,11 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
           {!latestCompatible && info && info.releases.length > 0 && !picked && !entry.installed && (
             <p className="notice warn-text small mod-window-note">No release is tagged for your target game version.</p>
           )}
-          {install.error && <p className="error-text small mod-window-note">{install.error.message}</p>}
-          {openUrl.error && <p className="error-text small mod-window-note">{openUrl.error.message}</p>}
           {links.length > 0 && (
             <p className="link-row small mod-window-note">
               {links.map(([label, url]) => (
                 <button key={label} type="button" className="link-button" onClick={() => openUrl.mutate(url)}>
-                  {label}
+                  <Icon name="external" size={13} />{label}
                 </button>
               ))}
             </p>

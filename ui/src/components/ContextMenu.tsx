@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "./Toast";
 
 /** `checked` makes a checkbox item; `keepOpen` leaves the menu open after it (for toggling several). */
 type Action = { label: string; run: () => void | Promise<void>; disabled?: boolean; danger?: boolean; checked?: boolean; keepOpen?: boolean };
@@ -22,7 +23,6 @@ const focusable = "button, input, a[href], [tabindex]";
 
 export function ContextMenuProvider({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState<Menu | null>(null);
-  const [error, setError] = useState("");
   const popup = useRef<HTMLDivElement>(null);
 
   const close = useCallback((restore: boolean) => {
@@ -125,12 +125,6 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     };
   }, [menu, close]);
 
-  useEffect(() => {
-    if (!error) return;
-    const timeout = window.setTimeout(() => setError(""), 4500);
-    return () => window.clearTimeout(timeout);
-  }, [error]);
-
   const activate = async (action: Action) => {
     if (action.keepOpen) {
       // Flip the shown state right away; the real state comes from `run`.
@@ -144,7 +138,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     try {
       await action.run();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not complete this action.");
+      toast.error(cause instanceof Error ? cause.message : "Could not complete this action.");
     }
   };
 
@@ -186,7 +180,6 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
             </div>
           ))}
         </div>, document.body)}
-      {error && createPortal(<p className="context-menu-error notice error-text" role="alert">{error}</p>, document.body)}
     </ContextMenu.Provider>
   );
 }

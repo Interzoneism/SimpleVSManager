@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import type { OnlineEntry } from "../../bindings";
 import { useCloudStatus, useHideOnline, useMoveCloudIdentity, useOnlineModlists, useSaveOnlineCopy } from "../../api";
@@ -9,6 +9,8 @@ import { filterOnline, type OnlineSort } from "./onlineView";
 import { iconThemeClass, ModlistIcon } from "../modlists/ModlistIcon";
 import { ModlistSection } from "../modlists/ModlistSection";
 import { useContextMenu } from "../../components/ContextMenu";
+import { toast, useErrorToast } from "../../components/Toast";
+import { Icon } from "../../components/Icon";
 
 interface Options {
   offline: boolean;
@@ -33,14 +35,17 @@ export function useOnlineModlistSections({
   const move = useMoveCloudIdentity();
   const openMenu = useContextMenu();
   const [sort, setSort] = useState<OnlineSort>("newest");
-  const [flash, setFlash] = useState<string | null>(null);
 
   // Your own published modlists are under Saved modlists, so they aren't listed here.
   const all = useMemo(() => (listing.data?.entries ?? []).filter((e) => !e.mine), [listing.data]);
   const visible = useMemo(() => filterOnline(all, search, sort), [all, search, sort]);
   const current = all.find((e) => e.entry.registryId === selected) ?? null;
   const hiddenCount = (listing.data?.hiddenModlists ?? 0) + (listing.data?.hiddenAuthors ?? 0);
-  const error = hide.error ?? copy.error ?? move.error;
+  useErrorToast(hide.error ?? copy.error ?? move.error);
+  const staleReason = listing.data?.error ?? null;
+  useEffect(() => {
+    if (staleReason) toast.warning(`Showing the saved list: ${staleReason}`, { id: "online-modlists-stale", title: "Couldn't refresh online modlists" });
+  }, [staleReason]);
   const busy = copy.isPending || hide.isPending;
 
   const startLoad = ({ entry }: OnlineEntry) =>
@@ -49,7 +54,7 @@ export function useOnlineModlistSections({
   const saveCopy = ({ entry }: OnlineEntry, follow: boolean) =>
     copy.mutate(
       { registryId: entry.registryId, follow },
-      { onSuccess: (s) => setFlash(follow ? `Following "${s.name}". Find it under Saved modlists.` : `Saved "${s.name}" under Saved modlists.`) },
+      { onSuccess: (s) => toast.success(follow ? `Following "${s.name}". Find it under Saved modlists.` : `Saved "${s.name}" under Saved modlists.`) },
     );
 
   const hideList = ({ entry }: OnlineEntry) =>
@@ -77,7 +82,7 @@ export function useOnlineModlistSections({
     if (!ok) return;
     move.mutate(undefined, {
       onSuccess: (r) =>
-        setFlash(
+        toast.success(
           r.moved.length
             ? `Moved. Your modlists ${r.moved.map((n) => `"${n}"`).join(", ")} are published on the current project.`
             : "Moved. You had no published modlists on the old project.",
@@ -129,12 +134,12 @@ export function useOnlineModlistSections({
         <span className="muted small">{listing.isSuccess && `${visible.length} of ${all.length} online`}</span>
         {hiddenCount > 0 && (
           <button type="button" className="link-button small" onClick={() => hide.mutate({ clear: true })}>
-            Show {hiddenCount} hidden
+            <Icon name="eye" size={13} />Show {hiddenCount} hidden
           </button>
         )}
         <div className="header-spacer" />
         <button type="button" disabled={listing.isFetching} onClick={() => void listing.refetch()}>
-          {listing.isFetching ? "Refreshing…" : "Refresh online modlists"}
+          <Icon name="refresh" />{listing.isFetching ? "Refreshing…" : "Refresh online modlists"}
         </button>
     </div>
   );
@@ -146,14 +151,11 @@ export function useOnlineModlistSections({
           Your cloud identity is from the old cloud project. You can browse, follow and load modlists; publishing and
           reports need the one-time move to the new project.{" "}
           <button type="button" className="link-button" disabled={move.isPending} onClick={() => void doMove()}>
-            {move.isPending ? "Moving…" : "Move my cloud identity…"}
+            <Icon name="goTo" size={13} />{move.isPending ? "Moving…" : "Move my cloud identity…"}
           </button>
         </p>
       )}
       {status.data?.signInProblem && <p className="notice warn-text">{status.data.signInProblem}</p>}
-      {flash && <p className="notice" role="status">{flash}</p>}
-      {error && <p className="notice error-text">{error.message}</p>}
-      {listing.data?.error && <p className="notice warn-text">Showing the saved list: {listing.data.error}</p>}
       {listing.isError && <p className="empty-state error-text">{listing.error.message}</p>}
           <ModlistSection
             title="From the community"
@@ -217,19 +219,19 @@ function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHid
         <dd>{entry.subscribers}</dd>
       </dl>
       <div className="details-actions">
-        <button type="button" className="primary" disabled={busy} onClick={onLoad}>Load…</button>
+        <button type="button" className="primary" disabled={busy} onClick={onLoad}><Icon name="load" />Load…</button>
         {entry.localId ? (
-          <button type="button" onClick={() => onShowLocal(entry.localId!)}>Show my copy</button>
+          <button type="button" onClick={() => onShowLocal(entry.localId!)}><Icon name="goTo" />Show my copy</button>
         ) : (
           <>
             <button type="button" disabled={busy} title="Keep a copy that you can update when the author publishes changes" onClick={() => onCopy(true)}>
-              Follow
+              <Icon name="follow" />Follow
             </button>
-            <button type="button" disabled={busy} onClick={() => onCopy(false)}>Save a copy</button>
+            <button type="button" disabled={busy} onClick={() => onCopy(false)}><Icon name="copy" />Save a copy</button>
           </>
         )}
-        <button type="button" disabled={busy} onClick={onHide}>Hide</button>
-        {e.uploader && <button type="button" disabled={busy} onClick={onHideAuthor}>Hide all from {e.uploader}</button>}
+        <button type="button" disabled={busy} onClick={onHide}><Icon name="hide" />Hide</button>
+        {e.uploader && <button type="button" disabled={busy} onClick={onHideAuthor}><Icon name="hide" />Hide all from {e.uploader}</button>}
       </div>
       <ModCards mods={e.mods.map((m) => ({ modId: m.modId, version: m.version, isActive: null }))} />
     </>

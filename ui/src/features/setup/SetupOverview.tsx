@@ -13,6 +13,8 @@ import {
 import { AppearanceSettings, BackupSettings, ModlistSettings, ProfileSettings } from "./MoreSettings";
 import { UpdateSettings } from "./UpdateSettings";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
+import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 
 const SOURCE_LABELS: Record<PathSource, string> = {
   userSetting: "Chosen by you",
@@ -34,7 +36,7 @@ export function SetupOverview({ env }: { env: DetectedEnvironment }) {
         <div className="setup-toolbar">
           <h2 id="folders-heading">Game and data folders</h2>
           <button type="button" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
-            {refresh.isPending ? "Searching…" : "Search again"}
+            <Icon name="search" />{refresh.isPending ? "Searching…" : "Search again"}
           </button>
         </div>
         <EnvironmentDetails env={env} />
@@ -158,6 +160,7 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
 /** 2.x's "Set custom Vintage Story shortcut": Launch opens this file instead of the game. */
 function CustomShortcut({ env }: { env: DetectedEnvironment }) {
   const set = useSetCustomShortcut();
+  useErrorToast(set.error);
   const current = env.settings.customShortcutPath;
   const pick = async () => {
     const chosen = await open({
@@ -172,9 +175,8 @@ function CustomShortcut({ env }: { env: DetectedEnvironment }) {
     <div className="setting-row custom-shortcut">
       <span>Launch through a shortcut</span>
       {current ? <code className="path small">{current}</code> : <span className="muted small">Off: Launch starts the game directly with the data folder above.</span>}
-      <button type="button" disabled={set.isPending} onClick={() => void pick()}>{current ? "Change…" : "Choose…"}</button>
-      {current && <button type="button" disabled={set.isPending} onClick={() => set.mutate(null)}>Clear</button>}
-      {set.isError && <p className="error-text small">{set.error.message}</p>}
+      <button type="button" disabled={set.isPending} onClick={() => void pick()}><Icon name="edit" />{current ? "Change…" : "Choose…"}</button>
+      {current && <button type="button" disabled={set.isPending} onClick={() => set.mutate(null)}><Icon name="eraser" />Clear</button>}
     </div>
   );
 }
@@ -192,6 +194,8 @@ function FolderCard(props: {
   error?: string;
 }) {
   const open = useOpenKnownFolder();
+  useErrorToast(open.error);
+  useErrorToast(props.error);
   const openMenu = useContextMenu();
   const { detected } = props;
 
@@ -232,22 +236,20 @@ function FolderCard(props: {
             onClick={() => open.mutate(props.folder)}
             disabled={!detected.exists || open.isPending}
           >
-            Open folder
+            <Icon name="folder" />Open folder
           </button>
         )}
         {props.onChange && (
           <button type="button" onClick={props.onChange}>
-            {props.changeLabel ?? "Change…"}
+            <Icon name="edit" />{props.changeLabel ?? "Change…"}
           </button>
         )}
         {props.onReset && (
           <button type="button" onClick={props.onReset}>
-            {props.resetLabel ?? "Auto-detect"}
+            <Icon name="detect" />{props.resetLabel ?? "Auto-detect"}
           </button>
         )}
       </div>
-      {open.isError && <p className="error-text small">{open.error.message}</p>}
-      {props.error && <p className="error-text small">{props.error}</p>}
     </article>
   );
 }

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import type { CloudSlotView, ModlistSummary } from "../../bindings";
 import { useAcknowledgeNotices, useCloudSlots, useCloudStatus, usePublishSaved, useUnpublish } from "../../api";
 import { EditPublishedDialog, type PublishedDetails } from "./EditPublishedDialog";
+import { toast, useErrorToast } from "../../components/Toast";
 
 /** The cloud holds at most this many modlists per player (slot1..slot5 in the database rules). */
 export const PUBLISH_LIMIT = 5;
@@ -103,36 +104,27 @@ export function usePublishing({ offline, onFlash }: { offline: boolean; onFlash:
   };
 
   const notices = slots.data?.newSubscribers ?? [];
-  const error = problem ?? (publishMutation.error ?? unpublishMutation.error ?? ack.error)?.message ?? null;
-  const banner = (
-    <>
-      {notices.length > 0 && (
-        <p className="notice">
-          New followers:{" "}
-          {notices.map(([id, n]) => `${slotFor(id)?.info.name ?? "a modlist"} (+${n})`).join(", ")}{" "}
-          <button type="button" className="link-button small" onClick={() => ack.mutate(notices.map(([id]) => id))}>
-            Dismiss
-          </button>
-        </p>
-      )}
-      {error && (
-        <p className="notice error-text" role="alert">
-          {error}{" "}
-          <button
-            type="button"
-            className="link-button small"
-            onClick={() => {
-              setProblem(null);
-              publishMutation.reset();
-              unpublishMutation.reset();
-            }}
-          >
-            Dismiss
-          </button>
-        </p>
-      )}
-    </>
-  );
+  const noticeText = notices.map(([id, n]) => `${slotFor(id)?.info.name ?? "a modlist"} (+${n})`).join(", ");
+  const noticeIds = notices.map(([id]) => id).join("\n");
+  useEffect(() => {
+    if (!noticeIds) return;
+    // Seen once it goes away, whether it timed out or was closed.
+    toast.info(noticeText, {
+      id: "new-followers",
+      title: "New followers",
+      duration: 12000,
+      onDismiss: () => ack.mutate(noticeIds.split("\n")),
+    });
+    // ack is a fresh object each render; the toast follows the notices themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noticeIds, noticeText]);
+  // Each problem shows once; the mutations are reset so the same problem can show again later.
+  useEffect(() => {
+    if (!problem) return;
+    toast.error(problem, { title: "Can't publish right now" });
+    setProblem(null);
+  }, [problem]);
+  useErrorToast(publishMutation.error ?? unpublishMutation.error ?? ack.error);
   const modal = editing && <EditPublishedDialog list={editing} onDone={onFlash} onClose={() => setEditing(null)} />;
 
   return {
@@ -144,7 +136,6 @@ export function usePublishing({ offline, onFlash }: { offline: boolean; onFlash:
     publish,
     unpublish,
     editDetails,
-    banner,
     modal,
   };
 }
