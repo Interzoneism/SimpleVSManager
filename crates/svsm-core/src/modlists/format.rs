@@ -50,6 +50,31 @@ pub struct Modlist {
     /// This file is a local copy of an online modlist (SVSM-Dev format). Never published.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub online_subscription: Option<OnlineSubscription>,
+    /// This modlist is published to one of the player's cloud slots (3.x only; 2.x ignores
+    /// it). Never published itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published: Option<PublishedLink>,
+}
+
+/// Links a saved modlist to the online modlist it is published as.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PublishedLink {
+    pub registry_id: Option<String>,
+    /// Revision the cloud had when this file was last published or linked.
+    pub revision: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at_utc: Option<String>,
+    /// `publish_fingerprint` of what was published, to tell when the file has changes that
+    /// aren't online yet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fingerprint: Option<String>,
+}
+
+impl PublishedLink {
+    pub fn id(&self) -> Option<&str> {
+        self.registry_id.as_deref().map(str::trim).filter(|r| !r.is_empty())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -232,6 +257,19 @@ pub fn clean_icon(icon: Option<&str>) -> Option<String> {
 }
 
 impl Modlist {
+    /// What the cloud gets of this modlist (no local bookkeeping, no author-set version or
+    /// uploader, which publishing sets), hashed. Equal fingerprints = nothing new to publish.
+    pub fn publish_fingerprint(&self) -> String {
+        use sha2::Digest;
+        let mut list = self.clone();
+        list.online_subscription = None;
+        list.published = None;
+        list.version = None;
+        list.uploader = None;
+        let hash = sha2::Sha256::digest(to_json(&list).as_bytes());
+        hash.iter().take(12).map(|b| format!("{b:02x}")).collect()
+    }
+
     pub fn display_name(&self) -> Option<&str> {
         trimmed(&self.name)
     }
@@ -346,6 +384,22 @@ pub fn safe_config_file_name(candidate: Option<&str>, mod_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn publish_fingerprint_ignores_local_bookkeeping() {
+        let list = parse_modlist(r#"{"name":"A","uploader":"Me","version":"1","mods":[{"modId":"x","version":"1.0"}]}"#).unwrap();
+        let mut linked = list.clone();
+        linked.published = Some(PublishedLink { registry_id: Some("r".into()), revision: 3.0, published_at_utc: None, fingerprint: Some("f".into()) });
+        linked.uploader = Some("Someone".into());
+        linked.version = None;
+        assert_eq!(list.publish_fingerprint(), linked.publish_fingerprint());
+        let mut iconed = linked.clone();
+        iconed.icon = Some("md-sword".into());
+        assert_ne!(iconed.publish_fingerprint(), linked.publish_fingerprint());
+        // The link survives a round trip through the file format.
+        let back = parse_modlist(&to_json(&linked)).unwrap();
+        assert_eq!(back.published.as_ref().and_then(|p| p.id()), Some("r"));
+    }
 
     const FIXTURE: &str = include_str!("../../tests/fixtures/modlists/backup-2.3.0.json");
 

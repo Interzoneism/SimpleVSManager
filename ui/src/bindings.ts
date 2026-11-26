@@ -568,58 +568,38 @@ async acknowledgeSubscriberNotices(registryIds: string[]) : Promise<Result<null,
 }
 },
 /**
- * Publishes a saved modlist to one of the player's cloud slots (new revision if it replaces).
+ * Publishes a saved modlist, or publishes its changes when it already is published (a new
+ * revision for followers only when the mods or configs changed). A new one takes the first
+ * free cloud slot; with all five used, the user has to unpublish one first.
  */
-async publishModlist(request: PublishRequest) : Promise<Result<SlotInfo, AppError>> {
+async publishSavedModlist(id: string) : Promise<Result<ModlistSummary, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("publish_modlist", { request }) };
+    return { status: "ok", data: await TAURI_INVOKE("publish_saved_modlist", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Deletes one of the player's online modlists. Subscribers keep their local copies.
+ * Removes a saved modlist from the cloud. The saved modlist stays as a normal one, and
+ * followers keep their copies (they get no more updates).
  */
-async deleteCloudSlot(slot: string) : Promise<Result<null, AppError>> {
+async unpublishModlist(id: string) : Promise<Result<ModlistSummary, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_cloud_slot", { slot }) };
+    return { status: "ok", data: await TAURI_INVOKE("unpublish_modlist", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Changes the description, game version or icon of one of the player's published modlists.
- * The name stays as it is, and so does the revision (followers aren't told about it).
+ * Changes the description, game version or icon of one of the player's published modlists,
+ * online and in its saved modlist. The name stays as it is, and so does the revision
+ * (followers aren't told about it).
  */
 async editPublishedModlist(request: EditPublishedRequest) : Promise<Result<SlotInfo, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("edit_published_modlist", { request }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Publishes the enabled installed mods as a new online modlist in an empty slot.
- */
-async publishCurrentMods(request: PublishCurrentRequest) : Promise<Result<SlotInfo, AppError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("publish_current_mods", { request }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Replaces the mods of one of the player's online modlists with the enabled installed mods.
- * Name, description and icon stay; config files are kept for mods that are still in it. A new
- * revision (and a note to followers) only when the mods actually changed.
- */
-async updatePublishedMods(registryId: string) : Promise<Result<SlotInfo, AppError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("update_published_mods", { registryId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -909,7 +889,11 @@ export type CardReports = { version: string;
  * Reports per answer, best to worst (fully functional … crashes or freezes).
  */
 counts: number[] }
-export type CloudSlotView = { info: SlotInfo; subscribers: number }
+export type CloudSlotView = { info: SlotInfo; subscribers: number; 
+/**
+ * The saved modlist this online modlist is published from.
+ */
+localId: string | null }
 export type CloudSlots = { playerName: string; 
 /**
  * All five slots; `null` where empty.
@@ -918,7 +902,11 @@ slots: (CloudSlotView | null)[];
 /**
  * New subscribers since last acknowledged, per registry id.
  */
-newSubscribers: ([string, number])[] }
+newSubscribers: ([string, number])[]; 
+/**
+ * Saved modlists were created or linked for published lists (refresh the modlists).
+ */
+localChanges: boolean }
 export type CloudStatus = { offline: boolean; 
 /**
  * A cloud identity exists (2.x `firebase-auth.json` or one made here).
@@ -1288,7 +1276,11 @@ downloadsNeeded: number;
 /**
  * Local copy of an online modlist.
  */
-subscription: SubscriptionView | null }
+subscription: SubscriptionView | null; 
+/**
+ * Published to one of the player's cloud slots.
+ */
+published: PublishedView | null }
 /**
  * Installed mods or clientsettings.json changed on disk; the UI should refetch the mod list.
  */
@@ -1367,21 +1359,11 @@ modUsageTracking: boolean | null }
  */
 export type Profile = { name: string; gameDirectory: string | null; dataDirectory: string | null; targetGameVersion: string | null; customShortcutPath: string | null }
 export type ProfileChange = { action: "switch"; name: string } | { action: "rename"; from: string; to: string } | { action: "delete"; name: string }
-export type PublishCurrentRequest = { 
+export type PublishedView = { registryId: string; revision: number; 
 /**
- * An empty slot (`slot1`..`slot5`).
+ * The file changed since it was last published.
  */
-slot: string; name: string; description: string | null; icon: string | null; iconColor: string | null }
-export type PublishRequest = { 
-/**
- * Local modlist to publish.
- */
-id: string; slot: string; 
-/**
- * The online modlist currently in that slot (to publish a new revision of it); `null`
- * for an empty slot.
- */
-replaces: string | null }
+changed: boolean }
 /**
  * One public modlist.
  */

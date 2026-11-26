@@ -5,7 +5,7 @@ import { commands } from "../../bindings";
 import { Modlists } from "./Modlists";
 
 vi.mock("../../bindings", () => ({
-  commands: { listModlists: vi.fn(), cloudStatus: vi.fn(), onlineModlists: vi.fn() },
+  commands: { listModlists: vi.fn(), cloudStatus: vi.fn(), onlineModlists: vi.fn(), publishSavedModlist: vi.fn() },
   events: { modsChanged: { listen: async () => () => {} } },
 }));
 
@@ -29,6 +29,7 @@ const local: ModlistSummary = {
   active: false,
   downloadsNeeded: 0,
   subscription: null,
+  published: null,
 };
 
 function online(name: string, mine: boolean): OnlineEntry {
@@ -74,6 +75,7 @@ beforeEach(() => {
     status: "ok",
     data: [
       local,
+      { ...local, id: "Modlists/Zed.json", name: "Zed published", published: { registryId: "My published list", revision: 2, changed: false } },
       { ...local, id: "Modlists/Cozy.svsmgroup", name: "Cozy group", kind: "group", group: { members: [], conflicts: [] } },
     ],
   });
@@ -95,15 +97,20 @@ afterEach(() => vi.unstubAllGlobals());
 test("searches saved and online cards together and opens your copy in the shared details pane", async () => {
   renderModlists();
   const saved = await screen.findByRole("list", { name: "Saved modlists" });
-  const published = await screen.findByRole("list", { name: "Your published modlists" });
-  expect(saved.compareDocumentPosition(published) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryByRole("list", { name: "Your published modlists" })).toBeNull();
   expect(within(saved).getByRole("button", { name: /Cozy group/ })).toBeVisible();
-  expect(within(published).getByRole("button", { name: /My published list/ })).toBeVisible();
+  // Your published modlist is a saved modlist, listed first and marked; it isn't listed again online.
+  const cards = within(saved).getAllByRole("button", { pressed: false });
+  expect(cards[0]).toHaveAccessibleName(/Zed published/);
+  expect(cards[0]).toHaveClass("published");
+  expect(within(cards[0]).getByLabelText("Published")).toBeInTheDocument();
+  const community = await screen.findByRole("list", { name: "From the community" });
+  expect(await within(community).findByRole("button", { name: /Community winter/ })).toBeVisible();
+  expect(within(community).queryByRole("button", { name: /My published list/ })).toBeNull();
 
   const search = screen.getByRole("searchbox", { name: "Search modlists" });
   fireEvent.change(search, { target: { value: "winter" } });
-  expect(screen.queryByRole("button", { name: /Cozy group|My published list/ })).toBeNull();
-  const community = screen.getByRole("list", { name: "From the community" });
+  expect(screen.queryByRole("button", { name: /Cozy group|Zed published/ })).toBeNull();
   const onlineCard = within(community).getByRole("button", { name: /Community winter/ });
   fireEvent.click(onlineCard);
   const details = within(screen.getByRole("complementary", { name: "Modlist details" }));
@@ -125,7 +132,6 @@ test("keeps saved modlists available in offline mode", async () => {
 
 test("collapsed online sections don't load the online listing, and the sort sits under From the community", async () => {
   const stored = new Map<string, string>([
-    ["svsm-layout:modlists-published-collapsed", "true"],
     ["svsm-layout:modlists-community-collapsed", "true"],
   ]);
   vi.stubGlobal("localStorage", {
@@ -143,4 +149,25 @@ test("collapsed online sections don't load the online listing, and the sort sits
   expect(screen.getByRole("combobox", { name: "Sort online modlists" })).toBeVisible();
   expect(screen.getByRole("button", { name: /Refresh online modlists/ })).toBeVisible();
   expect(commands.onlineModlists).toHaveBeenCalled();
+});
+
+test("publishes a saved modlist from its details, and offers Unpublish for a published one", async () => {
+  vi.mocked(commands.publishSavedModlist).mockResolvedValue({
+    status: "ok",
+    data: { ...local, published: { registryId: "new", revision: 1, changed: false } },
+  });
+  renderModlists();
+  const saved = await screen.findByRole("list", { name: "Saved modlists" });
+  fireEvent.click(within(saved).getByRole("button", { name: /Winter save/ }));
+  const details = within(screen.getByRole("complementary", { name: "Modlist details" }));
+  const publish = await details.findByRole("button", { name: "Publish" });
+  await vi.waitFor(() => expect(publish).toBeEnabled());
+  fireEvent.click(publish);
+  await vi.waitFor(() => expect(commands.publishSavedModlist).toHaveBeenCalledWith("Modlists/Winter.json"));
+  expect(await screen.findByText(/Published "Winter save"/)).toBeVisible();
+
+  fireEvent.click(within(saved).getByRole("button", { name: /Zed published/ }));
+  expect(details.getByText("Published", { selector: ".badge" })).toBeVisible();
+  expect(details.getByRole("button", { name: "Unpublish…" })).toBeVisible();
+  expect(details.queryByRole("button", { name: "Publish" })).toBeNull();
 });

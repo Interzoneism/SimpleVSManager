@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ApplyPlan, ModlistSummary } from "../../bindings";
-import { defaultMode, describePlan, filterModlists, modLocation, serverCommands } from "./modlistView";
+import { defaultMode, describePlan, filterModlists, modLocation, serverCommands, sortSaved } from "./modlistView";
 
 const summary = (over: Partial<ModlistSummary>): ModlistSummary => ({
   id: "Modlists/a.json",
@@ -22,12 +22,19 @@ const summary = (over: Partial<ModlistSummary>): ModlistSummary => ({
   active: false,
   downloadsNeeded: 0,
   subscription: null,
+  published: null,
   ...over,
 });
 
 const emptyPlan: ApplyPlan = { install: [], changeVersion: [], remove: [], states: [], disabledEntries: null, skipped: [], toggles: 0 };
 
 describe("modlist view helpers", () => {
+  it("lists published modlists first, then by name", () => {
+    const published = { registryId: "r", revision: 1, changed: false };
+    const lists = [summary({ id: "c", name: "C" }), summary({ id: "b", name: "B", published }), summary({ id: "a", name: "A" })];
+    expect(sortSaved(lists).map((l) => l.id)).toEqual(["b", "a", "c"]);
+  });
+
   it("searches saved modlists and groups together", () => {
     const all = [
       summary({ id: "1", name: "Hardcore", mods: [{ modId: "carryon", version: "1.0", isActive: true }] }),

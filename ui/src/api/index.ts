@@ -26,7 +26,6 @@ import {
   type MorePreferences,
   type ProfileChange,
   type DetailsEdit,
-  type PublishCurrentRequest,
   type ReportRequest,
   type Result,
   type UpdateProgress,
@@ -589,19 +588,28 @@ export const useSaveOnlineCopy = () =>
   useCloudMutation((a: { registryId: string; follow: boolean }) => unwrap(commands.saveOnlineCopy(a.registryId, a.follow)));
 export const useSyncSubscription = () => useCloudMutation((id: string) => unwrap(commands.syncSubscription(id)));
 export const useUnsubscribe = () => useCloudMutation((id: string) => unwrap(commands.unsubscribe(id)));
-export const usePublishModlist = () =>
-  useCloudMutation((r: { id: string; slot: string; replaces: string | null }) => unwrap(commands.publishModlist(r)));
+export const usePublishSaved = () => useCloudMutation((id: string) => unwrap(commands.publishSavedModlist(id)));
+export const useUnpublish = () => useCloudMutation((id: string) => unwrap(commands.unpublishModlist(id)));
 export const useEditPublished = () =>
   useCloudMutation((r: { registryId: string; edit: DetailsEdit }) => unwrap(commands.editPublishedModlist(r)));
-export const usePublishCurrent = () =>
-  useCloudMutation((r: PublishCurrentRequest) => unwrap(commands.publishCurrentMods(r)));
-export const useUpdatePublished = () => useCloudMutation((registryId: string) => unwrap(commands.updatePublishedMods(registryId)));
-export const useDeleteCloudSlot = () => useCloudMutation((slot: string) => unwrap(commands.deleteCloudSlot(slot)));
 export const useAcknowledgeNotices = () =>
   useCloudMutation((ids: string[]) => unwrap(commands.acknowledgeSubscriberNotices(ids)));
 
+/** Your cloud slots. Reading them also saves published modlists that have no saved modlist
+ * yet (from 2.x or another computer), so the modlists are refreshed when that happened. */
 export function useCloudSlots(enabled: boolean) {
-  return useQuery({ queryKey: ["cloudSlots"], queryFn: () => unwrap(commands.myCloudSlots()), enabled, staleTime: 60_000, retry: false });
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: ["cloudSlots"],
+    queryFn: async () => {
+      const slots = await unwrap(commands.myCloudSlots());
+      if (slots.localChanges) void client.invalidateQueries({ queryKey: queryKeys.modlists });
+      return slots;
+    },
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
 }
 
 export function useModReports(modId: string | null, version: string | null, enabled: boolean) {

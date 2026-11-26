@@ -1,19 +1,30 @@
 import { useState } from "react";
-import type { OnlineEntry } from "../../bindings";
 import { useEditPublished } from "../../api";
 import { Modal } from "../modlists/Modal";
 import { IconPicker, iconThemeClass, ModlistIcon } from "../modlists/ModlistIcon";
 
-/** Edits one of your published modlists: icon, description and versions. The name stays. */
-export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEntry; onDone: (message: string) => void; onClose: () => void }) {
-  const e = list.entry;
+/** What the dialog edits: one of your published modlists. */
+export interface PublishedDetails {
+  registryId: string;
+  name: string;
+  description: string | null;
+  gameVersion: string | null;
+  icon: string | null;
+  iconColor: string | null;
+  revision: number;
+  subscribers: number;
+}
+
+/** Edits one of your published modlists, online and in its saved modlist: icon, description and
+ * game version. The name stays. */
+export function EditPublishedDialog({ list: e, onDone, onClose }: { list: PublishedDetails; onDone: (message: string) => void; onClose: () => void }) {
   const save = useEditPublished();
   const [icon, setIcon] = useState<string | null>(e.icon);
   const [iconColor, setIconColor] = useState<string | null>(e.iconColor);
   const [description, setDescription] = useState(e.description ?? "");
   const [gameVersion, setGameVersion] = useState(e.gameVersion ?? "");
   const [picking, setPicking] = useState(false);
-  const name = e.name ?? "Unnamed modlist";
+  const name = e.name;
 
   const submit = () =>
     save.mutate(
@@ -44,8 +55,8 @@ export function EditPublishedDialog({ list, onDone, onClose }: { list: OnlineEnt
         <input id="ep-gv" type="text" value={gameVersion} onChange={(ev) => setGameVersion(ev.target.value)} />
       </div>
       <p className="muted small">
-        This keeps revision {e.revision} and doesn't notify followers. To change the mods, publish your saved modlist to
-        this slot again: that makes a new revision{list.subscribers > 0 ? ` and tells your ${list.subscribers} follower${list.subscribers === 1 ? "" : "s"}` : ""}.
+        This keeps revision {e.revision} and doesn't notify followers. To change the mods, update the saved modlist and
+        publish its changes: that makes a new revision{e.subscribers > 0 ? ` and tells your ${e.subscribers} follower${e.subscribers === 1 ? "" : "s"}` : ""}.
       </p>
       {save.isError && <p className="notice error-text">{save.error.message}</p>}
       <div className="modal-actions">

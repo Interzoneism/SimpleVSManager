@@ -297,30 +297,34 @@ fn follow_update_and_publish_against_a_fake_cloud() {
     // Publishing: blocked words are refused before anything is sent.
     let store = ModlistStore::new(&m.manager);
     std::fs::write(store.dir(ModlistKind::Modlist).join("Rude.json"), r#"{"name":"ass mods","mods":[]}"#).unwrap();
-    let rude = run(crate::cloud_commands::publish_modlist(
-        state.clone(),
-        crate::cloud_commands::PublishRequest { id: "Modlists/Rude.json".into(), slot: "slot1".into(), replaces: None },
-    ));
+    let rude = run(crate::cloud_commands::publish_saved_modlist(state.clone(), "Modlists/Rude.json".into()));
     assert!(rude.unwrap_err().message.contains("can't contain"));
     let publish = server
         .mock("PATCH", "/db/.json")
         .match_query(Matcher::Any)
-        .match_body(Matcher::AllOf(vec![Matcher::Regex("/users/PlayerUid_1/slot1".into()), Matcher::Regex("\"uploader\":\"Tester\"".into())]))
+        .match_body(Matcher::AllOf(vec![
+            Matcher::Regex("/users/PlayerUid_1/slot1".into()),
+            Matcher::Regex("\"uploader\":\"Tester\"".into()),
+            Matcher::Regex("\"name\":\"Cozy\"".into()),
+        ]))
         .with_body("{}")
         .expect(1)
         .create();
-    let _ = run(crate::cloud_commands::publish_modlist(
-        state.clone(),
-        crate::cloud_commands::PublishRequest { id: plain.id.clone(), slot: "slot1".into(), replaces: None },
-    ));
+    let published = run(crate::cloud_commands::publish_saved_modlist(state.clone(), plain.id.clone())).unwrap();
     publish.assert();
+    let link = published.published.expect("marked as published");
+    assert_eq!(link.revision, 1.0);
+    assert!(!link.changed);
+    // The link is local bookkeeping: it is never sent to the cloud.
+    let file = std::fs::read_to_string(m.manager.join(&plain.id)).unwrap();
+    assert!(file.contains("\"published\""));
 
     // The 2.x identity file was never touched.
     assert_eq!(std::fs::read_to_string(m.manager.join("firebase-auth.json")).unwrap(), identity_before);
 }
 
 #[test]
-fn publish_and_update_current_mods_against_a_fake_cloud() {
+fn published_lists_are_saved_modlists() {
     use mockito::Matcher;
     let mut server = mockito::Server::new();
     let m = machine_with(Some(svsm_core::cloud::CloudConfig::for_tests(&server.url())));
@@ -332,49 +336,66 @@ fn publish_and_update_current_mods_against_a_fake_cloud() {
         r#"{"idToken":"tok","refreshToken":"r","expirationUtc":"2999-01-01T00:00:00Z","userId":"fb1"}"#,
     )
     .unwrap();
+    let store = ModlistStore::new(&m.manager);
+    let dir = store.dir(ModlistKind::Modlist);
+    std::fs::create_dir_all(&dir).unwrap();
+    // Published by 2.x from this saved modlist (same name and mods, no link yet).
+    std::fs::write(dir.join("Same.json"), r#"{"name":"Same","mods":[{"modId":"carryon","version":"1.14.0"}]}"#).unwrap();
+    // Linked to a list that was unpublished elsewhere.
+    std::fs::write(dir.join("Stale.json"), r#"{"name":"Stale","mods":[],"published":{"registryId":"gone","revision":2}}"#).unwrap();
+    // Same name as a published list, but other mods: not linked, the published one gets its own file.
+    std::fs::write(dir.join("Mine.json"), r#"{"name":"Mine","mods":[{"modId":"other","version":"1"}]}"#).unwrap();
     server.mock("GET", "/db/owners/PlayerUid_1.json").match_query(Matcher::Any).with_body("\"fb1\"").create();
-    let slots = r#"{"slot2":{"registryId":"rid","revision":3,"content":{"name":"Mine","description":"keep me","icon":"md-sword","mods":[{"modId":"gone","version":"1.0.0"}],
-        "configurations":[{"modId":"carryon","fileName":"CarryOn.json","content":"{}"},{"modId":"gone","fileName":"Gone.json","content":"{}"}]}}}"#;
+    let slots = r#"{"slot1":{"registryId":"same","revision":1,"content":{"name":"Same","mods":[{"modId":"carryon","version":"1.14.0"}]}},
+        "slot2":{"registryId":"rid","revision":3,"content":{"name":"Mine","description":"keep me","icon":"md-sword","uploaderId":"PlayerUid_1","mods":[{"modId":"gone","version":"1.0.0"}]}}}"#;
+    let users = server.mock("GET", "/db/users/PlayerUid_1.json").match_query(Matcher::Any).with_body(slots).create();
+
+    let first = run(crate::cloud_commands::my_cloud_slots(state.clone())).unwrap();
+    assert!(first.local_changes);
+    let lists = run(list_modlists(state.clone())).unwrap();
+    let by_name = |n: &str| lists.iter().find(|l| l.name == n && l.published.is_some()).cloned();
+    let same = by_name("Same").expect("2.x list linked");
+    assert_eq!(same.id, "Modlists/Same.json");
+    let mine = by_name("Mine").expect("published list saved locally");
+    assert_ne!(mine.id, "Modlists/Mine.json");
+    assert_eq!(mine.description.as_deref(), Some("keep me"));
+    assert_eq!((mine.published.as_ref().unwrap().revision, mine.published.as_ref().unwrap().changed), (3.0, false));
+    assert!(lists.iter().find(|l| l.id == "Modlists/Mine.json").unwrap().published.is_none());
+    assert!(lists.iter().find(|l| l.id == "Modlists/Stale.json").unwrap().published.is_none());
+    assert_eq!(first.slots[1].as_ref().unwrap().local_id.as_deref(), Some(mine.id.as_str()));
+    // Nothing more to do the next time.
+    assert!(!run(crate::cloud_commands::my_cloud_slots(state.clone())).unwrap().local_changes);
+    assert_eq!(run(list_modlists(state.clone())).unwrap().len(), lists.len());
+
+    // A local change shows as not published yet.
+    run(set_modlist_icon(state.clone(), same.id.clone(), Some("md-axe".into()), None)).unwrap();
+    let changed = run(list_modlists(state.clone())).unwrap().into_iter().find(|l| l.id == same.id).unwrap();
+    assert!(changed.published.unwrap().changed);
+
+    // All five slots used: a new one is refused with a clear message.
+    users.remove();
+    let full: String = (1..=5)
+        .map(|i| format!(r#""slot{i}":{{"registryId":"r{i}","revision":1,"content":{{"name":"L{i}","mods":[]}}}}"#))
+        .collect::<Vec<_>>()
+        .join(",");
+    let users = server.mock("GET", "/db/users/PlayerUid_1.json").match_query(Matcher::Any).with_body(format!("{{{full}}}")).create();
+    let refused = run(crate::cloud_commands::publish_saved_modlist(state.clone(), "Modlists/Stale.json".into())).unwrap_err();
+    assert!(refused.message.contains("Unpublish"), "{}", refused.message);
+
+    // Unpublishing removes the slot and its public copy; the saved modlist stays.
+    users.remove();
     server.mock("GET", "/db/users/PlayerUid_1.json").match_query(Matcher::Any).with_body(slots).create();
-
-    // Update: enabled mods replace the old ones (handytweaks is disabled), details and the
-    // config of a mod that's still there stay, and it's a new revision.
-    let update = server
+    let delete = server
         .mock("PATCH", "/db/.json")
         .match_query(Matcher::Any)
-        .match_body(Matcher::AllOf(vec![
-            Matcher::Regex("/users/PlayerUid_1/slot2".into()),
-            Matcher::Regex("\"modId\":\"carryon\"".into()),
-            Matcher::Regex("\"description\":\"keep me\"".into()),
-            Matcher::Regex("\"icon\":\"md-sword\"".into()),
-            Matcher::Regex("CarryOn.json".into()),
-            Matcher::Regex(r#""revision":4\.0"#.into()),
-        ]))
+        .match_body(Matcher::AllOf(vec![Matcher::Regex(r#""/users/PlayerUid_1/slot2":null"#.into()), Matcher::Regex(r#""/registry/rid":null"#.into())]))
         .with_body("{}")
         .expect(1)
         .create();
-    let _ = run(crate::cloud_commands::update_published_mods(state.clone(), "rid".into()));
-    update.assert();
-    assert!(run(crate::cloud_commands::update_published_mods(state.clone(), "not-mine".into())).is_err());
-
-    // Publishing the current mods into an empty slot; a used slot is refused.
-    let publish = server
-        .mock("PATCH", "/db/.json")
-        .match_query(Matcher::Any)
-        .match_body(Matcher::AllOf(vec![Matcher::Regex("/users/PlayerUid_1/slot1".into()), Matcher::Regex("\"name\":\"Fresh\"".into())]))
-        .with_body("{}")
-        .expect(1)
-        .create();
-    let request = |slot: &str| crate::cloud_commands::PublishCurrentRequest {
-        slot: slot.into(),
-        name: "Fresh".into(),
-        description: None,
-        icon: None,
-        icon_color: Some("sage".into()),
-    };
-    let _ = run(crate::cloud_commands::publish_current_mods(state.clone(), request("slot1")));
-    publish.assert();
-    assert!(run(crate::cloud_commands::publish_current_mods(state.clone(), request("slot2"))).is_err());
+    let plain = run(crate::cloud_commands::unpublish_modlist(state.clone(), mine.id.clone())).unwrap();
+    delete.assert();
+    assert!(plain.published.is_none());
+    assert_eq!(plain.description.as_deref(), Some("keep me"));
 }
 
 #[test]

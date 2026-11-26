@@ -12,7 +12,7 @@ use svsm_core::clientsettings::ClientSettings;
 use svsm_core::cloud::store::SLOTS;
 use svsm_core::cloud::votes::{VoteOption, VoteSummary, Votes};
 use svsm_core::cloud::{validator, CloudStore, DetailsEdit, PlayerIdentity, RegistryEntry, SlotInfo};
-use svsm_core::modlists::{self, Modlist, ModlistKind, ModlistStore, ModlistSummary, OnlineSubscription};
+use svsm_core::modlists::{self, Modlist, ModlistKind, ModlistStore, ModlistSummary, OnlineSubscription, PublishedLink};
 use svsm_core::settings::set_flag;
 
 use crate::error::{AppError, AppResult};
@@ -303,8 +303,11 @@ pub async fn unsubscribe(state: State<'_, AppState>, id: String) -> AppResult<Mo
 }
 
 // ---------------------------------------------------------------------------------------------
-// Publishing (the player's five cloud slots)
+// Publishing: a saved modlist marked as published in one of the player's five cloud slots
 // ---------------------------------------------------------------------------------------------
+
+pub(crate) const SLOT_LIMIT_MESSAGE: &str =
+    "You already have 5 published modlists, the most the cloud allows. Unpublish one of them first, then publish this one.";
 
 #[derive(Debug, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -314,6 +317,8 @@ pub struct CloudSlots {
     pub slots: Vec<Option<CloudSlotView>>,
     /// New subscribers since last acknowledged, per registry id.
     pub new_subscribers: Vec<(String, u32)>,
+    /// Saved modlists were created or linked for published lists (refresh the modlists).
+    pub local_changes: bool,
 }
 
 #[derive(Debug, Serialize, specta::Type)]
@@ -321,6 +326,98 @@ pub struct CloudSlots {
 pub struct CloudSlotView {
     pub info: SlotInfo,
     pub subscribers: u32,
+    /// The saved modlist this online modlist is published from.
+    pub local_id: Option<String>,
+}
+
+fn link(registry_id: &str, revision: f64, fingerprint: String) -> PublishedLink {
+    PublishedLink {
+        registry_id: Some(registry_id.to_string()),
+        revision,
+        published_at_utc: Some(chrono::Utc::now().to_rfc3339()),
+        fingerprint: Some(fingerprint),
+    }
+}
+
+fn same_mods(local: &ModlistSummary, remote: &Modlist) -> bool {
+    let key = |id: &str, v: Option<&str>| (id.to_ascii_lowercase(), v.unwrap_or("").to_string());
+    let mut a: Vec<_> = local.mods.iter().map(|m| key(&m.mod_id, m.version.as_deref())).collect();
+    let mut b: Vec<_> = remote.entries().iter().filter_map(|m| Some(key(m.id()?, m.version()))).collect();
+    a.sort();
+    b.sort();
+    a == b
+}
+
+/// Makes every published online modlist a saved modlist marked as published, so nothing is
+/// listed twice and nothing is lost:
+///
+/// * a saved modlist already linked to a slot stays linked (links to slots that are gone,
+///   because the list was unpublished elsewhere, are cleared),
+/// * otherwise a saved modlist with the same name and mods (published by 2.x, or by 3.x before
+///   publishing was part of saved modlists) is linked,
+/// * otherwise the online content is saved as a new modlist.
+///
+/// Returns registry id → saved modlist id, and whether any file changed.
+pub(crate) fn reconcile_published(state: &AppState, used: &[(SlotInfo, Value)]) -> (std::collections::HashMap<String, String>, bool) {
+    let s = ModlistStore::new(&state.manager_dir());
+    let lists: Vec<ModlistSummary> = s.list().into_iter().filter(|l| l.kind == ModlistKind::Modlist && l.error.is_none()).collect();
+    let live: HashSet<&str> = used.iter().filter_map(|(i, _)| i.registry_id.as_deref()).collect();
+    let mut map = std::collections::HashMap::new();
+    let mut changed = false;
+    let clear = |id: &str| -> bool {
+        match s.load(id) {
+            Ok(mut loaded) => {
+                loaded.modlist.published = None;
+                s.overwrite(id, &loaded.modlist).map_err(|e| tracing::warn!("Couldn't unmark {id} as published: {e}")).is_ok()
+            }
+            Err(_) => false,
+        }
+    };
+    for l in &lists {
+        let Some(p) = &l.published else { continue };
+        if live.contains(p.registry_id.as_str()) && !map.contains_key(&p.registry_id) {
+            map.insert(p.registry_id.clone(), l.id.clone());
+        } else if clear(&l.id) {
+            changed = true;
+        }
+    }
+    for (info, content) in used {
+        let Some(rid) = info.registry_id.as_deref() else { continue };
+        if map.contains_key(rid) {
+            continue;
+        }
+        let Ok(mut remote) = modlists::parse_modlist(&content.to_string()) else {
+            tracing::warn!("Published modlist {rid} couldn't be read; it isn't shown under saved modlists.");
+            continue;
+        };
+        remote.online_subscription = None;
+        remote.published = None;
+        let fingerprint = remote.publish_fingerprint();
+        let name = remote.display_name().unwrap_or("Published modlist").to_string();
+        let taken: HashSet<&String> = map.values().collect();
+        let matching = lists.iter().find(|l| {
+            l.published.is_none() && l.subscription.is_none() && !taken.contains(&l.id) && l.name.eq_ignore_ascii_case(&name) && same_mods(l, &remote)
+        });
+        let result = match matching {
+            Some(l) => s.load(&l.id).map_err(AppError::from).and_then(|mut loaded| {
+                loaded.modlist.published = Some(link(rid, info.revision, fingerprint));
+                s.overwrite(&l.id, &loaded.modlist)?;
+                Ok(l.id.clone())
+            }),
+            None => {
+                remote.published = Some(link(rid, info.revision, fingerprint));
+                write_copy(state, &name, &remote, None)
+            }
+        };
+        match result {
+            Ok(id) => {
+                map.insert(rid.to_string(), id);
+                changed = true;
+            }
+            Err(e) => tracing::warn!("Couldn't save published modlist {rid} as a saved modlist: {}", e.message),
+        }
+    }
+    (map, changed)
 }
 
 #[tauri::command]
@@ -329,20 +426,22 @@ pub async fn my_cloud_slots(state: State<'_, AppState>) -> AppResult<CloudSlots>
     let me = player(&state)?;
     let auth = state.cloud_auth()?;
     let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
-    let used = cloud.my_slots(&me).await.map_err(err)?;
+    let used = cloud.my_slots_with_content(&me).await.map_err(err)?;
+    let (locals, local_changes) = reconcile_published(&state, &used);
     let subs = cloud.subscriptions().await.unwrap_or_default();
-    let ids: Vec<String> = used.iter().filter_map(|s| s.registry_id.clone()).collect();
+    let ids: Vec<String> = used.iter().filter_map(|(s, _)| s.registry_id.clone()).collect();
     let notices = cloud.owner_notices(&ids).await.unwrap_or_default();
     let slots = SLOTS
         .iter()
         .map(|name| {
-            used.iter().find(|s| s.slot == *name).map(|info| CloudSlotView {
+            used.iter().find(|(s, _)| s.slot == *name).map(|(info, _)| CloudSlotView {
                 subscribers: info.registry_id.as_ref().and_then(|r| subs.counts.get(r)).copied().unwrap_or(0),
+                local_id: info.registry_id.as_ref().and_then(|r| locals.get(r)).cloned(),
                 info: info.clone(),
             })
         })
         .collect();
-    Ok(CloudSlots { player_name: me.name, slots, new_subscribers: notices.into_iter().collect() })
+    Ok(CloudSlots { player_name: me.name, slots, new_subscribers: notices.into_iter().collect(), local_changes })
 }
 
 #[tauri::command]
@@ -353,27 +452,22 @@ pub async fn acknowledge_subscriber_notices(state: State<'_, AppState>, registry
     cloud.acknowledge_notices(&registry_ids).await.map_err(err)
 }
 
-#[derive(Debug, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct PublishRequest {
-    /// Local modlist to publish.
-    pub id: String,
-    pub slot: String,
-    /// The online modlist currently in that slot (to publish a new revision of it); `null`
-    /// for an empty slot.
-    pub replaces: Option<String>,
-}
-
-/// Publishes a saved modlist to one of the player's cloud slots (new revision if it replaces).
+/// Publishes a saved modlist, or publishes its changes when it already is published (a new
+/// revision for followers only when the mods or configs changed). A new one takes the first
+/// free cloud slot; with all five used, the user has to unpublish one first.
 #[tauri::command]
 #[specta::specta]
-pub async fn publish_modlist(state: State<'_, AppState>, request: PublishRequest) -> AppResult<SlotInfo> {
+pub async fn publish_saved_modlist(state: State<'_, AppState>, id: String) -> AppResult<ModlistSummary> {
     let me = player(&state)?;
-    let loaded = ModlistStore::new(&state.manager_dir()).load(&request.id)?;
-    if loaded.kind == ModlistKind::Backup {
-        return Err(AppError::msg("Backups can't be published. Save them as a modlist first."));
+    let s = ModlistStore::new(&state.manager_dir());
+    let loaded = s.load(&id)?;
+    if loaded.kind != ModlistKind::Modlist {
+        return Err(AppError::msg("Only saved modlists can be published, not groups or backups. Load it and save your mods as a modlist first."));
     }
-    let list = loaded.modlist;
+    let mut list = loaded.modlist;
+    if list.online_subscription.is_some() {
+        return Err(AppError::msg("This modlist follows someone else's online modlist. Stop following it first to publish it as your own."));
+    }
     let texts = [list.name.as_deref(), list.description.as_deref(), Some(me.name.as_str())];
     if let Some(word) = validator::find_blocked(texts.into_iter().flatten()) {
         return Err(AppError::msg(format!("Online modlists can't contain \"{word}\". Change the name or description first.")));
@@ -381,9 +475,43 @@ pub async fn publish_modlist(state: State<'_, AppState>, request: PublishRequest
     let content: Value = serde_json::from_str(&modlists::to_json(&list)).map_err(|e| AppError::msg(e.to_string()))?;
     let auth = state.cloud_auth()?;
     let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
-    let written = cloud.publish(&me, &request.slot, &content, request.replaces.as_deref()).await.map_err(err)?;
-    let slots = cloud.my_slots(&me).await.map_err(err)?;
-    slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Published, but the slot couldn't be read back."))
+    let used = cloud.my_slots(&me).await.map_err(err)?;
+    let current = list.published.as_ref().and_then(|p| p.id()).and_then(|rid| used.iter().find(|u| u.registry_id.as_deref() == Some(rid)));
+    let (slot, replaces) = match current {
+        Some(u) => (u.slot.clone(), u.registry_id.clone()),
+        None => {
+            let free = SLOTS.iter().find(|n| !used.iter().any(|u| u.slot == **n)).ok_or_else(|| AppError::msg(SLOT_LIMIT_MESSAGE))?;
+            (free.to_string(), None)
+        }
+    };
+    let written = cloud.publish(&me, &slot, &content, replaces.as_deref()).await.map_err(err)?;
+    let fingerprint = list.publish_fingerprint();
+    list.published = Some(link(&written.registry_id, written.revision, fingerprint));
+    s.overwrite(&id, &list)?;
+    Ok(s.summary(&id)?)
+}
+
+/// Removes a saved modlist from the cloud. The saved modlist stays as a normal one, and
+/// followers keep their copies (they get no more updates).
+#[tauri::command]
+#[specta::specta]
+pub async fn unpublish_modlist(state: State<'_, AppState>, id: String) -> AppResult<ModlistSummary> {
+    let s = ModlistStore::new(&state.manager_dir());
+    let loaded = s.load(&id)?;
+    let mut list = loaded.modlist;
+    let Some(rid) = list.published.as_ref().and_then(|p| p.id()).map(String::from) else {
+        return Ok(s.summary(&id)?);
+    };
+    let me = player(&state)?;
+    let auth = state.cloud_auth()?;
+    let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
+    let used = cloud.my_slots(&me).await.map_err(err)?;
+    if let Some(u) = used.iter().find(|u| u.registry_id.as_deref() == Some(rid.as_str())) {
+        cloud.delete_slot(&me, &u.slot).await.map_err(err)?;
+    }
+    list.published = None;
+    s.overwrite(&id, &list)?;
+    Ok(s.summary(&id)?)
 }
 
 #[derive(Debug, Deserialize, specta::Type)]
@@ -393,8 +521,9 @@ pub struct EditPublishedRequest {
     pub edit: DetailsEdit,
 }
 
-/// Changes the description, game version or icon of one of the player's published modlists.
-/// The name stays as it is, and so does the revision (followers aren't told about it).
+/// Changes the description, game version or icon of one of the player's published modlists,
+/// online and in its saved modlist. The name stays as it is, and so does the revision
+/// (followers aren't told about it).
 #[tauri::command]
 #[specta::specta]
 pub async fn edit_published_modlist(state: State<'_, AppState>, request: EditPublishedRequest) -> AppResult<SlotInfo> {
@@ -407,103 +536,40 @@ pub async fn edit_published_modlist(state: State<'_, AppState>, request: EditPub
     let auth = state.cloud_auth()?;
     let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
     let written = cloud.edit_details(&me, &request.registry_id, e).await.map_err(err)?;
+    apply_edit_locally(&state, &request.registry_id, e);
     let slots = cloud.my_slots(&me).await.map_err(err)?;
     slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Saved, but the slot couldn't be read back."))
 }
 
-/// The enabled installed mods as a modlist (exact versions), like saving a modlist.
-fn current_mods(state: &AppState, meta: modlists::ModlistMeta) -> AppResult<Modlist> {
-    let mods: Vec<_> = state.mods.read_safe().mods.iter().filter(|m| m.is_active).cloned().collect();
-    let list = modlists::from_installed(&mods, meta, Vec::new());
-    if list.entries().is_empty() {
-        return Err(AppError::msg("No mods are enabled, so there's nothing to publish."));
+/// The same detail edit on the saved modlist that is published as `registry_id`. Best effort.
+fn apply_edit_locally(state: &AppState, registry_id: &str, e: &DetailsEdit) {
+    let s = ModlistStore::new(&state.manager_dir());
+    let Some(local) = s.list().into_iter().find(|l| l.published.as_ref().is_some_and(|p| p.registry_id == registry_id)) else { return };
+    let Ok(loaded) = s.load(&local.id) else { return };
+    let mut list = loaded.modlist;
+    let in_sync = list.published.as_ref().and_then(|p| p.fingerprint.clone()) == Some(list.publish_fingerprint());
+    let text = |v: &Option<String>| v.as_ref().map(|t| Some(t.trim().to_string()).filter(|t| !t.is_empty()));
+    if let Some(d) = text(&e.description) {
+        list.description = d;
     }
-    Ok(list)
-}
-
-#[derive(Debug, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct PublishCurrentRequest {
-    /// An empty slot (`slot1`..`slot5`).
-    pub slot: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub icon: Option<String>,
-    pub icon_color: Option<String>,
-}
-
-/// Publishes the enabled installed mods as a new online modlist in an empty slot.
-#[tauri::command]
-#[specta::specta]
-pub async fn publish_current_mods(state: State<'_, AppState>, request: PublishCurrentRequest) -> AppResult<SlotInfo> {
-    let me = player(&state)?;
-    let name = request.name.trim();
-    if name.is_empty() {
-        return Err(AppError::msg("Give it a name."));
+    if let Some(g) = text(&e.game_version) {
+        list.game_version = g;
     }
-    let meta = modlists::ModlistMeta {
-        name: name.to_string(),
-        description: request.description.clone(),
-        icon: request.icon.clone(),
-        icon_color: request.icon_color.clone(),
-        version: None,
-        game_version: state.environment().game_version,
-        uploader: Some(me.name.clone()),
-    };
-    let list = current_mods(&state, meta)?;
-    if let Some(word) = validator::find_blocked([list.name.as_deref(), list.description.as_deref(), Some(me.name.as_str())].into_iter().flatten()) {
-        return Err(AppError::msg(format!("Online modlists can't contain \"{word}\". Change the name or description first.")));
+    if let Some(i) = &e.icon {
+        list.icon = modlists::clean_icon(Some(i));
     }
-    let content: Value = serde_json::from_str(&modlists::to_json(&list)).map_err(|e| AppError::msg(e.to_string()))?;
-    let auth = state.cloud_auth()?;
-    let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
-    let written = cloud.publish(&me, &request.slot, &content, None).await.map_err(err)?;
-    let slots = cloud.my_slots(&me).await.map_err(err)?;
-    slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Published, but the slot couldn't be read back."))
-}
-
-/// Replaces the mods of one of the player's online modlists with the enabled installed mods.
-/// Name, description and icon stay; config files are kept for mods that are still in it. A new
-/// revision (and a note to followers) only when the mods actually changed.
-#[tauri::command]
-#[specta::specta]
-pub async fn update_published_mods(state: State<'_, AppState>, registry_id: String) -> AppResult<SlotInfo> {
-    let me = player(&state)?;
-    let auth = state.cloud_auth()?;
-    let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
-    let (slot, mut content) = cloud.own_content(&me, &registry_id).await.map_err(err)?;
-    let fresh = current_mods(&state, modlists::ModlistMeta { name: "x".into(), ..Default::default() })?;
-    let ids: HashSet<String> = fresh.entries().iter().filter_map(|m| m.id()).map(str::to_ascii_lowercase).collect();
-    let fresh: Value = serde_json::from_str(&modlists::to_json(&fresh)).map_err(|e| AppError::msg(e.to_string()))?;
-    let map = content.as_object_mut().ok_or_else(|| AppError::msg("That online modlist is damaged."))?;
-    for key in ["mods", "includeModStatus", "includeModVersions", "exclusive"] {
-        match fresh.get(key) {
-            Some(v) => map.insert(key.into(), v.clone()),
-            None => map.remove(key),
-        };
+    if let Some(c) = &e.icon_color {
+        list.icon_color = modlists::clean_icon(Some(c));
     }
-    map.remove("disabledEntries");
-    // Old 2.x lists keep one config inline per mod; the new mod entries don't have them.
-    if let Some(Value::Array(configs)) = map.get_mut("configurations") {
-        configs.retain(|c| c.get("modId").and_then(Value::as_str).is_some_and(|id| ids.contains(&id.to_ascii_lowercase())));
+    if in_sync {
+        let fingerprint = list.publish_fingerprint();
+        if let Some(p) = list.published.as_mut() {
+            p.fingerprint = Some(fingerprint);
+        }
     }
-    if let Some(game) = state.environment().game_version {
-        map.insert("gameVersion".into(), Value::String(game));
-        map.remove("vsVersion");
+    if let Err(err) = s.overwrite(&local.id, &list) {
+        tracing::warn!("Couldn't save the new details in {}: {err}", local.id);
     }
-    let written = cloud.publish(&me, &slot, &content, Some(&registry_id)).await.map_err(err)?;
-    let slots = cloud.my_slots(&me).await.map_err(err)?;
-    slots.into_iter().find(|s| s.slot == written.slot).ok_or_else(|| AppError::msg("Updated, but the slot couldn't be read back."))
-}
-
-/// Deletes one of the player's online modlists. Subscribers keep their local copies.
-#[tauri::command]
-#[specta::specta]
-pub async fn delete_cloud_slot(state: State<'_, AppState>, slot: String) -> AppResult<()> {
-    let me = player(&state)?;
-    let auth = state.cloud_auth()?;
-    let cloud = CloudStore::new(&auth, state.cloud_config.clone(), &cache_dir(&state)).map_err(err)?;
-    cloud.delete_slot(&me, &slot).await.map_err(err)
 }
 
 // ---------------------------------------------------------------------------------------------

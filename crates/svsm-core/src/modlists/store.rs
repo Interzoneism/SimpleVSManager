@@ -97,6 +97,18 @@ pub struct ModlistSummary {
     pub downloads_needed: u32,
     /// Local copy of an online modlist.
     pub subscription: Option<SubscriptionView>,
+    /// Published to one of the player's cloud slots.
+    pub published: Option<PublishedView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct PublishedView {
+    pub registry_id: String,
+    pub revision: f64,
+    /// The file changed since it was last published.
+    pub changed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -259,6 +271,7 @@ impl ModlistStore {
             active: false,
             downloads_needed: 0,
             subscription: None,
+            published: None,
         };
         match self.load(&id) {
             Ok(loaded) => {
@@ -289,6 +302,15 @@ impl ModlistStore {
                         source_gone: false,
                     })
                 });
+                if kind == ModlistKind::Modlist {
+                    s.published = l.published.as_ref().and_then(|p| {
+                        Some(PublishedView {
+                            registry_id: p.id()?.to_string(),
+                            revision: p.revision,
+                            changed: p.fingerprint.as_deref().is_some_and(|f| f != l.publish_fingerprint()),
+                        })
+                    });
+                }
                 if kind == ModlistKind::Group {
                     let def = self.read_group(path).unwrap_or_default();
                     let (_, members) = self.group_sources(path, &def);

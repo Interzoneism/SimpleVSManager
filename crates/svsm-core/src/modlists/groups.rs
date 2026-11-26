@@ -317,6 +317,7 @@ pub fn merge(def: &GroupDefinition, sources: &[GroupSource]) -> MergeResult {
         configurations: (!configurations.is_empty()).then_some(configurations),
         exclusive: Some(true),
         online_subscription: None,
+        published: None,
     };
     MergeResult { modlist, conflicts }
 }

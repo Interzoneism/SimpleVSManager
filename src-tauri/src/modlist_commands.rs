@@ -217,8 +217,12 @@ fn build_from_installed(state: &AppState, req: &SaveModlistRequest) -> AppResult
 #[tauri::command]
 #[specta::specta]
 pub async fn save_modlist(state: State<'_, AppState>, request: SaveModlistRequest) -> AppResult<SaveResult> {
-    let (list, warnings) = build_from_installed(&state, &request)?;
+    let (mut list, warnings) = build_from_installed(&state, &request)?;
     let s = store(&state);
+    if request.overwrite {
+        // Saving over a published modlist keeps it published (its changes can then be published).
+        list.published = s.load(&s.id_for_name(ModlistKind::Modlist, request.name.trim())).ok().and_then(|l| l.modlist.published);
+    }
     let id = s.save(ModlistKind::Modlist, request.name.trim(), &list, request.overwrite)?;
     Ok(SaveResult { saved: s.summary(&id)?, warnings })
 }

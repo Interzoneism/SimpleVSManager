@@ -1,0 +1,152 @@
+import { useState } from "react";
+import { ask } from "@tauri-apps/plugin-dialog";
+import type { CloudSlotView, ModlistSummary } from "../../bindings";
+import { useAcknowledgeNotices, useCloudSlots, useCloudStatus, usePublishSaved, useUnpublish } from "../../api";
+import { EditPublishedDialog, type PublishedDetails } from "./EditPublishedDialog";
+
+/** The cloud holds at most this many modlists per player (slot1..slot5 in the database rules). */
+export const PUBLISH_LIMIT = 5;
+export const LIMIT_MESSAGE = `You already have ${PUBLISH_LIMIT} published modlists, the most the cloud allows. Unpublish one of them first, then publish this one.`;
+
+/** Only your own saved modlists can be published: not groups, backups or lists that follow someone else's. */
+export const canBePublished = (entry: ModlistSummary) => entry.kind === "modlist" && !entry.subscription && !entry.error;
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/**
+ * Publishing saved modlists. A published modlist is a saved modlist marked as published in one of
+ * your five cloud slots; reading the slots also turns published lists without a saved modlist
+ * into saved modlists (see `reconcile_published`).
+ */
+export function usePublishing({ offline, onFlash }: { offline: boolean; onFlash: (message: string) => void }) {
+  const status = useCloudStatus(!offline);
+  const ready = !offline && !!status.data && !status.data.offline && !status.data.legacyIdentity && !status.data.playerProblem && !status.data.signInProblem;
+  const slots = useCloudSlots(ready && !!status.data?.hasIdentity);
+  const publishMutation = usePublishSaved();
+  const unpublishMutation = useUnpublish();
+  const ack = useAcknowledgeNotices();
+  const [editing, setEditing] = useState<PublishedDetails | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  /** Why publishing isn't possible right now, or `null`. */
+  const blocked = offline || status.data?.offline
+    ? "Publishing needs the cloud. Turn off offline mode first."
+    : !status.data
+      ? "Checking the cloud…"
+      : status.data.legacyIdentity
+        ? "Move your cloud identity to the new project first (see the notice under Online modlists)."
+        : status.data.playerProblem ?? status.data.signInProblem ?? null;
+  const slotList = slots.data?.slots ?? [];
+  const slotFor = (registryId: string | undefined): CloudSlotView | null =>
+    (registryId && slotList.find((s) => s?.info.registryId === registryId)) || null;
+  const full = !!slots.data && slotList.every(Boolean);
+  const busy = publishMutation.isPending || unpublishMutation.isPending;
+
+  const publish = (entry: ModlistSummary, onDone?: () => void) => {
+    setProblem(null);
+    if (blocked) return setProblem(blocked);
+    if (!entry.published && full) return setProblem(LIMIT_MESSAGE);
+    const before = entry.published?.revision ?? null;
+    publishMutation.mutate(entry.id, {
+      onSuccess: (s) => {
+        const revision = s.published?.revision ?? 1;
+        onFlash(
+          before === null
+            ? `Published "${s.name}". Other players can now find it under From the community.`
+            : revision > before
+              ? `Published the changes to "${s.name}" as revision ${revision}.`
+              : `Published the changes to "${s.name}". The mods are the same, so followers aren't notified.`,
+        );
+        onDone?.();
+      },
+    });
+  };
+
+  /** Asks first (unless `confirmed`). Resolves to whether the list was unpublished. */
+  const unpublish = async (entry: ModlistSummary, confirmed = false): Promise<boolean> => {
+    setProblem(null);
+    if (blocked) {
+      setProblem(blocked);
+      return false;
+    }
+    const followers = slotFor(entry.published?.registryId)?.subscribers ?? 0;
+    const ok = confirmed || await ask(
+      `Unpublish "${entry.name}"? It's removed from the cloud and the community list, and your saved modlist stays as it is.` +
+        (followers ? ` Your ${plural(followers, "follower")} keep their copies, but get no more updates.` : "") +
+        " You can publish it again later, as a new online modlist.",
+      { title: "Unpublish modlist", kind: "warning", okLabel: "Unpublish", cancelLabel: "Cancel" },
+    );
+    if (!ok) return false;
+    try {
+      await unpublishMutation.mutateAsync(entry.id);
+      if (!confirmed) onFlash(`"${entry.name}" is no longer published.`);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const editDetails = (entry: ModlistSummary) => {
+    const slot = slotFor(entry.published?.registryId);
+    if (!entry.published) return;
+    if (blocked) return setProblem(blocked);
+    setEditing({
+      registryId: entry.published.registryId,
+      name: entry.name,
+      description: entry.description,
+      gameVersion: entry.gameVersion,
+      icon: entry.icon,
+      iconColor: entry.iconColor,
+      revision: slot?.info.revision ?? entry.published.revision,
+      subscribers: slot?.subscribers ?? 0,
+    });
+  };
+
+  const notices = slots.data?.newSubscribers ?? [];
+  const error = problem ?? (publishMutation.error ?? unpublishMutation.error ?? ack.error)?.message ?? null;
+  const banner = (
+    <>
+      {notices.length > 0 && (
+        <p className="notice">
+          New followers:{" "}
+          {notices.map(([id, n]) => `${slotFor(id)?.info.name ?? "a modlist"} (+${n})`).join(", ")}{" "}
+          <button type="button" className="link-button small" onClick={() => ack.mutate(notices.map(([id]) => id))}>
+            Dismiss
+          </button>
+        </p>
+      )}
+      {error && (
+        <p className="notice error-text" role="alert">
+          {error}{" "}
+          <button
+            type="button"
+            className="link-button small"
+            onClick={() => {
+              setProblem(null);
+              publishMutation.reset();
+              unpublishMutation.reset();
+            }}
+          >
+            Dismiss
+          </button>
+        </p>
+      )}
+    </>
+  );
+  const modal = editing && <EditPublishedDialog list={editing} onDone={onFlash} onClose={() => setEditing(null)} />;
+
+  return {
+    /** Why publishing isn't possible now, or `null`. */
+    blocked,
+    busy,
+    usedSlots: slotList.filter(Boolean).length,
+    slotFor,
+    publish,
+    unpublish,
+    editDetails,
+    banner,
+    modal,
+  };
+}
+
+export type Publishing = ReturnType<typeof usePublishing>;
