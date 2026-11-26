@@ -227,6 +227,20 @@ test("builder state survives a restart", async () => {
   act(() => resetBuilderForTests());
 });
 
+test("builder starts open with no saved state, then remembers the user's choice", async () => {
+  localStorage.removeItem("svsm-builder");
+  vi.resetModules();
+  expect((await import("./builderStore")).getBuilder().open).toBe(true);
+  localStorage.setItem("svsm-builder", JSON.stringify({ ...emptyState(), open: false }));
+  vi.resetModules();
+  expect((await import("./builderStore")).getBuilder().open).toBe(false);
+  localStorage.setItem("svsm-builder", JSON.stringify({ ...emptyState(), open: true }));
+  vi.resetModules();
+  expect((await import("./builderStore")).getBuilder().open).toBe(true);
+  localStorage.removeItem("svsm-builder");
+  act(() => resetBuilderForTests());
+});
+
 test("Suggested for you is based on the builder's mods when it has some, else the installed mods", async () => {
   const lastSeeds = () => (mocked.browseMods.mock.calls.at(-1)![0] as { seedModIds: string[] }).seedModIds;
   mocked.browseMods.mockImplementation((q: { sort: string }) =>

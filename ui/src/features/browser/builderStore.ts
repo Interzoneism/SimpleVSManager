@@ -50,7 +50,9 @@ export const emptyState = (): BuilderState => {
 const str = (v: unknown) => (typeof v === "string" ? v : null);
 
 function load(): BuilderState {
-  const base = emptyState();
+  // Open the first time (no saved choice yet) so new and upgrading users see it; after that,
+  // the user's own open/closed choice is remembered.
+  const base = { ...emptyState(), open: true };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return base;
@@ -71,7 +73,7 @@ function load(): BuilderState {
       : [];
     return {
       ...base,
-      open: v.open === true,
+      open: v.open !== false,
       sourceId: str(v.sourceId),
       name: str(v.name) ?? "",
       entries,
