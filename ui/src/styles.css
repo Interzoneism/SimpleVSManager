@@ -959,6 +959,23 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 /* Followed modlists (read-only copies of someone else's): a slightly tinted border. */
 .modlist-card.following { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .modlist-card.following.selected { border-color: var(--accent); }
+/* Groups of modlists: two card edges peek out below and to the right, so a group reads as a
+ * stack of lists. The edges are drawn inside the item (content-visibility clips anything
+ * outside it), so the card itself gives up 8px on those sides. */
+.modlist-card-item.stacked { position: relative; padding: 0 8px 8px 0; }
+.modlist-card-item.stacked > .modlist-card { position: relative; z-index: 2; }
+.modlist-card-item.stacked::before, .modlist-card-item.stacked::after {
+  content: "";
+  position: absolute;
+  border: 1px solid var(--stack-edge, var(--palette-bevel-highlight));
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+.modlist-card-item.stacked::after { inset: 4px 4px 4px 4px; z-index: 1; background: color-mix(in srgb, var(--surface) 80%, var(--canvas)); }
+.modlist-card-item.stacked::before { inset: 8px 0 0 8px; z-index: 0; background: color-mix(in srgb, var(--surface) 55%, var(--canvas)); }
+.modlist-card-item.stacked:has(> .modlist-card.published) { --stack-edge: color-mix(in srgb, var(--palette-warning) 45%, var(--border)); }
+.modlist-card-item.stacked:has(> .modlist-card.following) { --stack-edge: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.modlist-card-item.stacked:has(> .modlist-card.selected) { --stack-edge: color-mix(in srgb, var(--accent) 60%, var(--border)); }
 .card-published { color: var(--published, var(--palette-warning)); }
 .card-published .ui-icon { width: 20px; height: 20px; stroke-width: 2; }
 .badge.published-badge { background: color-mix(in srgb, var(--palette-warning) 22%, transparent); color: var(--palette-warning); }
