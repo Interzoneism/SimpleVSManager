@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ApplyPlan, ModlistSummary } from "../../bindings";
-import { defaultMode, describePlan, filterModlists, modLocation, serverCommands, sortSaved } from "./modlistView";
+import { defaultMode, describePlan, filterModlists, modLocation, pickerOrder, rememberPick, serverCommands, sortSaved } from "./modlistView";
 
 const summary = (over: Partial<ModlistSummary>): ModlistSummary => ({
   id: "Modlists/a.json",
@@ -76,5 +76,18 @@ describe("modlist view helpers", () => {
     expect(modLocation("1.0", "2.0", [])).toBe("installed: 2.0");
     expect(modLocation("1.0", null, [])).toBe("not downloaded");
     expect(modLocation(null, null, [])).toBeNull();
+  });
+});
+
+describe("modlist picker order", () => {
+  it("moves a pick to the front and keeps five", () => {
+    expect(rememberPick(["a", "b", "c", "d", "e"], "c")).toEqual(["c", "a", "b", "d", "e"]);
+    expect(rememberPick(["a", "b", "c", "d", "e"], "f")).toEqual(["f", "a", "b", "c", "d"]);
+  });
+
+  it("shows recent picks first, then the usual order, skipping removed lists", () => {
+    const lists = ["Zed", "Alpha", "Mid", "Beta"].map((name) => summary({ id: name, name }));
+    const order = pickerOrder(lists, ["Mid", "gone", "Zed"]).map((m) => m.name);
+    expect(order).toEqual(["Mid", "Zed", "Alpha", "Beta"]);
   });
 });

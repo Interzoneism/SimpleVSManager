@@ -64,3 +64,20 @@ export function modLocation(wanted: string | null, installed: string | null, lib
   if (library.includes(wanted)) return "in library";
   return installed ? `installed: ${installed}` : "not downloaded";
 }
+
+/** How many recently picked modlists the "Load a modlist" picker shows first. */
+export const RECENT_PICKS = 5;
+
+/** The recent-picks list after picking `id`: it moves to the front, capped at `RECENT_PICKS`. */
+export function rememberPick(recent: string[], id: string): string[] {
+  return [id, ...recent.filter((r) => r !== id)].slice(0, RECENT_PICKS);
+}
+
+/** Order for the picker: the recently picked lists that still exist (most recent first), then
+ * the rest in the usual saved-modlists order. */
+export function pickerOrder(list: ModlistSummary[], recent: string[]): ModlistSummary[] {
+  const byId = new Map(list.map((m) => [m.id, m]));
+  const first = recent.slice(0, RECENT_PICKS).map((id) => byId.get(id)).filter((m): m is ModlistSummary => !!m);
+  const shown = new Set(first.map((m) => m.id));
+  return [...first, ...sortSaved(list.filter((m) => !shown.has(m.id)))];
+}

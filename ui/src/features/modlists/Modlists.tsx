@@ -14,19 +14,18 @@ import {
   useSyncSubscription,
   useUnsubscribe,
 } from "../../api";
-import { formatAgo } from "../../lib/format";
 import { canQuickSwitch, filterModlists, kindLabel, serverCommands, sortSaved } from "./modlistView";
 import { LoadModlistDialog } from "./LoadModlistDialog";
 import { quickSwitchNotice, showQuickSwitchToast, useQuickSwitch, useShowServerCommands } from "./quickSwitch";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
+import { kindIcons, modlistCardParts } from "./modlistCardParts";
 import { ModlistSection } from "./ModlistSection";
 import { useOnlineModlistSections } from "../online/useOnlineModlistSections";
 import { canBePublished, usePublishing, type Publishing } from "../online/usePublishing";
 import { IconPicker, iconThemeClass, ModlistIcon } from "./ModlistIcon";
 import { CloseDetails, SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
-import type { IconName } from "../../components/Icon";
 import { useContextMenu } from "../../components/ContextMenu";
 import { toast, useErrorToast } from "../../components/Toast";
 import { Icon } from "../../components/Icon";
@@ -45,7 +44,6 @@ interface Props {
 }
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
-const kindIcons: Record<ModlistKind, IconName> = { group: "layers", modlist: "lists", backup: "history" };
 
 type Selection = { kind: "local"; ids: string[] } | { kind: "online"; id: string };
 
@@ -250,49 +248,17 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
   const saved = sortSaved(filterModlists(all, ["modlist", "group"], search));
   const backups = filterModlists(all, ["backup"], search);
   const hasDetails = chosen.length > 0 || !!online.details;
-  const card = (m: ModlistSummary) => {
-    const lines = [
-      m.group ? <>Group of <strong>{m.group.members.length}</strong> lists</>
-        : m.uploader ? <>By <strong>{m.uploader}</strong></>
-        : kindLabel(m.kind),
-      m.error ? "Can't be read" : <><strong>{m.mods.length}</strong> mod{m.mods.length === 1 ? "" : "s"}</>,
-      m.gameVersion ? `VS ${m.gameVersion}` : "Any game version",
-    ];
-    const slot = publishing.slotFor(m.published?.registryId);
-    const facts = [
-      m.subscription && `Revision ${m.subscription.syncedRevision}`,
-      m.published && `Revision ${slot?.info.revision ?? m.published.revision}`,
-      m.configCount > 0 && `${m.configCount} config${m.configCount === 1 ? "" : "s"}`,
-      m.group && m.group.conflicts.length > 0 && `${m.group.conflicts.length} to check`,
-      !m.active && m.downloadsNeeded > 0 && `${m.downloadsNeeded} to download`,
-    ].filter((fact): fact is string => !!fact);
-    return (
-      <ModlistCard
-        key={m.id}
-        buttonRef={m.id === revealId ? revealCard : undefined}
-        title={m.name}
-        icon={m.icon}
-        iconColor={m.iconColor}
-        kindIcon={kindIcons[m.kind]}
-        rows={lines}
-        facts={facts}
-        date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
-        followers={slot?.subscribers}
-        following={!!m.subscription}
-        published={!!m.published}
-        stacked={m.kind === "group"}
-        badges={(m.active || m.subscription?.updateAvailable || m.published?.changed) && <>
-          {m.active && <span className="badge active-badge">Active</span>}
-          {m.subscription?.updateAvailable && <span className="badge update-badge">Update available</span>}
-          {m.published?.changed && <span className="badge published-badge" title="Not published yet">Changes to publish</span>}
-        </>}
-        selected={selected.includes(m.id)}
-        onSelect={(event) => select(m.id, event.ctrlKey || event.metaKey)}
-        onContextMenu={(event) => onCardMenu(event, m)}
-        onLoad={m.error ? undefined : () => startLoad(m)}
-      />
-    );
-  };
+  const card = (m: ModlistSummary) => (
+    <ModlistCard
+      key={m.id}
+      {...modlistCardParts(m, publishing.slotFor(m.published?.registryId))}
+      buttonRef={m.id === revealId ? revealCard : undefined}
+      selected={selected.includes(m.id)}
+      onSelect={(event) => select(m.id, event.ctrlKey || event.metaKey)}
+      onContextMenu={(event) => onCardMenu(event, m)}
+      onLoad={m.error ? undefined : () => startLoad(m)}
+    />
+  );
 
   return (
     <SplitWorkspace name="modlists" widePane>
