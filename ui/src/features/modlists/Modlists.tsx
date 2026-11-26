@@ -280,6 +280,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
         followers={slot?.subscribers}
         following={!!m.subscription}
         published={!!m.published}
+        stacked={m.kind === "group"}
         badges={(m.active || m.subscription?.updateAvailable || m.published?.changed) && <>
           {m.active && <span className="badge active-badge">Active</span>}
           {m.subscription?.updateAvailable && <span className="badge update-badge">Update available</span>}
