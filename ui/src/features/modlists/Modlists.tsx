@@ -262,7 +262,6 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     const facts = [
       m.subscription && `Revision ${m.subscription.syncedRevision}`,
       m.published && `Revision ${slot?.info.revision ?? m.published.revision}`,
-      !!slot?.subscribers && `${slot.subscribers} following`,
       m.configCount > 0 && `${m.configCount} config${m.configCount === 1 ? "" : "s"}`,
       m.group && m.group.conflicts.length > 0 && `${m.group.conflicts.length} to check`,
       !m.active && m.downloadsNeeded > 0 && `${m.downloadsNeeded} to download`,
@@ -278,6 +277,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
         rows={lines}
         facts={facts}
         date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
+        followers={slot?.subscribers}
         following={!!m.subscription}
         published={!!m.published}
         badges={(m.active || m.subscription?.updateAvailable || m.published?.changed) && <>
