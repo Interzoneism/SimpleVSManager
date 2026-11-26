@@ -22,9 +22,9 @@ const mouths: Record<VoteOption, string> = {
   crashesOrFreezesGame: "M7.9 8.2l2.4 2.4 M10.3 8.2 7.9 10.6 M13.7 8.2l2.4 2.4 M16.1 8.2l-2.4 2.4 M9 16h6",
 };
 
-function Face({ option }: { option: VoteOption }) {
+export function Face({ option, size = 28 }: { option: VoteOption; size?: number }) {
   return (
-    <svg className="report-face" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg className="report-face" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9.2" />
       <path d={mouths[option]} />
@@ -33,6 +33,17 @@ function Face({ option }: { option: VoteOption }) {
 }
 
 const countOf = (r: VoteSummary, o: VoteOption) => r[o];
+
+/**
+ * The face that sums up a set of reports (counts best to worst, as `REPORT_OPTIONS`): the
+ * average answer, rounded. `null` without reports.
+ */
+export function verdictOf(counts: number[]): VoteOption | null {
+  const total = counts.reduce((a, b) => a + b, 0);
+  if (total === 0) return null;
+  const mean = counts.reduce((sum, c, i) => sum + c * i, 0) / total;
+  return REPORT_OPTIONS[Math.min(REPORT_OPTIONS.length - 1, Math.round(mean))].value;
+}
 
 /** What other players report about this mod version, and your own report. */
 export function Reports({ modId, version }: { modId: string; version: string }) {

@@ -36,6 +36,15 @@ impl VoteOption {
         })
     }
 
+    /// Best to worst.
+    pub const ALL: [Self; 5] =
+        [Self::FullyFunctional, Self::NoIssuesSoFar, Self::SomeIssuesButWorks, Self::NotFunctional, Self::CrashesOrFreezesGame];
+
+    /// Position in [`Self::ALL`].
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
     pub fn needs_comment(self) -> bool {
         matches!(self, Self::NotFunctional | Self::CrashesOrFreezesGame)
     }

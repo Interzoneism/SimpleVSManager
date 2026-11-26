@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { VoteSummary } from "../../bindings";
-import { Reports } from "./Reports";
+import { Reports, verdictOf } from "./Reports";
 
 const mutate = vi.fn();
 const summary: VoteSummary = {
@@ -43,4 +43,14 @@ test("a problem report asks what goes wrong first", () => {
     { modId: "carryon", version: "1.2.3", option: "crashesOrFreezesGame", comment: "Freezes when I open a chest" },
     expect.anything(),
   );
+});
+
+describe("verdictOf", () => {
+  it("is the average answer, rounded, or nothing without reports", () => {
+    expect(verdictOf([0, 0, 0, 0, 0])).toBeNull();
+    expect(verdictOf([5, 0, 0, 0, 0])).toBe("fullyFunctional");
+    expect(verdictOf([3, 3, 0, 0, 0])).toBe("noIssuesSoFar");
+    expect(verdictOf([1, 0, 0, 0, 3])).toBe("notFunctional");
+    expect(verdictOf([0, 0, 0, 0, 2])).toBe("crashesOrFreezesGame");
+  });
 });

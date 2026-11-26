@@ -43,6 +43,28 @@ input[type="search"], select {
   border-radius: 7px;
   padding: 7px 10px;
 }
+/*
+ * Dropdowns everywhere: only as wide as their longest choice (never stretched to fill a row), with
+ * our own arrow sitting a little in from the right edge.
+ */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto;
+  max-width: 100%;
+  padding-right: 34px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  background-color: var(--palette-base-surface-shadowed);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--palette-grey) 50%),
+    linear-gradient(135deg, var(--palette-grey) 50%, transparent 50%);
+  background-position: calc(100% - 19px) 52%, calc(100% - 14px) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+select:disabled { cursor: default; opacity: 0.6; }
+select option { background: var(--palette-base-surface-shadowed); color: var(--palette-text-primary); }
 input[type="checkbox"] { accent-color: var(--palette-accent-primary); width: 16px; height: 16px; margin: 0; }
 input::placeholder { color: var(--palette-grey); opacity: 1; }
 .ui-icon { flex: none; vertical-align: middle; }
@@ -515,6 +537,13 @@ button.library-stat[aria-pressed="true"] {
 .db-card-stats .ui-icon { width: 13px; height: 13px; }
 .db-card-stats > .suggest-stat { color: var(--accent); font-weight: 600; }
 .suggest-basis { margin: 0 0 8px; }
+.db-card-verdict {
+  position: absolute; right: 6px; bottom: 6px; display: inline-flex; padding: 3px; border-radius: 50%;
+  color: var(--tone); background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone) 35%, transparent);
+}
+.db-card.selected .db-card-verdict { background: color-mix(in srgb, var(--selection) 92%, var(--surface)); }
+.mods-toolbar .toolbar-end { margin-left: auto; }
 .db-card-title {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; overflow-wrap: anywhere;
   font-size: 15px; line-height: 1.3; font-weight: 650; color: var(--palette-white);
@@ -624,10 +653,11 @@ button.library-stat[aria-pressed="true"] {
 .conflict-list li { margin: 4px 0; }
 .conflict-list label { display: flex; flex-direction: column; gap: 2px; }
 .conflict-mod { font-weight: 600; }
-.conflict-list select { width: 100%; }
+.conflict-list select { align-self: flex-start; }
 
 .modal-body { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow-y: auto; }
 .form-grid { display: grid; grid-template-columns: max-content 1fr; gap: 8px 12px; align-items: center; }
+.form-grid select { justify-self: start; }
 .form-label { color: var(--palette-grey); }
 .form-grid input[type="text"], .form-grid textarea {
   background: var(--palette-base-surface-shadowed); border: 1px solid var(--palette-bevel-shadow); border-radius: 3px;
@@ -817,7 +847,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .setting-line > span { display: flex; flex-direction: column; gap: 1px; }
 .mod-details .version-picker { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 12px 0 4px; }
 .version-picker-row { display: flex; gap: 6px; }
-.version-picker-row select { flex: 1; min-width: 0; }
+.version-picker-row select { flex: 0 1 auto; min-width: 0; }
 .dependency-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .dependency-list li { display: flex; gap: 6px; }
 .dependency-list li.ok > span { color: var(--palette-success); }
@@ -906,6 +936,12 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .mod-window-description hr { border: 0; border-top: 1px solid var(--border); margin: 1em 0; }
 .mod-window-description details { margin: 0 0 0.8em; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; }
 .mod-window-changelog { margin-top: 18px; }
+.changelog-toggle { margin-top: 8px; }
+.changelog-toggle summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; user-select: none; font-size: 13px; }
+.changelog-toggle summary::-webkit-details-marker { display: none; }
+.changelog-toggle summary::before { content: "›"; display: inline-block; font-size: 15px; line-height: 1; transition: transform 160ms ease; }
+.changelog-toggle[open] summary::before { transform: rotate(90deg); }
+.changelog-toggle summary:hover { color: var(--palette-white); }
 .mod-window-changelog summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--palette-grey); }
 .section-toolbar { margin: -2px 0 10px; }
 .modlist-card { position: relative; }
@@ -926,6 +962,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .builder-head h2 { margin: 0; font-size: 16px; color: var(--palette-white); }
 .builder-fields { display: flex; flex-wrap: wrap; gap: 8px; }
 .builder-fields > * { flex: 1 1 170px; min-width: 0; }
+.builder-fields > select { flex: 0 1 auto; }
 .builder-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
 .builder-confirm-actions { display: flex; gap: 6px; margin-left: auto; }
 .builder-table { min-height: 140px; }
@@ -951,7 +988,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .drag-ghost-icon { width: 28px; height: 28px; flex: none; border-radius: 6px; object-fit: cover; }
 .drag-ghost-icon.placeholder { display: inline-flex; align-items: center; justify-content: center; background: var(--palette-interactive-surface); color: var(--palette-grey); }
 body.pointer-dragging, body.pointer-dragging * { cursor: grabbing !important; user-select: none; }
-.modlist-quick-actions select { flex: 1; min-width: 0; max-width: 260px; }
+.modlist-quick-actions select { flex: 0 1 auto; min-width: 0; max-width: 260px; }
 .modlist-quick-actions .ui-icon { width: 15px; height: 15px; margin-right: 5px; }
 
 /* --- Save modlist dialog --- */

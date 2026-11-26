@@ -295,6 +295,18 @@ async browseThumbnails(modIds: string[]) : Promise<Result<Partial<{ [key in stri
 }
 },
 /**
+ * Player reports on the newest release of each browser card's mod, by lower-case mod id. Mods
+ * whose newest release isn't known are left out; `null` = nobody reported on that release yet.
+ */
+async browseCardReports(modIds: string[]) : Promise<Result<Partial<{ [key in string]: CardReports | null }>, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("browse_card_reports", { modIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * A newer Simple VS Manager on the Mod DB, if there is one.
  */
 async managerUpdate() : Promise<Result<ManagerUpdate | null, AppError>> {
@@ -889,6 +901,14 @@ export type BuiltModlistMod = { modId: string;
  */
 version: string | null }
 export type CachedVersion = { version: string; path: string; sizeBytes: number }
+/**
+ * What players report about a mod's newest Mod DB release.
+ */
+export type CardReports = { version: string; 
+/**
+ * Reports per answer, best to worst (fully functional … crashes or freezes).
+ */
+counts: number[] }
 export type CloudSlotView = { info: SlotInfo; subscribers: number }
 export type CloudSlots = { playerName: string; 
 /**

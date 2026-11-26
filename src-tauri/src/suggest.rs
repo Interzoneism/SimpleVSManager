@@ -65,6 +65,12 @@ async fn signals(state: &AppState, refresh: bool) -> (Arc<Signals>, Option<Strin
     (signals, error)
 }
 
+/// Report counts (best to worst) for one mod version, from the same cached community data.
+pub(crate) async fn version_counts(state: &AppState) -> impl Fn(&str, &str) -> Option<[u32; 5]> {
+    let (signals, _) = signals(state, false).await;
+    move |mod_id: &str, version: &str| signals.version_counts(mod_id, version)
+}
+
 /// Suggestion scores for catalogue entries, and what they were based on. `seed_mod_ids` empty =
 /// the installed mods.
 pub(crate) async fn scorer(

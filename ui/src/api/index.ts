@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  type CardReports,
   commands,
   events,
   type AppError,
@@ -354,6 +355,39 @@ export function useBrowseThumbnails(modIds: string[], enabled = true): Record<st
     })),
     combine: (results) => {
       const out: Record<string, string | null> = {};
+      for (const r of results) {
+        for (const [k, v] of Object.entries(r.data ?? {})) if (v !== undefined) out[k] = v;
+      }
+      return out;
+    },
+  });
+}
+
+/**
+ * Player reports on the newest release of each browser card's mod, by lower-case mod id (same
+ * batches as the thumbnails, and after them, since both need the mod's Mod DB page). `null` =
+ * nobody reported on that release yet; a mod missing from the map isn't known yet.
+ */
+export function useBrowseCardReports(modIds: string[], afterThumbnails: boolean): Record<string, CardReports | null> {
+  const client = useQueryClient();
+  const chunks: string[][] = [];
+  for (let i = 0; i < modIds.length; i += THUMB_CHUNK) chunks.push(modIds.slice(i, i + THUMB_CHUNK));
+  return useQueries({
+    queries: chunks.map((ids) => ({
+      queryKey: ["browseCardReports", ids] as const,
+      queryFn: async () => {
+        if (afterThumbnails) {
+          await client
+            .ensureQueryData({ queryKey: ["browseThumbnails", ids], queryFn: () => unwrap(commands.browseThumbnails(ids)) })
+            .catch(() => undefined);
+        }
+        return unwrap(commands.browseCardReports(ids));
+      },
+      staleTime: 30 * 60_000,
+      retry: false,
+    })),
+    combine: (results) => {
+      const out: Record<string, CardReports | null> = {};
       for (const r of results) {
         for (const [k, v] of Object.entries(r.data ?? {})) if (v !== undefined) out[k] = v;
       }

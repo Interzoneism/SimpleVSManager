@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { BrowseEntry, BrowseQuery, BrowseSort, SuggestBasis } from "../../bindings";
+import type { BrowseEntry, BrowseQuery, BrowseSort, CardReports, SuggestBasis } from "../../bindings";
 import {
   defaultBrowseQuery,
+  useBrowseCardReports,
   useBrowseFacets,
   useBrowseMods,
   useBrowseThumbnails,
@@ -19,6 +20,7 @@ import { pointIn, usePointerDrag } from "../../components/pointerDrag";
 import { recall, remember, useRememberedScroll } from "../../lib/pageMemory";
 import { builder, entryFromBrowse, useBuilder, type BuilderEntry } from "./builderStore";
 import { ModlistBuilder } from "./ModlistBuilder";
+import { Face, REPORT_OPTIONS, verdictOf } from "../mods/Reports";
 
 const SORTS: { value: BrowseSort; label: string }[] = [
   { value: "relevance", label: "Best match" },
@@ -98,6 +100,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   const page = results.data;
   const pageIds = useMemo(() => page?.items.map((i) => i.modId) ?? [], [page]);
   const thumbs = useBrowseThumbnails(pageIds, !offline);
+  const reports = useBrowseCardReports(pageIds, !offline);
   const thumbFor = (e: BrowseEntry) => {
     const t = thumbs[e.modId.toLowerCase()];
     return t === undefined ? e.logoUrl : t;
@@ -209,19 +212,20 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
             <input type="checkbox" checked={query.hideInstalled} onChange={(e) => set("hideInstalled", e.target.checked)} />
             Hide installed
           </label>
+          {page && (
+            <span className="muted small">
+              {formatCount(page.total)} mods · list from {formatAgo(page.fetchedMs)}
+            </span>
+          )}
           <button
             type="button"
+            className="toolbar-end"
             disabled={refresh.isPending || offline}
             title={offline ? "Offline mode is on (Settings)" : "Download the Mod DB list again"}
             onClick={() => refresh.mutate()}
           >
             {refresh.isPending ? "Refreshing…" : "Refresh"}
           </button>
-          {page && (
-            <span className="muted small">
-              {formatCount(page.total)} mods · list from {formatAgo(page.fetchedMs)}
-            </span>
-          )}
         </div>
         {suggested && page?.suggestBasis && <SuggestBasisLine basis={page.suggestBasis} />}
         {(results.error ?? refresh.error) && (
@@ -243,7 +247,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
           )}
           <div className="db-card-grid" role="list">
             {page?.items.map((e) => (
-              <ModCard key={e.modId} entry={e} thumbUrl={thumbFor(e)} selected={selected?.modId === e.modId}
+              <ModCard key={e.modId} entry={e} thumbUrl={thumbFor(e)} reports={reports[e.modId.toLowerCase()] ?? null} selected={selected?.modId === e.modId}
                 inList={inList.has(e.modId.toLowerCase())} draggable={b.open}
                 onSelect={() => {
                   if (!cardDrag.endedDrag()) setSelected(e);
@@ -305,9 +309,11 @@ export function Logo({ url, name, className }: { url: string | null; name: strin
 }
 
 /** Mod DB style card: the mod's picture on top, name, summary and counts below. */
-function ModCard({ entry, thumbUrl, selected, inList, draggable, onSelect, onPointerDown, onContextMenu }: {
+function ModCard({ entry, thumbUrl, reports, selected, inList, draggable, onSelect, onPointerDown, onContextMenu }: {
   entry: BrowseEntry;
   thumbUrl: string | null;
+  /** Player reports on the newest release (`null` = none, or not known yet). */
+  reports: CardReports | null;
   selected: boolean;
   inList: boolean;
   draggable: boolean;
@@ -355,8 +361,29 @@ ${entry.summary}` : entry.name}
         </span>
         <span className="db-card-title">{entry.name}</span>
         {entry.summary && <span className="db-card-summary">{entry.summary}</span>}
+        {reports && <CardVerdict reports={reports} />}
       </span>
     </button>
+  );
+}
+
+/** What players say about the newest release, as one face; the details show on hover. */
+function CardVerdict({ reports }: { reports: CardReports }) {
+  const verdict = verdictOf(reports.counts);
+  if (!verdict) return null;
+  const total = reports.counts.reduce((a, b) => a + b, 0);
+  const works = reports.counts.slice(0, 3).reduce((a, b) => a + b, 0);
+  const lines = [
+    `Player reports on v${reports.version} (newest release)`,
+    `${Math.round((works / total) * 100)}% of ${total} ${total === 1 ? "player says" : "players say"} it works`,
+    "",
+    ...REPORT_OPTIONS.map((o, i) => (reports.counts[i] ? `${o.label}: ${reports.counts[i]}` : "")).filter(Boolean),
+  ];
+  const label = REPORT_OPTIONS.find((o) => o.value === verdict)!.label;
+  return (
+    <span className={`db-card-verdict tone-${verdict}`} title={lines.join("\n")} aria-label={`Players say: ${label}`} role="img">
+      <Face option={verdict} size={20} />
+    </span>
   );
 }
 
