@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
 import type { BrowseEntry, BrowseQuery, BrowseSort, CardReports, SuggestBasis } from "../../bindings";
 import {
   defaultBrowseQuery,
@@ -55,6 +56,9 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /** The "Mod DB" tab: search the whole catalogue and install mods. */
 export function ModBrowser({ enabled }: { enabled: boolean }) {
+  // The list size and age sit next to the page title, which the app shell renders.
+  const [headingInfo, setHeadingInfo] = useState<HTMLElement | null>(null);
+  useEffect(() => setHeadingInfo(document.getElementById("browse-heading-info")), []);
   const env = useEnvironment();
   const offline = !!env.data?.settings.offlineMode;
   // Search, filters and how many cards are shown stay put when you leave the page and come back.
@@ -212,10 +216,9 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
             <input type="checkbox" checked={query.hideInstalled} onChange={(e) => set("hideInstalled", e.target.checked)} />
             Hide installed
           </label>
-          {page && (
-            <span className="muted small">
-              {formatCount(page.total)} mods · list from {formatAgo(page.fetchedMs)}
-            </span>
+          {page && headingInfo && createPortal(
+            <>{formatCount(page.total)} mods · list from {formatAgo(page.fetchedMs)}</>,
+            headingInfo,
           )}
           <button
             type="button"
