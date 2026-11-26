@@ -31,6 +31,7 @@ import { ModDetails } from "./ModDetails";
 import { UpdateDialog } from "./UpdateDialog";
 import { SaveModlistDialog } from "../modlists/SaveModlistDialog";
 import { LoadModlistDialog } from "../modlists/LoadModlistDialog";
+import { ModlistPicker } from "../modlists/ModlistPicker";
 import { canQuickSwitch } from "../modlists/modlistView";
 import { quickSwitchNotice, showQuickSwitchToast, useQuickSwitch } from "../modlists/quickSwitch";
 import type { ModlistSummary } from "../../bindings";
@@ -83,6 +84,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   const modlists = useModlists();
   const [savingModlist, setSavingModlist] = useState(false);
   const [loadingModlist, setLoadingModlist] = useState<ModlistSummary | null>(null);
+  const [picking, setPicking] = useState(false);
   const quickSwitch = useQuickSwitch();
   const loadable = (modlists.data ?? []).filter((m) => m.kind !== "backup" && !m.error);
 
@@ -248,17 +250,9 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
               ))}
             </div>
             <div className="modlist-quick-actions" role="group" aria-label="Modlists">
-              <select
-                aria-label="Load a modlist"
-                value=""
-                disabled={loadable.length === 0}
-                onChange={(e) => setLoadingModlist(loadable.find((m) => m.id === e.target.value) ?? null)}
-              >
-                <option value="">{loadable.length ? "Load a modlist…" : "No saved modlists"}</option>
-                {loadable.map((m) => (
-                  <option key={m.id} value={m.id}>{m.active ? `${m.name} (active)` : m.name}</option>
-                ))}
-              </select>
+              <button type="button" disabled={loadable.length === 0} title={loadable.length ? undefined : "No saved modlists"} onClick={() => setPicking(true)}>
+                <Icon name="lists" />Load a modlist…
+              </button>
               <button type="button" onClick={() => setSavingModlist(true)}>
                 <Icon name="save" />Save current mods…
               </button>
@@ -345,6 +339,16 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
               toast.success(`Saved "${s.name}" (${s.mods.length} mods).`);
             }}
             onClose={() => setSavingModlist(false)}
+          />
+        )}
+        {picking && (
+          <ModlistPicker
+            lists={loadable}
+            onPick={(entry) => {
+              setPicking(false);
+              setLoadingModlist(entry);
+            }}
+            onClose={() => setPicking(false)}
           />
         )}
         {loadingModlist && (
