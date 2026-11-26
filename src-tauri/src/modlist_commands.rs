@@ -404,6 +404,9 @@ pub async fn save_built_modlist(state: State<'_, AppState>, request: SaveBuiltMo
 #[specta::specta]
 pub async fn set_modlist_icon(state: State<'_, AppState>, id: String, icon: Option<String>, color: Option<String>) -> AppResult<ModlistSummary> {
     let s = store(&state);
+    if s.summary(&id)?.subscription.is_some() {
+        return Err(AppError::msg("This modlist follows an online modlist, so its author picks the icon. Stop following it to make it your own."));
+    }
     s.set_icon(&id, icon.as_deref(), color.as_deref())?;
     Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))
 }
