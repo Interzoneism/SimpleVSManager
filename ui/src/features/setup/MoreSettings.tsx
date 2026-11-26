@@ -30,10 +30,7 @@ export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
   return (
     <section className="settings-section" aria-labelledby="profiles-heading">
       <h2 id="profiles-heading">Game profiles</h2>
-      <p className="muted small">
-        Each profile has its own game folder, data folder (with its own mods) and target game version. Handy for a
-        modded and a vanilla setup, or several game versions.
-      </p>
+      <p className="muted small">Each profile has its own game folder, data folder and game version.</p>
       <div className="setting-row">
         <label htmlFor="profile">Profile</label>
         <select id="profile" value={s.activeProfile} disabled={change.isPending} onChange={(e) => change.mutate({ action: "switch", name: e.target.value })}>
@@ -56,7 +53,6 @@ export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
         <button
           type="button"
           disabled={!newName.trim() || change.isPending}
-          title="Creates the profile with auto-detected folders and switches to it"
           onClick={() => change.mutate({ action: "switch", name: newName }, { onSuccess: () => setNewName("") })}
         >
           <Icon name="plus" />Add profile
@@ -67,7 +63,7 @@ export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
             value=""
             onChange={async (e) => {
               const name = e.target.value;
-              if (name && (await ask(`Delete the profile "${name}"? Its folders aren't touched.`, { title: "Delete profile", kind: "warning" })))
+              if (name && (await ask(`Delete the profile "${name}"? Its folders are kept.`, { title: "Delete profile", kind: "warning" })))
                 change.mutate({ action: "delete", name });
             }}
           >
@@ -80,7 +76,7 @@ export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
   );
 }
 
-/** Whole data folder backups (saves, settings, mods), compatible with 2.x. */
+/** Whole data folder backups (saves, settings, mods). */
 export function BackupSettings({ env, os }: { env: DetectedEnvironment; os: string }) {
   const s = env.settings;
   const prefs = useMorePreferences();
@@ -100,22 +96,19 @@ export function BackupSettings({ env, os }: { env: DetectedEnvironment; os: stri
 
   const doRestore = async (id: string, when: string, sameFolder: boolean) => {
     const ok = await ask(
-      `Replace everything in the data folder with the backup from ${when}?${sameFolder ? "" : "\n\nThis backup was made from a different data folder."}\n\nYour current data folder is backed up first, so you can go back.`,
+      `Restore the backup from ${when}?${sameFolder ? "" : "\n\nIt's from a different data folder."}\n\nYour current data folder is backed up first.`,
       { title: "Restore backup", kind: "warning", okLabel: "Restore", cancelLabel: "Cancel" },
     );
-    if (ok) restore.mutate({ id, safety: true }, { onSuccess: () => toast.success("Restored. The previous state was saved as a backup.") });
+    if (ok) restore.mutate({ id, safety: true }, { onSuccess: () => toast.success("Backup restored.") });
   };
 
   return (
     <section className="settings-section" aria-labelledby="backups-heading">
       <h2 id="backups-heading">Data folder backups</h2>
-      <p className="muted small">
-        A backup holds the whole VintagestoryData folder: worlds, settings, mods and configs. Worlds that didn't change are
-        stored only once. Simple VS Manager 2.x can restore these too.
-      </p>
+      <p className="muted small">Worlds, settings, mods and configs.</p>
       <label className="checkbox-row">
         <input type="checkbox" checked={s.autoDataBackups} disabled={prefs.isPending} onChange={(e) => prefs.mutate({ autoDataBackups: e.target.checked })} />
-        Back up before every launch (big worlds make starting slower)
+        Back up before every launch
       </label>
       <div className="setting-row">
         <label htmlFor="max-backups">Keep</label>
@@ -181,7 +174,6 @@ function samePath(a: string, b: string, os: string) {
   return os === "windows" ? norm(a).toLowerCase() === norm(b).toLowerCase() : norm(a) === norm(b);
 }
 
-/** Theme and logging. */
 /** Quick switch for modlists (stored with the layout preferences, like the Modlists page reads it). */
 export function ModlistSettings() {
   const [remembered, setRemembered] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch", "review");
@@ -194,7 +186,7 @@ export function ModlistSettings() {
       <h2 id="modlist-settings-heading">Modlists</h2>
       <label className="checkbox-row">
         <input type="checkbox" checked={on} onChange={(e) => setRemembered(e.target.checked ? lastConfigs : "review")} />
-        Quick switch: switch to a modlist in one step, without the review dialog
+        Quick switch (skip the review step)
       </label>
       {on && (
         <div className="setting-row">
@@ -215,7 +207,7 @@ export function ModlistSettings() {
       )}
       <label className="checkbox-row">
         <input type="checkbox" checked={showServerCommands} onChange={(e) => setShowServerCommands(e.target.checked)} />
-        Show a "Copy server commands" button on modlist details
+        Show "Copy server commands" button
       </label>
     </section>
   );
@@ -236,16 +228,15 @@ export function AppearanceSettings({ env }: { env: DetectedEnvironment }) {
           <option value="darkVs">Dark VS</option>
           <option value="dark">Dark</option>
           <option value="light">Light</option>
-          {hasCustom && <option value="custom">Your earlier colors</option>}
+          {hasCustom && <option value="custom">Custom</option>}
         </select>
       </div>
       <label className="checkbox-row">
         <input type="checkbox" checked={s.verboseLogging} onChange={(e) => prefs.mutate({ verboseLogging: e.target.checked })} />
-        Detailed logging (for troubleshooting; takes effect at the next start)
+        Detailed logging (after restart)
       </label>
       <div className="setting-row">
         <button type="button" onClick={() => openFolder.mutate("appLogs")}><Icon name="folder" />Open log folder</button>
-        <span className="muted small">The manager's own log files, to attach when you report a problem.</span>
       </div>
     </section>
   );

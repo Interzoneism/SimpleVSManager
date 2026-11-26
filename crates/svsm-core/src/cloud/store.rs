@@ -28,10 +28,10 @@ pub struct PlayerIdentity {
 impl PlayerIdentity {
     pub fn new(uid: Option<String>, name: Option<String>) -> CloudResult<Self> {
         let uid = uid.map(|u| u.trim().to_string()).filter(|u| !u.is_empty()).ok_or_else(|| {
-            CloudError::Invalid("clientsettings.json has no player id yet. Start the game once so it creates one.".into())
+            CloudError::Invalid("No player ID yet. Start the game once first.".into())
         })?;
         let name = name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()).ok_or_else(|| {
-            CloudError::Invalid("clientsettings.json has no player name. Set one in the game before using online modlists.".into())
+            CloudError::Invalid("No player name yet. Set one in the game first.".into())
         })?;
         Ok(Self { uid, name })
     }

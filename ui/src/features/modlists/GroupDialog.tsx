@@ -40,10 +40,6 @@ export function GroupDialog({ group, all, initialMembers, onSaved, onClose }: Pr
       </div>
       <section className="config-picker">
         <h3>Modlists in the group ({members.length})</h3>
-        <p className="muted small">
-          Loading the group installs every mod from these lists. When two lists disagree about a mod, the newest version
-          wins unless you pick another one in the group's details.
-        </p>
         <ul className="check-list">
           {outside.map((m) => (
             <li key={m.reference}>

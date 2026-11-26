@@ -93,7 +93,7 @@ export function UpdateDialog({ mods, db, progress, running, report, onStart, onC
           })}
         </ul>
         <div className="modal-actions">
-          {report?.cancelled && <span className="muted small">Cancelled; the rest were left as they were.</span>}
+          {report?.cancelled && <span className="muted small">Cancelled.</span>}
           <span className="header-spacer" />
           {running ? (
             <button type="button" onClick={() => void cancelUpdates()}>

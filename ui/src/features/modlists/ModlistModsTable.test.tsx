@@ -25,7 +25,7 @@ beforeEach(() => {
 test("library status and sorting", () => {
   expect(libraryStatus("1.8.0", cards[0])?.label).toBe("Installed");
   expect(libraryStatus("1.2.0", cards[1])?.label).toBe("In library");
-  expect(libraryStatus("1.0.0", cards[2])).toMatchObject({ label: "Other version", detail: "0.9.0 is installed; loading the list switches it" });
+  expect(libraryStatus("1.0.0", cards[2])).toMatchObject({ label: "Other version", detail: "0.9.0 is installed" });
   expect(libraryStatus("1.0.0", card("x", "X", null))?.label).toBe("Not downloaded");
   expect(libraryStatus("1.0.0", undefined)).toBeNull();
 

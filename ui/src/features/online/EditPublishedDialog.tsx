@@ -44,7 +44,7 @@ export function EditPublishedDialog({ list: e, onDone, onClose }: { list: Publis
     <Modal title="Edit published modlist" onClose={onClose} busy={save.isPending}>
       <div className="form-grid">
         <label className="form-label" htmlFor="ep-name">Name</label>
-        <input id="ep-name" type="text" value={name} disabled title="The name of a published modlist can't be changed" />
+        <input id="ep-name" type="text" value={name} disabled title="Can't be changed" />
         <span className="form-label">Icon</span>
         <div className="icon-field">
           <button type="button" className={`details-icon-button${iconThemeClass(iconColor)}`} aria-label="Choose an icon" title="Choose an icon" onClick={() => setPicking(true)}>
@@ -57,10 +57,7 @@ export function EditPublishedDialog({ list: e, onDone, onClose }: { list: Publis
         <label className="form-label" htmlFor="ep-gv">For game version</label>
         <input id="ep-gv" type="text" value={gameVersion} onChange={(ev) => setGameVersion(ev.target.value)} />
       </div>
-      <p className="muted small">
-        This keeps revision {e.revision} and doesn't notify followers. To change the mods, update the saved modlist and
-        publish its changes: that makes a new revision{e.subscribers > 0 ? ` and tells your ${e.subscribers} follower${e.subscribers === 1 ? "" : "s"}` : ""}.
-      </p>
+      <p className="muted small">Followers aren't notified.</p>
       <div className="modal-actions">
         <span className="header-spacer" />
         <button type="button" onClick={onClose} disabled={save.isPending}><Icon name="close" />Cancel</button>

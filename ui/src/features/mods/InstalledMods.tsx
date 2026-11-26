@@ -176,13 +176,13 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
 
   const dbProblem = refreshDb.error?.message ?? moddb.data?.error ?? null;
   useEffect(() => {
-    if (dbProblem) toast.warning(`Some mods couldn't be checked, so older data is shown: ${dbProblem}`, { id: "moddb-check", title: "Mod DB check incomplete" });
+    if (dbProblem) toast.warning(`Some mods couldn't be checked: ${dbProblem}`, { id: "moddb-check", title: "Mod DB check incomplete" });
   }, [dbProblem]);
 
   if (!enabled) {
     return (
       <p className="empty-state">
-        The Vintage Story data folder wasn't found. Pick it on the <strong>Settings</strong> tab.
+        Data folder not found. Set it in <strong>Settings</strong>.
       </p>
     );
   }
@@ -259,7 +259,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
                   <option key={m.id} value={m.id}>{m.active ? `${m.name} (active)` : m.name}</option>
                 ))}
               </select>
-              <button type="button" title="Save the enabled mods as a new modlist" onClick={() => setSavingModlist(true)}>
+              <button type="button" onClick={() => setSavingModlist(true)}>
                 <Icon name="save" />Save current mods…
               </button>
             </div>
@@ -276,7 +276,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
             <button
               type="button"
               disabled={checking || busy || dbState?.offline}
-              title={dbState?.offline ? "Offline mode is on (Settings)" : "Look up every mod on the Mod DB now"}
+              title={dbState?.offline ? "Offline mode is on" : undefined}
               onClick={() => refreshDb.mutate("force")}
             >
               <Icon name="refresh" />Check for updates
@@ -318,7 +318,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
               </div>
             ) : (
               <div className="empty-state">
-                <p>No mods match the current filters.</p>
+                <p>No mods match.</p>
                 <button type="button" onClick={() => { setSearch(""); setStatus("all"); }}><Icon name="eraser" />Clear filters</button>
               </div>
             )}
@@ -342,7 +342,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
             existing={modlists.data ?? []}
             onSaved={(s) => {
               setSavingModlist(false);
-              toast.success(`Saved "${s.name}" (${s.mods.length} mods). Find it on the Modlists page.`);
+              toast.success(`Saved "${s.name}" (${s.mods.length} mods).`);
             }}
             onClose={() => setSavingModlist(false)}
           />

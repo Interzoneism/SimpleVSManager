@@ -114,7 +114,7 @@ fn walk(mods: &[InstalledMod], deps: &[Dependency], visited: &mut HashSet<String
                 _ => plan.problems.push(DependencyProblem {
                     mod_id: dep.mod_id.clone(),
                     message: format!(
-                        "Needs {}, but the installed copy is a loose file that can't be updated automatically.",
+                        "Needs {}, but the installed copy can't be updated automatically.",
                         describe(dep)
                     ),
                 }),

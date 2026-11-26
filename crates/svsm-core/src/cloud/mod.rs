@@ -61,13 +61,13 @@ pub enum CloudError {
     Offline,
     #[error("Couldn't reach the cloud: {0}")]
     Http(String),
-    #[error("The cloud refused this ({0}). It may not be allowed, or the sign-in expired.")]
+    #[error("Not allowed ({0}). Your sign-in may have expired.")]
     Denied(String),
     #[error("The cloud sent something unexpected: {0}")]
     BadResponse(String),
-    #[error("Couldn't sign in to the cloud: {0}. Your saved identity (firebase-auth.json) was kept as it is.")]
+    #[error("Couldn't sign in: {0}")]
     SignIn(String),
-    #[error("Your cloud identity is from the old Simple VS Manager cloud project. Publishing and reports need the one-time move to the new project.")]
+    #[error("Move your account to publish and send reports.")]
     LegacyIdentity,
     #[error("{0}")]
     Invalid(String),

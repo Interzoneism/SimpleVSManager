@@ -46,7 +46,7 @@ export function describePlan(plan: ApplyPlan, configs: number, importConfigs: bo
   const lines: string[] = [];
   if (plan.install.length) lines.push(`Install ${plural(plan.install.length, "missing mod")}`);
   if (plan.changeVersion.length) lines.push(`Switch ${plural(plan.changeVersion.length, "mod")} to another version`);
-  if (plan.remove.length) lines.push(`Put away ${plural(plan.remove.length, "mod")} that aren't in the list (kept in your mod library)`);
+  if (plan.remove.length) lines.push(`Remove ${plural(plan.remove.length, "mod")} not in the list`);
   if (plan.toggles) lines.push(`Turn ${plural(plan.toggles, "mod")} on or off`);
   if (plan.disabledEntries) lines.push("Set which mods are disabled");
   if (configs && importConfigs) lines.push(`Overwrite ${plural(configs, "config file")}`);

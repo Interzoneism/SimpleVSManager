@@ -66,7 +66,7 @@ test("shows detected folders, version, warnings and settings", () => {
   expect(screen.getByRole("button", { name: "Change folder…" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Move back to default" })).not.toBeInTheDocument();
   // No custom shortcut yet.
-  expect(screen.getByText(/Launch starts the game directly/)).toBeInTheDocument();
+  expect(screen.getByText("Off")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Choose…" })).toBeInTheDocument();
   expect(screen.getByRole("checkbox", { name: /Close the manager/ })).toBeChecked();
 });

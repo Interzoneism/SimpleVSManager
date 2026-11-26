@@ -187,7 +187,7 @@ impl AppState {
         let data = env
             .data_dir
             .filter(|d| d.exists)
-            .ok_or_else(|| AppError::msg("The Vintage Story data folder wasn't found. Pick it under Folders."))?;
+            .ok_or_else(|| AppError::msg("Data folder not found. Set it in Settings."))?;
         Ok((PathBuf::from(data.path), env.game_dir.map(|g| PathBuf::from(g.path))))
     }
 

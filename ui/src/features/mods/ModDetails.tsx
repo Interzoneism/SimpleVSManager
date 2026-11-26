@@ -37,7 +37,7 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
         <div className="details-empty-text">
           <span className="empty-icon"><Icon name="panel" /></span>
           <h2>Mod details</h2>
-          <p className="muted">Select a mod to see its versions, dependencies, and settings.</p>
+          <p className="muted">Select a mod.</p>
         </div>
       </aside>
     );
@@ -110,7 +110,7 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
               {mod.missingDependencies.map((d) => (
                 <li key={d.modId}>
                   It needs <strong>{d.modId}</strong>
-                  {d.version && d.version !== "*" ? ` ${d.version} or newer` : ""}, which isn't installed.
+                  {d.version && d.version !== "*" ? ` ${d.version} or newer` : ""}.
                 </li>
               ))}
             </ul>
@@ -136,11 +136,11 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
           </button>
         )}
         {onEditConfig && mod.modId && (
-          <button type="button" title="Edit this mod's config files" onClick={() => onEditConfig(mod.modId)}>
+          <button type="button" onClick={() => onEditConfig(mod.modId)}>
             <Icon name="config" />Config
           </button>
         )}
-        <button type="button" title="Show the mod file in your file manager" onClick={() => reveal.mutate(mod.key)}>
+        <button type="button" onClick={() => reveal.mutate(mod.key)}>
           <Icon name="folder" />Folder
         </button>
         {mod.website && (
@@ -249,7 +249,7 @@ function ModDbPanel(props: {
   if (!summary) {
     return (
       <Section title="Mod DB">
-        <p className="muted small">Not found on the Mod DB (or not checked yet).</p>
+        <p className="muted small">Not found on the Mod DB.</p>
       </Section>
     );
   }
@@ -286,7 +286,7 @@ function ModDbPanel(props: {
       )}
       {summary.installedMayBeIncompatible && (
         <p className="callout callout-warn small">
-          The installed version is made for {summarizeVersions(summary.installedReleaseGameVersions)}, not your game version.
+          Made for {summarizeVersions(summary.installedReleaseGameVersions)}, not your game version.
         </p>
       )}
 
@@ -299,7 +299,6 @@ function ModDbPanel(props: {
         />
         <span>
           Include in updates
-          <span className="muted small">Turn off to keep this version when you update everything.</span>
         </span>
       </label>
       {(summary.update || summary.skippedVersion) && (
@@ -309,7 +308,6 @@ function ModDbPanel(props: {
               type="button"
               className="link-button small"
               disabled={prefs.isPending}
-              title="Don't offer this version again; newer ones will still be offered"
               onClick={() => prefs.mutate({ skip: { modId: mod.modId, version: summary.update!.version } })}
             >
               <Icon name="skip" size={13} />Skip {summary.update.version}

@@ -266,9 +266,7 @@ pub async fn sync_subscription(state: State<'_, AppState>, id: String) -> AppRes
     let local = s.load(&id)?.modlist;
     let sub = local.online_subscription.clone().ok_or_else(|| AppError::msg("That modlist doesn't follow an online modlist."))?;
     let registry_id = sub.registry_id.clone().unwrap_or_default();
-    let (entry, mut list) = fetch_online(&state, &registry_id)
-        .await
-        .map_err(|e| AppError::msg(format!("{} You can stop following it to keep it as a normal modlist.", e.message)))?;
+    let (entry, mut list) = fetch_online(&state, &registry_id).await?;
     // A followed list is exactly what the author published, icon included.
     let now = chrono::Utc::now().to_rfc3339();
     list.online_subscription = Some(OnlineSubscription {
@@ -303,7 +301,7 @@ pub async fn unsubscribe(state: State<'_, AppState>, id: String) -> AppResult<Mo
 // ---------------------------------------------------------------------------------------------
 
 pub(crate) const SLOT_LIMIT_MESSAGE: &str =
-    "You already have 5 published modlists, the most the cloud allows. Unpublish one of them first, then publish this one.";
+    "You can publish up to 5 modlists. Unpublish one first.";
 
 #[derive(Debug, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -458,11 +456,11 @@ pub async fn publish_saved_modlist(state: State<'_, AppState>, id: String) -> Ap
     let s = ModlistStore::new(&state.manager_dir());
     let loaded = s.load(&id)?;
     if loaded.kind != ModlistKind::Modlist {
-        return Err(AppError::msg("Only saved modlists can be published, not groups or backups. Load it and save your mods as a modlist first."));
+        return Err(AppError::msg("Only saved modlists can be published."));
     }
     let mut list = loaded.modlist;
     if list.online_subscription.is_some() {
-        return Err(AppError::msg("This modlist follows someone else's online modlist. Stop following it first to publish it as your own."));
+        return Err(AppError::msg("Stop following this modlist to publish it."));
     }
     let texts = [list.name.as_deref(), list.description.as_deref(), Some(me.name.as_str())];
     if let Some(word) = validator::find_blocked(texts.into_iter().flatten()) {
@@ -699,7 +697,7 @@ pub async fn move_cloud_identity(state: State<'_, AppState>) -> AppResult<svsm_c
     }
     let manager = state.manager_dir();
     if !svsm_core::cloud::migrate::is_legacy_identity(&manager) {
-        return Err(AppError::msg("Your cloud identity is already on the current project."));
+        return Err(AppError::msg("Your account is already moved."));
     }
     let me = player(&state)?;
     let _run = state.update_lock.lock().await;

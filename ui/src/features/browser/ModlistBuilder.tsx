@@ -18,7 +18,7 @@ export function BuilderToggle() {
       type="button"
       className={`builder-toggle${b.open ? " active" : ""}`}
       aria-pressed={b.open}
-      title={b.open ? "Hide the modlist builder (your list is kept)" : "Build a modlist by dragging mods into it"}
+      title={b.open ? "Hide modlist builder" : "Modlist builder"}
       onClick={() => builder.setOpen(!b.open)}
     >
       <Icon name="lists" />
@@ -93,7 +93,7 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
       {
         onSuccess: (list) => {
           builder.saved(list);
-          toast.success(`Saved “${list.name}”. Load it from the Modlists page.`);
+          toast.success(`Saved “${list.name}”.`);
         },
       },
     );
@@ -152,7 +152,7 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
         empty={
           <div className="builder-empty">
             <strong>Drag mods here</strong>
-            <span className="muted">Drag cards from the Mod DB into this list, or right-click a card. Drag a mod out of the list to remove it.</span>
+            <span className="muted">Drag a mod out to remove it.</span>
           </div>
         } />
       <div className="builder-footer">
@@ -166,7 +166,7 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
           <Icon name="close" />Cancel
         </button>
         <button type="button" className="primary" disabled={!canSave}
-          title={!b.entries.length ? "Add some mods first" : !b.sourceId && !b.name.trim() ? "Give the new modlist a name" : undefined}
+          title={!b.entries.length ? "Add some mods first" : !b.sourceId && !b.name.trim() ? "Name the modlist" : undefined}
           onClick={doSave}>
           <Icon name="save" />{save.isPending ? "Saving…" : b.sourceId ? "Save changes" : "Save modlist"}
         </button>

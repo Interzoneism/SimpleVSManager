@@ -35,7 +35,7 @@ fn offer_message(info: &ModDbInfo, release: &ModDbRelease) -> String {
         Some(c) if !same_version(&c.version, &release.version) => {
             format!("Update available: {} (latest compatible: {})", release.version, c.version)
         }
-        _ => format!("Update available: {} (may be incompatible with your Vintage Story version)", release.version),
+        _ => format!("Update available: {} (may not work with your game version)", release.version),
     }
 }
 

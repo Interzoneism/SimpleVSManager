@@ -80,7 +80,7 @@ export function SaveModlistDialog({ existing, onSaved, onClose }: Props) {
         <button
           type="button"
           className={`save-hero-icon${iconThemeClass(iconColor)}`}
-          title="Choose an icon and colors"
+          title="Change icon"
           aria-label="Choose an icon"
           onClick={() => setPicking(true)}
         >
@@ -142,7 +142,6 @@ export function SaveModlistDialog({ existing, onSaved, onClose }: Props) {
             </div>
           )}
         </div>
-        <p className="muted small save-configs-help">Included files are copied to anyone who loads the modlist, so they get your settings too.</p>
         {defaults.isPending && <p className="muted small">Looking for config files…</p>}
         {defaults.isSuccess && candidates.length === 0 && <p className="muted small">No config files in the ModConfig folder.</p>}
         {candidates.length > 0 && (
@@ -168,7 +167,7 @@ export function SaveModlistDialog({ existing, onSaved, onClose }: Props) {
         </div>
       )}
       <div className="modal-actions">
-        {clash && !warnings.length && <span className="warn-text small">A modlist with this name exists and will be replaced.</span>}
+        {clash && !warnings.length && <span className="warn-text small">Replaces the modlist with this name.</span>}
         <span className="header-spacer" />
         {warnings.length ? (
           <button type="button" className="primary" onClick={onClose}><Icon name="close" />Close</button>

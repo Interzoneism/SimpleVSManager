@@ -25,8 +25,8 @@ interface Props {
 }
 
 const MODES: { mode: LoadMode; label: string; hint: string }[] = [
-  { mode: "replace", label: "Switch to this list", hint: "Your Mods folder ends up with exactly this list. Other mods go to your mod library when possible, so you can switch back without downloading." },
-  { mode: "add", label: "Add to my mods", hint: "Install what's missing, match versions and on/off. Your other mods stay." },
+  { mode: "replace", label: "Switch to this list", hint: "Your mods will match this list exactly." },
+  { mode: "add", label: "Add to my mods", hint: "Your other mods stay." },
   { mode: "statesOnly", label: "Just switch mods on and off", hint: "Nothing is downloaded or removed." },
 ];
 
@@ -94,7 +94,7 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
     const done = [
       report.installed && `installed ${report.installed}`,
       report.changed && `changed the version of ${report.changed}`,
-      report.toLibrary && `put ${report.toLibrary} away in your mod library`,
+      report.toLibrary && `moved ${report.toLibrary} to your mod library`,
       report.removed - report.toLibrary && `moved ${report.removed - report.toLibrary} to the ${trash}`,
       report.toggled && `switched ${report.toggled} on or off`,
       report.configsWritten && `wrote ${report.configsWritten} config file${report.configsWritten === 1 ? "" : "s"}`,
@@ -102,7 +102,7 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
     return (
       <Modal title={report.failures.length ? `Loaded "${title}" with problems` : `Loaded "${title}"`} onClose={onClose}>
         <p>{done.length ? `Done: ${done.join(", ")}.` : "Nothing needed to change."}</p>
-        {report.cancelled && <p className="warn-text">Stopped early; the rest was left as it was.</p>}
+        {report.cancelled && <p className="warn-text">Stopped early.</p>}
         {report.failures.length > 0 && (
           <div className="notice error-text">
             These didn't work:
@@ -118,7 +118,7 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
         <div className="modal-actions">
           {report.backupId && (
             <button type="button" className="link-button small" onClick={() => onShowBackup(report.backupId!)}>
-              <Icon name="backup" size={13} />Your previous mods were saved as a backup
+              <Icon name="backup" size={13} />Show backup of previous mods
             </button>
           )}
           <span className="header-spacer" />
@@ -161,13 +161,13 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
             <div className="plan">
               <p className="muted small">
                 {p.modCount} mod{p.modCount === 1 ? "" : "s"} in the list
-                {!p.hasVersions && mode !== "statesOnly" && " · no versions saved, so missing mods get their newest compatible release"}
+                {!p.hasVersions && mode !== "statesOnly" && " · newest versions"}
               </p>
               {plan.install.length + plan.changeVersion.length > 0 && (
                 <p className="muted small">
                   {p.fromLibrary > 0 && `${p.fromLibrary} from your mod library`}
                   {p.fromLibrary > 0 && p.toDownload > 0 && " · "}
-                  {p.toDownload > 0 && `${p.toDownload} to download from the Mod DB`}
+                  {p.toDownload > 0 && `${p.toDownload} to download`}
                 </p>
               )}
               {lines.length === 0 ? (
@@ -177,8 +177,7 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
               )}
               {plan.remove.length > 0 && (
                 <details>
-                  <summary>Mods that will be put away</summary>
-                  <p className="muted small">Mods that cannot be stored in the library go to the {trash}.</p>
+                  <summary>Mods to remove</summary>
                   <ul className="small">{plan.remove.map((r) => <li key={r.key}>{r.name}</li>)}</ul>
                 </details>
               )}
@@ -201,12 +200,12 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
               {p.configFiles.length > 0 && (
                 <label className="checkbox config-toggle">
                   <input type="checkbox" checked={importConfigs} onChange={(e) => setImportConfigs(e.target.checked)} />
-                  Use the list's config files ({p.configFiles.length}), replacing yours
+                  Use the list's config files ({p.configFiles.length})
                 </label>
               )}
               {p.conflicts.length > 0 && (
                 <p className="muted small">
-                  {p.conflicts.length} mod{p.conflicts.length === 1 ? " is" : "s are"} listed differently by the group's modlists; the choices shown in the group are used.
+                  {p.conflicts.length} mod{p.conflicts.length === 1 ? "" : "s"} listed differently in the group.
                 </p>
               )}
               {plan.skipped.length > 0 && <p className="warn-text small">Can't change: {plan.skipped.join(", ")}</p>}
@@ -214,8 +213,8 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
                 <label className="checkbox quick-switch-option">
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                   <span>
-                    <strong>Remember these options for Quick switch</strong>
-                    <span className="muted small block">Switch between saved modlists and groups without opening this review each time. Your current mods are still backed up.</span>
+                    <strong>Use Quick switch from now on</strong>
+                    <span className="muted small block">Skip this step next time.</span>
                   </span>
                 </label>
               )}

@@ -130,7 +130,7 @@ test("searches saved and online cards together and opens your copy in the shared
 test("keeps saved modlists available in offline mode", async () => {
   renderModlists(true);
   expect(await screen.findByRole("list", { name: "Saved modlists" })).toBeVisible();
-  expect(screen.getByText(/modlists are unavailable in offline mode/)).toBeVisible();
+  expect(screen.getByText("Offline mode is on.")).toBeVisible();
   expect(commands.cloudStatus).not.toHaveBeenCalled();
   expect(commands.onlineModlists).not.toHaveBeenCalled();
 });

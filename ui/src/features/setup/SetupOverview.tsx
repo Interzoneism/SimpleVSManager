@@ -18,8 +18,8 @@ import { useErrorToast } from "../../components/Toast";
 
 const SOURCE_LABELS: Record<PathSource, string> = {
   userSetting: "Chosen by you",
-  legacyConfig: "From your earlier Simple VS Manager settings",
-  customPointer: "Custom folder (CustomConfigFolder.txt)",
+  legacyConfig: "From your old settings",
+  customPointer: "Custom folder",
   detected: "Detected",
   default: "Default location",
 };
@@ -69,8 +69,7 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
 
   const moveManagerTo = async (parent: string | null, target: string) => {
     const ok = await ask(
-      `Move the manager's settings, modlists, backups and caches from\n${env.managerDir.path}\nto\n${target}?\n\n` +
-        "Files with the same name already there are replaced. Simple VS Manager 2.x keeps looking in the old place unless you move its folder too. The manager restarts afterwards.",
+      `Move the manager folder to\n${target}?\n\nFiles with the same name there are replaced. The manager restarts afterwards.`,
       { title: "Move manager folder", kind: "warning", okLabel: "Move and restart", cancelLabel: "Cancel" },
     );
     if (!ok) return;
@@ -78,7 +77,7 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
       onSuccess: async (moved) => {
         await message(
           moved.oldFolderLeft
-            ? `Moved to ${moved.folder}. Some files in the old folder were in use and stayed behind; you can delete it after the restart.`
+            ? `Moved to ${moved.folder}. Some files were in use and stayed in the old folder.`
             : `Moved to ${moved.folder}. The manager restarts now.`,
           { title: "Manager folder moved" },
         );
@@ -109,7 +108,7 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
           title="Game folder"
           folder="game"
           detected={env.gameDir}
-          missingText="Vintage Story wasn't found. Choose the folder that contains it."
+          missingText="Vintage Story wasn't found."
           executable={env.gameExecutable ?? undefined}
           onChange={() => pick("Choose the Vintage Story game folder", env.gameDir?.path, (p) => setGame.mutate(p))}
           onReset={env.settings.gameDirectory ? () => setGame.mutate(null) : undefined}
@@ -157,7 +156,7 @@ export function EnvironmentDetails({ env }: { env: DetectedEnvironment }) {
   );
 }
 
-/** 2.x's "Set custom Vintage Story shortcut": Launch opens this file instead of the game. */
+/** Launch opens this file instead of the game. */
 function CustomShortcut({ env }: { env: DetectedEnvironment }) {
   const set = useSetCustomShortcut();
   useErrorToast(set.error);
@@ -174,7 +173,7 @@ function CustomShortcut({ env }: { env: DetectedEnvironment }) {
   return (
     <div className="setting-row custom-shortcut">
       <span>Launch through a shortcut</span>
-      {current ? <code className="path small">{current}</code> : <span className="muted small">Off: Launch starts the game directly with the data folder above.</span>}
+      {current ? <code className="path small">{current}</code> : <span className="muted small">Off</span>}
       <button type="button" disabled={set.isPending} onClick={() => void pick()}><Icon name="edit" />{current ? "Change…" : "Choose…"}</button>
       {current && <button type="button" disabled={set.isPending} onClick={() => set.mutate(null)}><Icon name="eraser" />Clear</button>}
     </div>
