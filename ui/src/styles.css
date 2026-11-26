@@ -622,7 +622,6 @@ button.library-stat[aria-pressed="true"] {
 /* content-visibility clips to the card, so draw the focus ring inside it. */
 .modlist-card:focus-visible { outline-offset: -2px; }
 .modlist-card { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; min-height: 0; }
-.modlist-card > .card-title { width: 100%; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modlist-card-icon {
   display: grid;
   place-items: center;
@@ -939,9 +938,16 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .changelog-toggle summary:hover { color: var(--palette-white); }
 .mod-window-changelog summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--palette-grey); }
 .section-toolbar { margin: -2px 0 10px; }
-.modlist-card { position: relative; }
-.modlist-card:has(.card-following) > .card-title { padding-right: 22px; }
-.card-following { position: absolute; top: 13px; right: 12px; color: var(--accent); display: grid; place-items: center; }
+/* The title row: the title takes what's left beside the corner icons (follower count, following,
+ * published), which sit together on the right. */
+.modlist-card-head { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.modlist-card-head > .card-title { flex: 1; min-width: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modlist-card-corner { display: flex; align-items: center; gap: 8px; flex: none; height: 20px; }
+.modlist-card-corner > span { display: flex; align-items: center; }
+.card-followers { gap: 4px; color: var(--palette-text-secondary, var(--palette-grey)); }
+.card-followers .ui-icon { width: 17px; height: 17px; stroke-width: 2.2; }
+.card-followers strong { font-size: 15px; line-height: 1; font-weight: 700; color: var(--palette-white); font-variant-numeric: tabular-nums; }
+.card-following { color: var(--accent); }
 .card-following .ui-icon { width: 18px; height: 18px; stroke-width: 2.2; }
 /* Published saved modlists: a thicker, warmer border (1px less padding keeps the size) and a
  * cloud in the corner. */
@@ -955,8 +961,7 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 /* Followed modlists (read-only copies of someone else's): a slightly tinted border. */
 .modlist-card.following { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .modlist-card.following.selected { border-color: var(--accent); }
-.modlist-card:has(.card-published) > .card-title { padding-right: 24px; }
-.card-published { position: absolute; top: 12px; right: 11px; color: var(--published, var(--palette-warning)); display: grid; place-items: center; }
+.card-published { color: var(--published, var(--palette-warning)); }
 .card-published .ui-icon { width: 20px; height: 20px; stroke-width: 2; }
 .badge.published-badge { background: color-mix(in srgb, var(--palette-warning) 22%, transparent); color: var(--palette-warning); }
 .publish-notice { border-left-color: var(--palette-warning); }

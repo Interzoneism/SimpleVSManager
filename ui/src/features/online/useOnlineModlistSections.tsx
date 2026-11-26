@@ -92,7 +92,7 @@ export function useOnlineModlistSections({
       <><strong>{entry.mods.length}</strong> mod{entry.mods.length === 1 ? "" : "s"}</>,
       entry.gameVersion ? `VS ${entry.gameVersion}` : "Any game version",
     ];
-    const facts = [`Revision ${entry.revision}`, subscribers > 0 && `${subscribers} following`].filter((fact): fact is string => !!fact);
+    const facts = [`Revision ${entry.revision}`];
     return (
       <ModlistCard
         key={entry.registryId}
@@ -103,6 +103,7 @@ export function useOnlineModlistSections({
         rows={rows}
         facts={facts}
         date={entry.updatedMs ? formatAgo(entry.updatedMs) : undefined}
+        followers={subscribers}
         following={subscribed}
         selected={selected === entry.registryId}
         onSelect={() => onSelect(entry.registryId)}
