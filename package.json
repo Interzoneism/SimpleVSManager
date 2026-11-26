@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "tauri": "tauri",
-    "bindings": "cargo run --quiet --bin export-bindings",
+    "bindings": "cargo run --quiet -p simple-vs-manager --example export-bindings",
     "app:dev": "tauri dev",
     "app:build": "tauri build",
     "check": "cargo test --workspace && pnpm typecheck && pnpm test"

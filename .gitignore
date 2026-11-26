@@ -4,9 +4,6 @@ node_modules/
 /src-tauri/gen/
 *.log
 
-# Rust binaries folder, not a build output
-!/src-tauri/src/bin/
-
 # Firebase service-account keys (firebase/admin/recover-account.mjs)
 /firebase/admin/service-account*.json
 *-firebase-adminsdk-*.json
