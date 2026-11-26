@@ -86,6 +86,11 @@ fn release(v: &Value, target: Option<&str>, exact: bool) -> Option<ModDbRelease>
     })
 }
 
+/// The newest release's version of a raw `mod` object (the Mod DB lists releases newest first).
+pub fn latest_version(raw: &Value) -> Option<String> {
+    raw.get("releases")?.as_array()?.iter().filter(|r| r.is_object()).find_map(|r| release(r, None, false)).map(|r| r.version)
+}
+
 /// Builds the info for one mod. `target` is the effective target game version (`None` = any).
 pub fn build_info(mod_id: &str, raw: &Value, target: Option<&str>, exact: bool, fetched_ms: f64) -> ModDbInfo {
     let releases: Vec<ModDbRelease> = raw

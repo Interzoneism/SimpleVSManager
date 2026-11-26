@@ -718,6 +718,45 @@ pub async fn browse_thumbnails(state: State<'_, AppState>, mod_ids: Vec<String>)
     Ok(db.thumbnails(&mod_ids).await)
 }
 
+/// How long the newest version known for a browser card is trusted before it's looked up again.
+const CARD_VERSION_MAX_AGE_MS: f64 = 6.0 * 60.0 * 60_000.0;
+
+/// What players report about a mod's newest Mod DB release.
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CardReports {
+    pub version: String,
+    /// Reports per answer, best to worst (fully functional … crashes or freezes).
+    pub counts: Vec<u32>,
+}
+
+/// Player reports on the newest release of each browser card's mod, by lower-case mod id. Mods
+/// whose newest release isn't known are left out; `null` = nobody reported on that release yet.
+#[tauri::command]
+#[specta::specta]
+pub async fn browse_card_reports(state: State<'_, AppState>, mod_ids: Vec<String>) -> AppResult<HashMap<String, Option<CardReports>>> {
+    let db = state.moddb()?;
+    let now = moddb::dates::now_ms();
+    let mut mods = db.cached(&mod_ids);
+    let stale: Vec<String> = mod_ids
+        .iter()
+        .filter(|id| mods.get(&id.to_ascii_lowercase()).is_none_or(|c| now - c.fetched_ms > CARD_VERSION_MAX_AGE_MS || c.fetched_ms > now))
+        .cloned()
+        .collect();
+    if !stale.is_empty() {
+        mods.extend(db.lookup(&stale, false).await.mods);
+    }
+    let counts = crate::suggest::version_counts(&state).await;
+    let mut out = HashMap::new();
+    for id in &mod_ids {
+        let key = id.to_ascii_lowercase();
+        let Some(version) = mods.get(&key).and_then(|c| c.raw.as_ref()).and_then(parse::latest_version) else { continue };
+        let report = counts(&key, &version).map(|c| CardReports { version: version.clone(), counts: c.to_vec() });
+        out.insert(key, report);
+    }
+    Ok(out)
+}
+
 // ---------------------------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------------------------

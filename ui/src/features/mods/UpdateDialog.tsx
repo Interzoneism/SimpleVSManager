@@ -123,13 +123,19 @@ export function UpdateDialog({ mods, db, progress, running, report, onStart, onC
   );
 }
 
-export function Changelog({ modId, installed, target }: { modId: string; installed: string | null; target: string }) {
+export function Changelog({ modId, installed, target, collapsed }: {
+  modId: string;
+  installed: string | null;
+  target: string;
+  /** Show it folded away under a "Changelog" toggle. */
+  collapsed?: boolean;
+}) {
   const details = useModDbDetails(modId);
-  if (details.isPending) return <p className="muted small changelog">Loading changes…</p>;
+  if (details.isPending) return collapsed ? null : <p className="muted small changelog">Loading changes…</p>;
   if (details.isError) return <p className="error-text small changelog">{details.error.message}</p>;
   const releases = releasesBetween(details.data.info?.releases ?? [], installed, target);
-  if (releases.length === 0) return <p className="muted small changelog">No changelog.</p>;
-  return (
+  if (releases.length === 0) return collapsed ? null : <p className="muted small changelog">No changelog.</p>;
+  const body = (
     <div className="changelog">
       {releases.map((r) => (
         <section key={r.version}>
@@ -141,6 +147,15 @@ export function Changelog({ modId, installed, target }: { modId: string; install
         </section>
       ))}
     </div>
+  );
+  if (!collapsed) return body;
+  return (
+    <details className="changelog-toggle">
+      <summary>
+        Changelog <span className="muted">({releases.length === 1 ? "1 version" : `${releases.length} versions`})</span>
+      </summary>
+      {body}
+    </details>
   );
 }
 

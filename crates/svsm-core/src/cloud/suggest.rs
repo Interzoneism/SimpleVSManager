@@ -33,12 +33,16 @@ pub struct VoteSignals {
     pub voters: Vec<Vec<String>>,
     /// Per lower-case mod id: (working reports, not working/crashing reports).
     pub health: HashMap<String, (u32, u32)>,
+    /// Per lower-case mod id, per version (as reported): counts in [`VoteOption::ALL`] order.
+    #[serde(default)]
+    pub versions: HashMap<String, HashMap<String, [u32; 5]>>,
 }
 
 /// Turns the whole `compatVotes` tree into [`VoteSignals`]. Mod keys are URL-safe base64 of the id.
 pub fn parse_votes(tree: &Value) -> VoteSignals {
     let mut by_voter: HashMap<&str, HashSet<String>> = HashMap::new();
     let mut health: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut per_version: HashMap<String, HashMap<String, [u32; 5]>> = HashMap::new();
     let Some(mods) = tree.as_object() else { return VoteSignals::default() };
     for (mod_key, versions) in mods {
         let Some(mod_id) = decode_key(mod_key) else { continue };
@@ -47,15 +51,20 @@ pub fn parse_votes(tree: &Value) -> VoteSignals {
         // unknowable here, so a person with both kinds counts as both).
         let mut good: HashSet<&str> = HashSet::new();
         let mut bad: HashSet<&str> = HashSet::new();
-        for version in versions.values() {
+        for (version_key, version) in versions {
             let Some(users) = version.get("users").and_then(Value::as_object) else { continue };
+            let mut counts = [0u32; 5];
             for (user, rec) in users {
                 let Some(option) = rec.get("option").and_then(Value::as_str).and_then(VoteOption::parse) else { continue };
+                counts[option.index()] += 1;
                 if option.needs_comment() {
                     bad.insert(user.as_str());
                 } else {
                     good.insert(user.as_str());
                 }
+            }
+            if let (true, Some(v)) = (counts.iter().any(|&c| c > 0), decode_version(version_key)) {
+                per_version.entry(mod_id.clone()).or_default().insert(v, counts);
             }
         }
         if good.is_empty() && bad.is_empty() {
@@ -76,13 +85,19 @@ pub fn parse_votes(tree: &Value) -> VoteSignals {
         })
         .collect();
     voters.sort();
-    VoteSignals { etag: None, voters, health }
+    VoteSignals { etag: None, voters, health, versions: per_version }
 }
 
 fn decode_key(key: &str) -> Option<String> {
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(key.trim_end_matches('=')).ok()?;
     let id = String::from_utf8(bytes).ok()?.trim().to_lowercase();
     (!id.is_empty()).then_some(id)
+}
+
+fn decode_version(key: &str) -> Option<String> {
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(key.trim_end_matches('=')).ok()?;
+    let v = String::from_utf8(bytes).ok()?.trim().to_string();
+    (!v.is_empty()).then_some(v)
 }
 
 /// Reads `compatVotes` (public), reusing the cached copy when the ETag still matches.
@@ -93,7 +108,7 @@ pub struct VoteSignalSource {
 
 impl VoteSignalSource {
     pub fn new(config: CloudConfig, cache_dir: &Path) -> Self {
-        Self { config, cache_file: cache_dir.join("svsm3-vote-signals.json") }
+        Self { config, cache_file: cache_dir.join("svsm3-vote-signals-v2.json") }
     }
 
     pub fn cached(&self) -> Option<VoteSignals> {
@@ -141,13 +156,14 @@ pub struct Signals {
     /// Per mod: summed weight of the sets it's in.
     weight: HashMap<String, f64>,
     health: HashMap<String, (u32, u32)>,
+    versions: HashMap<String, HashMap<String, [u32; 5]>>,
     pub modlists: u32,
     pub voters: u32,
 }
 
 impl Signals {
     pub fn new(registry: &[RegistryEntry], votes: &VoteSignals) -> Self {
-        let mut s = Signals { health: votes.health.clone(), ..Default::default() };
+        let mut s = Signals { health: votes.health.clone(), versions: votes.versions.clone(), ..Default::default() };
         let mut seen_lists: HashSet<Vec<String>> = HashSet::new();
         for e in registry {
             let mut ids: Vec<String> =
@@ -177,6 +193,11 @@ impl Signals {
             *self.weight.entry(id.clone()).or_default() += w;
         }
         self.sets.push((ids, w));
+    }
+
+    /// Report counts for one mod version, in [`VoteOption::ALL`] order (`None` = no reports).
+    pub fn version_counts(&self, mod_id: &str, version: &str) -> Option<[u32; 5]> {
+        self.versions.get(&mod_id.trim().to_lowercase())?.get(version.trim()).copied()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -334,6 +355,7 @@ mod tests {
         assert_eq!(v.health["aculinaryartillery"], (0, 3));
         // a and b both report carryon + butchering; c only has bad reports.
         assert_eq!(v.voters, vec![vec!["butchering".to_string(), "carryon".to_string()]; 2]);
+        assert_eq!(v.versions["carryon"]["1.0"], [1, 1, 0, 0, 1]);
 
         let s = Signals::new(&lists(), &v);
         assert_eq!(s.voters, 2);
@@ -342,5 +364,7 @@ mod tests {
         let carry = r.iter().find(|x| x.mod_id == "carryon").unwrap();
         // Same lists as carryon, but reported broken: now below it.
         assert!(carry.score > culinary.score);
+        assert_eq!(s.version_counts("CarryOn", "1.0"), Some([1, 1, 0, 0, 1]));
+        assert_eq!(s.version_counts("carryon", "2.0"), None);
     }
 }

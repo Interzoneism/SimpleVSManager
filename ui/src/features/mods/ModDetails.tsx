@@ -355,7 +355,7 @@ function ModDbPanel(props: {
         </div>
       )}
       {(picked || summary.update) && (
-        <Changelog modId={mod.modId} installed={mod.version} target={picked || summary.update!.version} />
+        <Changelog modId={mod.modId} installed={mod.version} target={picked || summary.update!.version} collapsed />
       )}
       {details.data?.error && <p className="warn-text small">{details.data.error}</p>}
     </Section>
