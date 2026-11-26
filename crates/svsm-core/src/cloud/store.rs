@@ -41,6 +41,16 @@ impl PlayerIdentity {
     }
 }
 
+/// The player's slots belong to another `firebase-auth.json`. Names both ids so the author can
+/// move them (firebase/admin/recover-account.mjs).
+fn owned_elsewhere(identity: &PlayerIdentity, installation: &str) -> CloudError {
+    CloudError::Invalid(format!(
+        "Online modlists for this player are owned by another installation (a different firebase-auth.json). \
+         If you lost that file, contact Martin (the Simple VS Manager author) with your player id {} and this installation's id {installation} to get them back.",
+        identity.uid
+    ))
+}
+
 /// One public modlist.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -459,15 +469,11 @@ impl<'a> CloudStore<'a> {
         let owner = if r.status.is_success() { Self::json(&r)?.as_str().map(String::from) } else { None };
         match owner {
             Some(o) if o == r.user_id => Ok(()),
-            Some(_) => Err(CloudError::Invalid(
-                "Online modlists for this player are owned by another installation (a different firebase-auth.json).".into(),
-            )),
+            Some(_) => Err(owned_elsewhere(identity, &r.user_id)),
             None => {
                 let claim = self.send(reqwest::Method::PUT, &["owners", &key], None, Some(Value::String(r.user_id.clone()).to_string()), None).await?;
                 if matches!(claim.status.as_u16(), 401 | 403) {
-                    return Err(CloudError::Invalid(
-                        "Online modlists for this player are owned by another installation (a different firebase-auth.json).".into(),
-                    ));
+                    return Err(owned_elsewhere(identity, &claim.user_id));
                 }
                 Self::ok(&claim, "Claiming the player's cloud slots")
             }
@@ -831,7 +837,8 @@ mod tests {
         let store = CloudStore::new(&auth, CloudConfig::for_tests(&server.url()), t.path()).unwrap();
         server.mock("GET", "/db/owners/abc_def_1.json").match_query(Matcher::Any).with_body("\"someone\"").create();
         let err = rt().block_on(store.my_slots(&me())).unwrap_err();
-        assert!(err.to_string().contains("another installation"));
+        let msg = err.to_string();
+        assert!(msg.contains("another installation") && msg.contains("abc.def/1") && msg.contains("fb1"), "{msg}");
     }
 
     #[test]
