@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { CloudStatus, ModlistSummary, OnlineEntry, OnlineListing } from "../../bindings";
 import { commands } from "../../bindings";
 import { Modlists } from "./Modlists";
+import { Toaster } from "../../components/Toast";
 
 vi.mock("../../bindings", () => ({
   commands: { listModlists: vi.fn(), cloudStatus: vi.fn(), onlineModlists: vi.fn(), publishSavedModlist: vi.fn() },
@@ -61,6 +62,7 @@ function renderModlists(offline = false) {
   return render(
     <QueryClientProvider client={client}>
       <Modlists os="windows" offline={offline} droppedFile={null} onDroppedFileHandled={() => {}} />
+      <Toaster />
     </QueryClientProvider>,
   );
 }

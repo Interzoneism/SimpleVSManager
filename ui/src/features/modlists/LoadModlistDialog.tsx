@@ -3,6 +3,8 @@ import type { ApplyReport, LoadMode, ModlistKind, ModlistProgress, ModlistSource
 import { cancelUpdates, useApplyModlist, useModlistPreview, useModlistProgress, useUpdateProgress } from "../../api";
 import { defaultMode, describePlan, type QuickSwitchPreference } from "./modlistView";
 import { Modal } from "./Modal";
+import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 
 interface Props {
   os: Os;
@@ -39,6 +41,7 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
   const [percent, setPercent] = useState<number | null>(null);
   const preview = useModlistPreview(source, mode);
   const apply = useApplyModlist();
+  useErrorToast(apply.error);
 
   useModlistProgress(
     useCallback((p: ModlistProgress) => {
@@ -115,11 +118,11 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
         <div className="modal-actions">
           {report.backupId && (
             <button type="button" className="link-button small" onClick={() => onShowBackup(report.backupId!)}>
-              Your previous mods were saved as a backup
+              <Icon name="backup" size={13} />Your previous mods were saved as a backup
             </button>
           )}
           <span className="header-spacer" />
-          <button type="button" className="primary" onClick={onClose}>Close</button>
+          <button type="button" className="primary" onClick={onClose}><Icon name="close" />Close</button>
         </div>
       </Modal>
     );
@@ -218,24 +221,23 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
               )}
             </div>
           )}
-          {apply.isError && <p className="notice error-text">{apply.error.message}</p>}
         </>
       )}
       <div className="modal-actions">
         {!running && lines.length > 0 && <span className="muted small">Your current mods are backed up first.</span>}
         <span className="header-spacer" />
         {running ? (
-          <button type="button" onClick={() => void cancelUpdates()}>Stop after this one</button>
+          <button type="button" onClick={() => void cancelUpdates()}><Icon name="stop" />Stop after this one</button>
         ) : (
           <>
-            <button type="button" onClick={onClose}>Cancel</button>
+            <button type="button" onClick={onClose}><Icon name="close" />Cancel</button>
             {!checkingQuick && <button
               type="button"
               className="primary"
               disabled={!plan || lines.length === 0}
               onClick={confirm}
             >
-              {mode === "replace" ? "Switch" : "Load"}
+              <Icon name={mode === "replace" ? "swap" : "load"} />{mode === "replace" ? "Switch" : "Load"}
             </button>}
           </>
         )}

@@ -16,6 +16,7 @@ import { formatAgo, formatCount } from "../../lib/format";
 import { ModDetailsWindow } from "./ModDetailsWindow";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 import { SplitWorkspace } from "../../components/SplitWorkspace";
 import { pointIn, usePointerDrag } from "../../components/pointerDrag";
 import { recall, remember, useRememberedScroll } from "../../lib/pageMemory";
@@ -90,6 +91,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   const refresh = useRefreshCatalogue();
   const prefs = useUpdatePreferences();
   const openUrl = useOpenUrl();
+  useErrorToast(refresh.error ?? prefs.error ?? openUrl.error);
   const openMenu = useContextMenu();
 
   // New search: back to the first page. (Not when the page comes back with its old search.)
@@ -227,18 +229,17 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
             title={offline ? "Offline mode is on (Settings)" : "Download the Mod DB list again"}
             onClick={() => refresh.mutate()}
           >
-            {refresh.isPending ? "Refreshing…" : "Refresh"}
+            <Icon name="refresh" />{refresh.isPending ? "Refreshing…" : "Refresh"}
           </button>
         </div>
         {suggested && page?.suggestBasis && <SuggestBasisLine basis={page.suggestBasis} />}
-        {(results.error ?? refresh.error) && (
+        {results.error && (
           <p className="notice error-text">
             {offline && !page
               ? "Offline mode is on and the Mod DB list hasn't been downloaded yet."
-              : (results.error ?? refresh.error)!.message}
+              : results.error.message}
           </p>
         )}
-        {(prefs.error || openUrl.error) && <p className="notice error-text">{(prefs.error ?? openUrl.error)?.message}</p>}
         <div className="browse-scroll" ref={scrollRef}>
           {results.isPending && <p className="empty-state">Loading the Mod DB… (the first time takes a few seconds)</p>}
           {page && page.items.length === 0 && (
@@ -262,7 +263,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
           {page && page.items.length < page.total && (
             <div className="load-more">
               <button type="button" onClick={() => setQuery((q) => ({ ...q, limit: q.limit + PAGE }))}>
-                Show more ({formatCount(page.total - page.items.length)} left)
+                <Icon name="chevronDown" />Show more ({formatCount(page.total - page.items.length)} left)
               </button>
             </div>
           )}

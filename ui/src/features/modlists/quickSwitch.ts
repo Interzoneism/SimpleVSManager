@@ -1,3 +1,4 @@
+import { toast } from "../../components/Toast";
 import { useLayoutPreference } from "../../components/SplitWorkspace";
 import type { ApplyReport, Os } from "../../bindings";
 import type { QuickSwitchPreference } from "./modlistView";
@@ -27,4 +28,10 @@ export function quickSwitchNotice(title: string, report: ApplyReport | null, os:
   const trashed = report.removed - report.toLibrary;
   if (trashed > 0) parts.push(`Moved ${trashed} mod${trashed === 1 ? "" : "s"} to the ${os === "windows" ? "Recycle Bin" : "Trash"}.`);
   return { text: parts.join(" "), problems: parts.length > 1 };
+}
+
+/** Shows a finished Quick switch: a warning that stays until closed when something didn't load. */
+export function showQuickSwitchToast(notice: { text: string; problems: boolean }) {
+  if (notice.problems) toast.warning(notice.text, { id: "quick-switch", title: "Quick switch finished with problems", duration: null });
+  else toast.success(notice.text, { id: "quick-switch" });
 }

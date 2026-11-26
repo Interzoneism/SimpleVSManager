@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useEditPublished } from "../../api";
 import { Modal } from "../modlists/Modal";
 import { IconPicker, iconThemeClass, ModlistIcon } from "../modlists/ModlistIcon";
+import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 
 /** What the dialog edits: one of your published modlists. */
 export interface PublishedDetails {
@@ -19,6 +21,7 @@ export interface PublishedDetails {
  * game version. The name stays. */
 export function EditPublishedDialog({ list: e, onDone, onClose }: { list: PublishedDetails; onDone: (message: string) => void; onClose: () => void }) {
   const save = useEditPublished();
+  useErrorToast(save.error);
   const [icon, setIcon] = useState<string | null>(e.icon);
   const [iconColor, setIconColor] = useState<string | null>(e.iconColor);
   const [description, setDescription] = useState(e.description ?? "");
@@ -47,7 +50,7 @@ export function EditPublishedDialog({ list: e, onDone, onClose }: { list: Publis
           <button type="button" className={`details-icon-button${iconThemeClass(iconColor)}`} aria-label="Choose an icon" title="Choose an icon" onClick={() => setPicking(true)}>
             <ModlistIcon icon={icon} fallback="community" />
           </button>
-          <button type="button" className="link-button small" onClick={() => setPicking(true)}>Choose…</button>
+          <button type="button" className="link-button small" onClick={() => setPicking(true)}><Icon name="edit" size={13} />Choose…</button>
         </div>
         <label className="form-label" htmlFor="ep-desc">Description</label>
         <textarea id="ep-desc" rows={4} autoFocus value={description} onChange={(ev) => setDescription(ev.target.value)} />
@@ -58,12 +61,11 @@ export function EditPublishedDialog({ list: e, onDone, onClose }: { list: Publis
         This keeps revision {e.revision} and doesn't notify followers. To change the mods, update the saved modlist and
         publish its changes: that makes a new revision{e.subscribers > 0 ? ` and tells your ${e.subscribers} follower${e.subscribers === 1 ? "" : "s"}` : ""}.
       </p>
-      {save.isError && <p className="notice error-text">{save.error.message}</p>}
       <div className="modal-actions">
         <span className="header-spacer" />
-        <button type="button" onClick={onClose} disabled={save.isPending}>Cancel</button>
+        <button type="button" onClick={onClose} disabled={save.isPending}><Icon name="close" />Cancel</button>
         <button type="button" className="primary" disabled={save.isPending} onClick={submit}>
-          {save.isPending ? "Saving…" : "Save"}
+          <Icon name="save" />{save.isPending ? "Saving…" : "Save"}
         </button>
       </div>
       {picking && (

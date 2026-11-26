@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { UsageMod } from "../../bindings";
 import { useAnswerPlaySessions, useCloudStatus, usePlaySessions, useSubmitModReport } from "../../api";
 import { Modal } from "../modlists/Modal";
+import { Icon } from "../../components/Icon";
+import { toast, useErrorToast } from "../../components/Toast";
 
-/** Banner + dialog after several long play sessions: "did these mods work?" (feeds player reports). */
+const TOAST_ID = "confirm-working-mods";
+
+/** Notification + dialog after several long play sessions: "did these mods work?" (feeds player reports). */
 export function ConfirmMods({ enabled, onOpenMod }: { enabled: boolean; onOpenMod: (modId: string) => void }) {
   const status = useCloudStatus(enabled);
   const canReport = !!status.data && !status.data.offline && !status.data.legacyIdentity && !status.data.signInProblem;
@@ -15,7 +19,22 @@ export function ConfirmMods({ enabled, onOpenMod }: { enabled: boolean; onOpenMo
   const [sent, setSent] = useState(0);
 
   const data = sessions.data;
-  if (!canReport || !data?.due || data.mods.length === 0) return null;
+  const due = canReport && !!data?.due && data.mods.length > 0;
+  const longSessions = data?.longSessions ?? 0;
+  const modCount = data?.mods.length ?? 0;
+  useEffect(() => {
+    // Shown while the question is open and the dialog isn't; closing the dialog unanswered brings it back.
+    if (!due || open) return;
+    toast.info(`You've played ${longSessions} long sessions. Help other players: confirm which of your ${modCount} mods work.`, {
+      id: TOAST_ID,
+      title: "Did your mods work?",
+      duration: null,
+      action: { label: "Confirm working mods", icon: "check", onClick: () => setOpen(true) },
+    });
+    return () => toast.dismiss(TOAST_ID);
+  }, [due, open, longSessions, modCount]);
+  useErrorToast(submit.error);
+  if (!due || !data) return null;
   const chosen = worked ?? new Set(data.mods.map((m) => m.key));
 
   const send = async () => {
@@ -35,10 +54,6 @@ export function ConfirmMods({ enabled, onOpenMod }: { enabled: boolean; onOpenMo
 
   return (
     <>
-      <p className="notice banner">
-        You've played {data.longSessions} long sessions. Help other players: confirm which of your {data.mods.length} mods work.{" "}
-        <button type="button" className="link-button" onClick={() => setOpen(true)}>Confirm working mods</button>
-      </p>
       {open && (
         <Modal title="Confirm working mods" onClose={() => setOpen(false)} busy={submit.isPending}>
           <p className="muted small">
@@ -63,23 +78,22 @@ export function ConfirmMods({ enabled, onOpenMod }: { enabled: boolean; onOpenMo
                   <span className="muted small">{m.version} · VS {m.gameVersion}</span>
                 </label>
                 <button type="button" className="link-button small" onClick={() => { setOpen(false); onOpenMod(m.modId); }}>
-                  Had problems
+                  <Icon name="warning" size={13} />Had problems
                 </button>
               </li>
             ))}
           </ul>
           {submit.isPending && <p className="muted small">Sending {sent + 1} of {chosen.size}…</p>}
-          {submit.isError && <p className="notice error-text">{submit.error.message}</p>}
           <div className="modal-actions">
             <button type="button" className="link-button small" disabled={answer.isPending} onClick={() => answer.mutate({ keys: [], stop: true }, { onSuccess: () => setOpen(false) })}>
-              Don't ask again
+              <Icon name="bellOff" size={13} />Don't ask again
             </button>
             <span className="header-spacer" />
             <button type="button" disabled={answer.isPending} onClick={() => answer.mutate({ keys: data.mods.map((m) => m.key), stop: false }, { onSuccess: () => setOpen(false) })}>
-              Skip these
+              <Icon name="skip" />Skip these
             </button>
             <button type="button" className="primary" disabled={chosen.size === 0 || submit.isPending} onClick={() => void send()}>
-              Report {chosen.size} as working
+              <Icon name="check" />Report {chosen.size} as working
             </button>
           </div>
         </Modal>

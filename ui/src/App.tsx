@@ -10,6 +10,7 @@ import { ConfirmMods } from "./features/usage/ConfirmMods";
 import { ConfigEditor } from "./features/configs/ConfigEditor";
 import { HelpDialog } from "./features/help/HelpDialog";
 import { Icon, type IconName } from "./components/Icon";
+import { toast, Toaster, useErrorToast } from "./components/Toast";
 import { useLayoutPreference } from "./components/SplitWorkspace";
 
 // Memoized so a hidden page doesn't re-render whenever the app shell does (tab switches etc.).
@@ -97,6 +98,20 @@ export default function App() {
     }
     return () => applied.forEach((k) => root.style.removeProperty(k));
   }, [theme, palette]);
+  useErrorToast(launch.error, { title: "Couldn't launch Vintage Story" });
+  // A new manager version: shown once per run, until closed.
+  const update = managerUpdate.data;
+  useEffect(() => {
+    if (!update) return;
+    toast.info(`Simple VS Manager ${update.version} is available.`, {
+      id: "manager-update",
+      title: "Update available",
+      duration: null,
+      action: update.pageUrl ? { label: "Open the Mod DB page", icon: "external", onClick: () => openUrl.mutate(update.pageUrl!) } : undefined,
+    });
+    // openUrl is a fresh object each render; the toast only needs to appear when the update does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [update?.version, update?.pageUrl]);
   const shortcut = env.data?.settings.customShortcutPath;
   const canLaunch = !!shortcut || (!!env.data?.gameExecutable && dataReady);
 
@@ -139,7 +154,7 @@ export default function App() {
           <div className="header-spacer" />
           {env.data?.settings.offlineMode && (
             <button type="button" className="badge-button" title="Change offline mode in Settings" onClick={() => setTab("settings")}>
-              Offline
+              <Icon name="offline" size={13} />Offline
             </button>
           )}
           {env.data?.gameVersion && <span className="game-version">Vintage Story {env.data.gameVersion}</span>}
@@ -160,18 +175,7 @@ export default function App() {
             {launch.isPending ? "Launching…" : "Launch Vintage Story"}
           </button>
         </header>
-        {launch.isError && <p className="notice error-text banner">{launch.error.message}</p>}
         <ConfirmMods enabled={dataReady} onOpenMod={() => setTab("mods")} />
-        {managerUpdate.data && (
-          <p className="notice banner">
-            Simple VS Manager {managerUpdate.data.version} is available.{" "}
-            {managerUpdate.data.pageUrl && (
-              <button type="button" className="link-button" onClick={() => openUrl.mutate(managerUpdate.data!.pageUrl!)}>
-                Open the Mod DB page
-              </button>
-            )}
-          </p>
-        )}
         <main className="app-main" ref={main}>
           <div className="page-heading">
             <div className="page-title">
@@ -188,7 +192,7 @@ export default function App() {
               <span className="empty-icon"><Icon name="folder" /></span>
               <h2>Connect your game data folder</h2>
               <p className="muted">Choose your Vintage Story data folder to manage mods, modlists and configs.</p>
-              <button type="button" className="primary" onClick={() => setTab("settings")}>Open Settings</button>
+              <button type="button" className="primary" onClick={() => setTab("settings")}><Icon name="settings" />Open Settings</button>
             </div>
           )}
           {env.data && dataReady && (
@@ -220,6 +224,7 @@ export default function App() {
         </main>
       </div>
       {help && <HelpDialog onClose={() => setHelp(false)} />}
+      <Toaster />
     </div>
   );
 }

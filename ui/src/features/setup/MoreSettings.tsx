@@ -14,10 +14,13 @@ import {
   useRestoreDataBackup,
 } from "../../api";
 import { formatBytes } from "../../lib/format";
+import { Icon } from "../../components/Icon";
+import { toast, useErrorToast } from "../../components/Toast";
 
 /** Game profiles: separate game/data folders, switched in one click. */
 export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
   const change = useChangeProfile();
+  useErrorToast(change.error);
   const s = env.settings;
   const names = [s.activeProfile, ...s.profiles.map((p) => p.name).filter((n) => n !== s.activeProfile)];
   const [newName, setNewName] = useState("");
@@ -36,14 +39,14 @@ export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
           {names.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
         {renaming === null ? (
-          <button type="button" onClick={() => setRenaming(s.activeProfile)}>Rename</button>
+          <button type="button" onClick={() => setRenaming(s.activeProfile)}><Icon name="edit" />Rename</button>
         ) : (
           <>
             <input type="text" aria-label="New name" value={renaming} onChange={(e) => setRenaming(e.target.value)} />
             <button type="button" className="primary" onClick={() => change.mutate({ action: "rename", from: s.activeProfile, to: renaming }, { onSuccess: () => setRenaming(null) })}>
-              Save
+              <Icon name="save" />Save
             </button>
-            <button type="button" onClick={() => setRenaming(null)}>Cancel</button>
+            <button type="button" onClick={() => setRenaming(null)}><Icon name="close" />Cancel</button>
           </>
         )}
       </div>
@@ -55,7 +58,7 @@ export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
           title="Creates the profile with auto-detected folders and switches to it"
           onClick={() => change.mutate({ action: "switch", name: newName }, { onSuccess: () => setNewName("") })}
         >
-          Add profile
+          <Icon name="plus" />Add profile
         </button>
         {names.length > 1 && (
           <select
@@ -72,7 +75,6 @@ export function ProfileSettings({ env }: { env: DetectedEnvironment }) {
           </select>
         )}
       </div>
-      {change.isError && <p className="error-text small">{change.error.message}</p>}
     </section>
   );
 }
@@ -88,7 +90,7 @@ export function BackupSettings({ env, os }: { env: DetectedEnvironment; os: stri
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   useBackupProgress(useCallback((p: BackupProgress) => setProgress(p), []));
   const busy = create.isPending || restore.isPending || del.isPending;
-  const error = prefs.error ?? create.error ?? restore.error ?? del.error ?? list.error;
+  useErrorToast(prefs.error ?? create.error ?? restore.error ?? del.error);
 
   const pickLocation = async () => {
     const chosen = await open({ directory: true, multiple: false, title: "Where to keep data folder backups" });
@@ -100,7 +102,7 @@ export function BackupSettings({ env, os }: { env: DetectedEnvironment; os: stri
       `Replace everything in the data folder with the backup from ${when}?${sameFolder ? "" : "\n\nThis backup was made from a different data folder."}\n\nYour current data folder is backed up first, so you can go back.`,
       { title: "Restore backup", kind: "warning", okLabel: "Restore", cancelLabel: "Cancel" },
     );
-    if (ok) restore.mutate({ id, safety: true });
+    if (ok) restore.mutate({ id, safety: true }, { onSuccess: () => toast.success("Restored. The previous state was saved as a backup.") });
   };
 
   return (
@@ -124,19 +126,18 @@ export function BackupSettings({ env, os }: { env: DetectedEnvironment; os: stri
       <div className="setting-row">
         <span>Location</span>
         <code className="path small">{list.data?.location ?? "…"}</code>
-        <button type="button" onClick={() => void pickLocation()}>Change…</button>
-        {s.dataBackupLocation && <button type="button" onClick={() => prefs.mutate({ dataBackupLocation: "" })}>Use default</button>}
+        <button type="button" onClick={() => void pickLocation()}><Icon name="edit" />Change…</button>
+        {s.dataBackupLocation && <button type="button" onClick={() => prefs.mutate({ dataBackupLocation: "" })}><Icon name="reset" />Use default</button>}
       </div>
       <div className="setting-row">
-        <button type="button" className="primary" disabled={busy} onClick={() => create.mutate()}>Back up now</button>
+        <button type="button" className="primary" disabled={busy} onClick={() => create.mutate()}><Icon name="backup" />Back up now</button>
         {busy && progress && (
           <span className="muted small">
             {Math.round(progress.percent)}% · {progress.label}
           </span>
         )}
-        {restore.isSuccess && <span className="ok-text small">Restored. The previous state was saved as a backup.</span>}
       </div>
-      {error && <p className="error-text small">{error.message}</p>}
+      {list.isError && <p className="error-text small">{list.error.message}</p>}
       {list.data && list.data.backups.length > 0 && (
         <table className="backup-table">
           <thead>
@@ -153,14 +154,14 @@ export function BackupSettings({ env, os }: { env: DetectedEnvironment; os: stri
                   <td>{formatBytes(b.sizeBytes)}{b.saveCount > 0 && ` + ${b.saveCount} worlds`}</td>
                   <td className="small">{sameFolder ? "this data folder" : b.sourceDataDirectory ?? "?"}</td>
                   <td className="backup-actions">
-                    <button type="button" disabled={busy} onClick={() => void doRestore(b.id, when, sameFolder)}>Restore…</button>{" "}
+                    <button type="button" disabled={busy} onClick={() => void doRestore(b.id, when, sameFolder)}><Icon name="history" />Restore…</button>{" "}
                     <button
                       type="button"
                       className="danger"
                       disabled={busy}
                       onClick={async () => (await ask(`Delete the backup from ${when}? This can't be undone.`, { title: "Delete backup", kind: "warning" })) && del.mutate(b.id)}
                     >
-                      Delete
+                      <Icon name="trash" />Delete
                     </button>
                   </td>
                 </tr>
@@ -217,6 +218,7 @@ export function ModlistSettings() {
 export function AppearanceSettings({ env }: { env: DetectedEnvironment }) {
   const prefs = useMorePreferences();
   const openFolder = useOpenKnownFolder();
+  useErrorToast(prefs.error ?? openFolder.error);
   const s = env.settings;
   const hasCustom = Object.keys(s.customPalette).length > 0;
   return (
@@ -236,11 +238,9 @@ export function AppearanceSettings({ env }: { env: DetectedEnvironment }) {
         Detailed logging (for troubleshooting; takes effect at the next start)
       </label>
       <div className="setting-row">
-        <button type="button" onClick={() => openFolder.mutate("appLogs")}>Open log folder</button>
+        <button type="button" onClick={() => openFolder.mutate("appLogs")}><Icon name="folder" />Open log folder</button>
         <span className="muted small">The manager's own log files, to attach when you report a problem.</span>
       </div>
-      {prefs.isError && <p className="error-text small">{prefs.error.message}</p>}
-      {openFolder.isError && <p className="error-text small">{openFolder.error.message}</p>}
     </section>
   );
 }

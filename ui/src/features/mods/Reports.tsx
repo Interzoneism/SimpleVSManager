@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { VoteOption, VoteSummary } from "../../bindings";
 import { useCloudStatus, useModReports, useSubmitModReport } from "../../api";
+import { Icon } from "../../components/Icon";
+import { useErrorToast } from "../../components/Toast";
 
 export const REPORT_OPTIONS: { value: VoteOption; label: string; short: string }[] = [
   { value: "fullyFunctional", label: "Fully functional", short: "Works great" },
@@ -51,6 +53,7 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
   const online = !!status.data && !status.data.offline;
   const reports = useModReports(modId, version, online);
   const submit = useSubmitModReport();
+  useErrorToast(submit.error);
   // A problem report waiting for its comment before it is sent.
   const [draft, setDraft] = useState<VoteOption | null>(null);
   const [comment, setComment] = useState("");
@@ -161,7 +164,7 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
             )}
             {myVote && (
               <button type="button" className="link-button small" disabled={submit.isPending} onClick={() => { setDraft(null); send(null, null); }}>
-                Remove
+                <Icon name="trash" size={13} />Remove
               </button>
             )}
           </div>
@@ -202,7 +205,7 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
               />
               <div className="report-comment-actions">
                 <button type="button" className="link-button small" onClick={() => { setDraft(null); setComment(""); }}>
-                  Cancel
+                  <Icon name="close" size={13} />Cancel
                 </button>
                 <button
                   type="button"
@@ -210,7 +213,7 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
                   disabled={!comment.trim() || submit.isPending}
                   onClick={() => send(draft, comment)}
                 >
-                  {draft === myVote ? "Update report" : "Send report"}
+                  <Icon name="send" />{draft === myVote ? "Update report" : "Send report"}
                 </button>
               </div>
             </div>
@@ -219,7 +222,6 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
       )}
 
       {!canReport && status.data?.legacyIdentity && <p className="muted small">Sending reports needs the move to the new cloud project.</p>}
-      {submit.isError && <p className="error-text small">{submit.error.message}</p>}
     </section>
   );
 }

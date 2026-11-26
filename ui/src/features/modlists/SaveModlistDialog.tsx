@@ -5,6 +5,7 @@ import { Icon } from "../../components/Icon";
 import { formatBytes } from "../../lib/format";
 import { Modal } from "./Modal";
 import { IconPicker, iconThemeClass, ModlistIcon } from "./ModlistIcon";
+import { useErrorToast } from "../../components/Toast";
 
 interface Props {
   existing: ModlistSummary[];
@@ -16,6 +17,7 @@ export function SaveModlistDialog({ existing, onSaved, onClose }: Props) {
   const defaults = useModlistSaveDefaults(true);
   const installed = useMods(true);
   const save = useSaveModlist();
+  useErrorToast(save.error);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [uploader, setUploader] = useState<string | null>(null);
@@ -134,9 +136,9 @@ export function SaveModlistDialog({ existing, onSaved, onClose }: Props) {
           <span className="header-spacer" />
           {candidates.length > 0 && (
             <div className="segmented">
-              <button type="button" className="small" onClick={() => setConfigs(new Set(forMods.map((c) => c.relativePath)))}>Your mods' files</button>
-              <button type="button" className="small" onClick={() => setConfigs(new Set(candidates.map((c) => c.relativePath)))}>All</button>
-              <button type="button" className="small" onClick={() => setConfigs(new Set())}>None</button>
+              <button type="button" className="small" onClick={() => setConfigs(new Set(forMods.map((c) => c.relativePath)))}><Icon name="config" size={13} />Your mods' files</button>
+              <button type="button" className="small" onClick={() => setConfigs(new Set(candidates.map((c) => c.relativePath)))}><Icon name="check" size={13} />All</button>
+              <button type="button" className="small" onClick={() => setConfigs(new Set())}><Icon name="eraser" size={13} />None</button>
             </div>
           )}
         </div>
@@ -159,7 +161,6 @@ export function SaveModlistDialog({ existing, onSaved, onClose }: Props) {
         )}
       </section>
       {defaults.isError && <p className="notice error-text">{defaults.error.message}</p>}
-      {save.isError && <p className="notice error-text">{save.error.message}</p>}
       {warnings.length > 0 && (
         <div className="notice warn-text">
           Saved, but some config files couldn't be read:
@@ -170,12 +171,12 @@ export function SaveModlistDialog({ existing, onSaved, onClose }: Props) {
         {clash && !warnings.length && <span className="warn-text small">A modlist with this name exists and will be replaced.</span>}
         <span className="header-spacer" />
         {warnings.length ? (
-          <button type="button" className="primary" onClick={onClose}>Close</button>
+          <button type="button" className="primary" onClick={onClose}><Icon name="close" />Close</button>
         ) : (
           <>
-            <button type="button" onClick={onClose} disabled={save.isPending}>Cancel</button>
+            <button type="button" onClick={onClose} disabled={save.isPending}><Icon name="close" />Cancel</button>
             <button type="button" className="primary" disabled={!name.trim() || save.isPending} onClick={() => submit(clash)}>
-              {clash ? "Replace" : "Save modlist"}
+              <Icon name="save" />{clash ? "Replace" : "Save modlist"}
             </button>
           </>
         )}

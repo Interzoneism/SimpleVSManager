@@ -7,6 +7,7 @@ import { pointIn, usePointerDrag } from "../../components/pointerDrag";
 import { useRememberedScroll } from "../../lib/pageMemory";
 import { builder, isDirty, resumeLookups, useBuilder } from "./builderStore";
 import { Icon } from "../../components/Icon";
+import { toast, useErrorToast } from "../../components/Toast";
 import { ModlistModsTable, RowSizePicker, useRowSize, type RowMenu } from "../modlists/ModlistModsTable";
 
 /** Opens and closes the builder. Sits at the top right of the page, above the panel. */
@@ -50,7 +51,6 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
   const lists = useMemo(() => editableLists(modlists.data), [modlists.data]);
   const dirty = isDirty(b);
   const [confirm, setConfirm] = useState<{ label: string; run: () => void } | null>(null);
-  const [savedName, setSavedName] = useState<string | null>(null);
   const [dragOut, setDragOut] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const ownPane = useRef<HTMLElement | null>(null);
@@ -66,11 +66,7 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
     if (b.sourceId && modlists.data && !modlists.isFetching && !source) builder.detach();
   }, [b.sourceId, modlists.data, modlists.isFetching, source]);
 
-  useEffect(() => {
-    if (!savedName) return;
-    const t = setTimeout(() => setSavedName(null), 4000);
-    return () => clearTimeout(t);
-  }, [savedName]);
+  useErrorToast(save.error);
 
   const guarded = (label: string, run: () => void) => {
     if (dirty && b.entries.length > 0) setConfirm({ label, run });
@@ -92,13 +88,12 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
   };
 
   const doSave = () => {
-    setSavedName(null);
     save.mutate(
       { id: b.sourceId, name: b.name, mods: b.entries.map((e) => ({ modId: e.modId, version: e.version })) },
       {
         onSuccess: (list) => {
           builder.saved(list);
-          setSavedName(list.name);
+          toast.success(`Saved “${list.name}”. Load it from the Modlists page.`);
         },
       },
     );
@@ -145,8 +140,8 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
         <div className="notice warn-text builder-confirm" role="alertdialog" aria-label="Unsaved changes">
           <span>{confirm.label}</span>
           <span className="builder-confirm-actions">
-            <button type="button" className="danger" onClick={() => { confirm.run(); setConfirm(null); }}>Discard</button>
-            <button type="button" onClick={() => setConfirm(null)}>Keep editing</button>
+            <button type="button" className="danger" onClick={() => { confirm.run(); setConfirm(null); }}><Icon name="trash" />Discard</button>
+            <button type="button" onClick={() => setConfirm(null)}><Icon name="edit" />Keep editing</button>
           </span>
         </div>
       )}
@@ -160,8 +155,6 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
             <span className="muted">Drag cards from the Mod DB into this list, or right-click a card. Drag a mod out of the list to remove it.</span>
           </div>
         } />
-      {save.error && <p className="notice error-text">{save.error.message}</p>}
-      {savedName && !dirty && <p className="notice">Saved “{savedName}”. Load it from the Modlists page.</p>}
       <div className="builder-footer">
         <span className="muted small">
           {b.entries.length === 1 ? "1 mod" : `${b.entries.length} mods`}
@@ -170,12 +163,12 @@ export function ModlistBuilder({ paneRef, dropActive, onClose }: {
         <div className="header-spacer" />
         <button type="button" disabled={!b.entries.length && !b.sourceId && !b.name}
           onClick={() => guarded("Discard this list?", () => builder.discard())}>
-          Cancel
+          <Icon name="close" />Cancel
         </button>
         <button type="button" className="primary" disabled={!canSave}
           title={!b.entries.length ? "Add some mods first" : !b.sourceId && !b.name.trim() ? "Give the new modlist a name" : undefined}
           onClick={doSave}>
-          {save.isPending ? "Saving…" : b.sourceId ? "Save changes" : "Save modlist"}
+          <Icon name="save" />{save.isPending ? "Saving…" : b.sourceId ? "Save changes" : "Save modlist"}
         </button>
       </div>
       {rowDrag.overlay}
