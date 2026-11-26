@@ -21,7 +21,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
     body: [
       "Save your enabled mods with their exact versions. Saved modlists also includes groups and copies of online modlists.",
       "Switch to a modlist and your Mods folder ends up with exactly that list. Other mods go to your mod library, so switching back needs no download.",
-      "Enable Quick switch in the review to reuse your config-file choice for saved modlists and groups. Use Load to open the review, or turn off Quick switch from the Modlists toolbar.",
+      "Turn on Quick switch in Settings → Modlists to switch saved modlists and groups in one step, here or from Load a modlist on Installed mods. Mods that can't be loaded are left out and listed in a notice. Use Load… to open the review anyway.",
       "Groups combine several modlists. Backups are saved automatically before a modlist loads and before updates or deletes.",
       "Export a modlist as PDF or JSON; Simple VS Manager 2.3 can load both. Drop a .json or .pdf on the window to load it.",
       "Load modlists other players published, save a copy, or follow one to get its updates.",

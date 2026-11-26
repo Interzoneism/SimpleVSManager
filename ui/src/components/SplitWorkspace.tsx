@@ -1,4 +1,4 @@
-import { Children, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Children, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./Icon";
 
 export function useLayoutPreference<T extends number | boolean | string>(key: string, fallback: T, previousDefault?: T) {
@@ -22,8 +22,24 @@ export function useLayoutPreference<T extends number | boolean | string>(key: st
       // Keep the current setting for this session.
     }
   }, [storageKey, value]);
-  return [value, setValue] as const;
+  // Pages stay mounted, so a setting changed on one page (e.g. Quick switch in Settings) must
+  // reach the others that read the same key.
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ key: string; value: T }>).detail;
+      if (detail.key === storageKey) setValue(detail.value);
+    };
+    window.addEventListener(LAYOUT_CHANGE, onChange);
+    return () => window.removeEventListener(LAYOUT_CHANGE, onChange);
+  }, [storageKey]);
+  const set = useCallback((next: T) => {
+    setValue(next);
+    window.dispatchEvent(new CustomEvent(LAYOUT_CHANGE, { detail: { key: storageKey, value: next } }));
+  }, [storageKey]);
+  return [value, set] as const;
 }
+
+const LAYOUT_CHANGE = "svsm-layout-change";
 
 export function SplitWorkspace({ name, side = "right", widePane = false, className, children }: {
   name: string;
