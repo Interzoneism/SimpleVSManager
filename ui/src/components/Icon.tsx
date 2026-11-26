@@ -24,6 +24,7 @@ const paths = {
   folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   // Actions. One action, one icon: reuse these rather than adding look-alikes.
   plus: "M12 5v14 M5 12h14",
+  minus: "M5 12h14",
   save: "M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V3Z M8 3v5h7V3 M8 21v-7h8v7",
   trash: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6",
   edit: "M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4",
