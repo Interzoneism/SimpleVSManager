@@ -243,7 +243,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
       { label: "Load…", disabled: cannotLoad, run: () => startLoad(entry) },
       canUpdateMods(entry) && { label: "Update with enabled mods…", disabled: busy, run: () => void doUpdateMods(entry) },
       entry.kind === "group" && { label: "Edit group…", disabled: busy, run: () => setDialog({ kind: "group", group: entry, members: [] }) },
-      { label: "Change icon…", disabled: busy || !!entry.error, run: () => setDialog({ kind: "icon", entry }) },
+      !entry.subscription && { label: "Change icon…", disabled: busy || !!entry.error, run: () => setDialog({ kind: "icon", entry }) },
     ], publishMenu(entry), [
       { label: "Export JSON…", disabled: cannotLoad, run: () => doExport(entry, "json") },
       { label: "Export PDF…", disabled: cannotLoad, run: () => doExport(entry, "pdf") },
@@ -497,9 +497,9 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
           <button
             type="button"
             className={`details-icon-button${iconThemeClass(entry.iconColor)}`}
-            title="Change icon"
+            title={entry.subscription ? "Followed modlists keep the author's icon" : "Change icon"}
             aria-label="Change icon"
-            disabled={busy || !!entry.error}
+            disabled={busy || !!entry.error || !!entry.subscription}
             onClick={onChangeIcon}
           >
             <ModlistIcon icon={entry.icon} fallback={kindIcons[entry.kind]} />
@@ -539,7 +539,8 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
             ? "The author deleted the online modlist this one followed. Your copy still works."
             : entry.subscription.updateAvailable
               ? `The author published revision ${entry.subscription.remoteRevision} (you have ${entry.subscription.syncedRevision}).`
-              : `Follows an online modlist (revision ${entry.subscription.syncedRevision}).`}
+              : `Follows an online modlist (revision ${entry.subscription.syncedRevision}).`}{" "}
+          {!entry.subscription.sourceGone && "It always matches what the author published, so it can't be edited here. Stop following to make it your own copy."}
           <div className="link-row">
             {entry.subscription.updateAvailable && !entry.subscription.sourceGone && (
               <button type="button" className="primary" disabled={busy} onClick={onSync}>Get the update</button>

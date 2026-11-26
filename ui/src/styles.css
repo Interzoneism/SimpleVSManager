@@ -952,6 +952,9 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 }
 .modlist-card-grid .modlist-card.published { padding: 13px; }
 .modlist-card.published.selected { border-color: var(--published); background: color-mix(in srgb, var(--published) 10%, var(--selection)); }
+/* Followed modlists (read-only copies of someone else's): a slightly tinted border. */
+.modlist-card.following { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.modlist-card.following.selected { border-color: var(--accent); }
 .modlist-card:has(.card-published) > .card-title { padding-right: 24px; }
 .card-published { position: absolute; top: 12px; right: 11px; color: var(--published, var(--palette-warning)); display: grid; place-items: center; }
 .card-published .ui-icon { width: 20px; height: 20px; stroke-width: 2; }

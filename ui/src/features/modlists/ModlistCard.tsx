@@ -30,7 +30,7 @@ export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, dat
       <button
         ref={buttonRef}
         type="button"
-        className={`mod-card modlist-card${published ? " published" : ""}${selected ? " selected" : ""}`}
+        className={`mod-card modlist-card${published ? " published" : following ? " following" : ""}${selected ? " selected" : ""}`}
         title={title}
         aria-pressed={selected}
         aria-haspopup="menu"

@@ -289,6 +289,9 @@ fn follow_update_and_publish_against_a_fake_cloud() {
     let synced = run(crate::cloud_commands::sync_subscription(state.clone(), copy.id.clone())).unwrap();
     assert_eq!(synced.mods[0].version.as_deref(), Some("1.14.3"));
     assert!(!synced.subscription.as_ref().unwrap().update_available);
+    // Followed lists stay as the author published them.
+    assert!(run(set_modlist_icon(state.clone(), copy.id.clone(), Some("md-axe".into()), None)).is_err());
+    assert!(run(update_modlist_mods(state.clone(), copy.id.clone())).is_err());
 
     server.mock("DELETE", "/db/modlistSubscriptions/r1/fb1.json").match_query(Matcher::Any).with_body("null").create();
     let plain = run(crate::cloud_commands::unsubscribe(state.clone(), copy.id.clone())).unwrap();
