@@ -38,8 +38,21 @@ impl CachedMods {
         &self.dir
     }
 
+    /// The mod's folder. Mod ids are case-insensitive but some file systems (Linux) are not,
+    /// so an existing folder that differs only in case is reused (`CarryOn` = `carryon`).
     fn mod_dir(&self, mod_id: &str) -> PathBuf {
-        self.dir.join(sanitize_file_name(mod_id, "mod"))
+        let name = sanitize_file_name(mod_id, "mod");
+        let exact = self.dir.join(&name);
+        if exact.is_dir() {
+            return exact;
+        }
+        std::fs::read_dir(&self.dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .find(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(&name) && e.path().is_dir())
+            .map(|e| e.path())
+            .unwrap_or(exact)
     }
 
     /// Where a version's archive is stored: `<mod id>/<version>/<file name>`.
@@ -456,6 +469,24 @@ mod tests {
             release_file_name: Some(file.into()),
             target,
             cache_replaced: true,
+        }
+    }
+
+    #[test]
+    fn library_folder_ignores_case() {
+        let t = tempfile::tempdir().unwrap();
+        let cache = CachedMods::new(t.path());
+        let first = cache.path_for("CarryOn", "1.0.0", Some("CarryOn-1.0.0.zip"));
+        std::fs::create_dir_all(first.parent().unwrap()).unwrap();
+        std::fs::write(&first, "zip").unwrap();
+        let second = cache.path_for("carryon", "1.1.0", Some("carryon-1.1.0.zip"));
+        let lower = |p: &Path| p.parent().unwrap().parent().unwrap().to_string_lossy().to_lowercase();
+        assert_eq!(lower(&second), lower(&first));
+        // On a case-sensitive file system this only works because the folder is reused.
+        let found = cache.locate("carryon", "1.0.0", None).unwrap();
+        assert_eq!(std::fs::read_to_string(found).unwrap(), "zip");
+        if !cfg!(any(windows, target_os = "macos")) {
+            assert_eq!(second.parent().unwrap().parent(), first.parent().unwrap().parent());
         }
     }
 

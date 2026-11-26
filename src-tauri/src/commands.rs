@@ -302,8 +302,11 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
             )));
         }
     }
+    // Linux: a Flatpak install has no game folder we can run directly.
+    let flatpak = shortcut.is_none() && env.game_executable.is_none() && svsm_core::launch::flatpak_installed(&state.host);
     let exe = match &shortcut {
         Some(_) => None,
+        None if flatpak => Some(String::new()),
         None => Some(env.game_executable.clone().ok_or_else(|| AppError::msg("Vintage Story wasn't found. Pick the game folder under Folders."))?),
     };
     let data = match &shortcut {
@@ -324,6 +327,7 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
             .opener()
             .open_path(sc.display().to_string(), None::<&str>)
             .map_err(|e| AppError::msg(format!("Couldn't start Vintage Story through the shortcut: {e}")))?,
+        (None, Some(_), Some(data)) if flatpak => svsm_core::launch::launch_flatpak(&data)?,
         (None, Some(exe), Some(data)) => svsm_core::launch::launch_game(state.host.os, Path::new(&exe), &data)?,
         _ => unreachable!("exe and data are set when there is no shortcut"),
     }
