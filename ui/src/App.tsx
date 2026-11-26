@@ -136,7 +136,6 @@ export default function App() {
             </button>
           </div>
         </nav>
-        {appInfo.data && <span className="app-version">v{appInfo.data.version}</span>}
       </aside>
       <div className="app-content">
         <header className="app-header">
@@ -157,7 +156,12 @@ export default function App() {
               <Icon name="offline" size={13} />Offline
             </button>
           )}
-          {env.data?.gameVersion && <span className="game-version">Vintage Story {env.data.gameVersion}</span>}
+          {(env.data?.gameVersion || appInfo.data) && (
+            <div className="header-versions">
+              {env.data?.gameVersion && <span className="game-version">Vintage Story {env.data.gameVersion}</span>}
+              {appInfo.data && <span className="manager-version">Simple VS Manager {appInfo.data.version}</span>}
+            </div>
+          )}
           {!!env.data?.settings.profiles.length && (
             <button type="button" className="profile-button" title="Manage game profiles in Settings" onClick={() => setTab("settings")}>
               <span className="profile-dot" aria-hidden="true" />
