@@ -37,7 +37,7 @@ export function libraryStatus(version: string | null, card: ModlistModCard | und
     case "not downloaded":
       return { label: "Not downloaded", detail: "Loading the list downloads it", rank: 3, have: false };
     default:
-      return { label: "Other version", detail: `${card.installedVersion} is installed; loading the list switches it`, rank: 2, have: false };
+      return { label: "Other version", detail: `${card.installedVersion} is installed`, rank: 2, have: false };
   }
 }
 

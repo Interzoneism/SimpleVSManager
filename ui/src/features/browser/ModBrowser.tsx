@@ -226,7 +226,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
             type="button"
             className="toolbar-end"
             disabled={refresh.isPending || offline}
-            title={offline ? "Offline mode is on (Settings)" : "Download the Mod DB list again"}
+            title={offline ? "Offline mode is on" : undefined}
             onClick={() => refresh.mutate()}
           >
             <Icon name="refresh" />{refresh.isPending ? "Refreshing…" : "Refresh"}
@@ -236,17 +236,17 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
         {results.error && (
           <p className="notice error-text">
             {offline && !page
-              ? "Offline mode is on and the Mod DB list hasn't been downloaded yet."
+              ? "Offline mode is on. The mod list isn't downloaded yet."
               : results.error.message}
           </p>
         )}
         <div className="browse-scroll" ref={scrollRef}>
-          {results.isPending && <p className="empty-state">Loading the Mod DB… (the first time takes a few seconds)</p>}
+          {results.isPending && <p className="empty-state">Loading mods…</p>}
           {page && page.items.length === 0 && (
             <p className="empty-state">
               {suggested && !page.suggestBasis?.seedCount
-                ? "Nothing to base suggestions on yet. Install some mods, or add mods to the modlist builder."
-                : suggested ? "No suggestions match. Try other filters, or add more mods to base them on." : "No mods match."}
+                ? "Install some mods to get suggestions."
+                : suggested ? "No suggestions match." : "No mods match."}
             </p>
           )}
           <div className="db-card-grid" role="list">
@@ -285,15 +285,10 @@ function SuggestBasisLine({ basis }: { basis: SuggestBasis }) {
   const seeds = basis.fromBuilder
     ? `the ${basis.seedCount === 1 ? "mod" : `${basis.seedCount} mods`} in your modlist builder`
     : `your ${basis.seedCount === 1 ? "installed mod" : `${basis.seedCount} installed mods`}`;
-  const sources = [
-    basis.modlists && `${formatCount(basis.modlists)} community modlists`,
-    basis.reporters && `${formatCount(basis.reporters)} people's mod reports`,
-  ].filter(Boolean);
   return (
     <p className="muted small suggest-basis">
-      {basis.seedCount ? `Suggested from ${seeds}` : "Popular in community modlists"}
-      {sources.length ? `, using ${sources.join(" and ")}.` : "."}
-      {basis.error && <span title={basis.error}> (Couldn't refresh the community data; using what was saved.)</span>}
+      {basis.seedCount ? `Based on ${seeds}.` : "Popular in community modlists."}
+      {basis.error && <span title={basis.error}> (Couldn't refresh.)</span>}
     </p>
   );
 }
@@ -378,7 +373,7 @@ function CardVerdict({ reports }: { reports: CardReports }) {
   const total = reports.counts.reduce((a, b) => a + b, 0);
   const works = reports.counts.slice(0, 3).reduce((a, b) => a + b, 0);
   const lines = [
-    `Player reports on v${reports.version} (newest release)`,
+    `Reports on v${reports.version}`,
     `${Math.round((works / total) * 100)}% of ${total} ${total === 1 ? "player says" : "players say"} it works`,
     "",
     ...REPORT_OPTIONS.map((o, i) => (reports.counts[i] ? `${o.label}: ${reports.counts[i]}` : "")).filter(Boolean),

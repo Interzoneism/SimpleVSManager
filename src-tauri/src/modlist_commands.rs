@@ -239,13 +239,13 @@ pub async fn update_modlist_mods(state: State<'_, AppState>, id: String) -> AppR
     }
     let mut list = loaded.modlist;
     if list.online_subscription.is_some() {
-        return Err(AppError::msg("This modlist follows an online modlist. Stop following it first, or it would be replaced by the next update."));
+        return Err(AppError::msg("Stop following this modlist first."));
     }
     let mut mods = installed(&state);
     mods.retain(|m| m.is_active);
     let fresh = from_installed(&mods, ModlistMeta { name: "x".into(), ..Default::default() }, Vec::new());
     if fresh.entries().is_empty() {
-        return Err(AppError::msg("No mods are enabled, so the modlist would be empty."));
+        return Err(AppError::msg("No mods are enabled."));
     }
     let keep: std::collections::HashSet<String> = fresh.entries().iter().filter_map(|m| m.id()).map(str::to_ascii_lowercase).collect();
     list.mods = fresh.mods;
@@ -349,7 +349,7 @@ pub async fn save_built_modlist(state: State<'_, AppState>, request: SaveBuiltMo
                 return Err(AppError::msg("Only saved modlists can be changed here."));
             }
             if loaded.modlist.online_subscription.is_some() {
-                return Err(AppError::msg("This modlist follows an online modlist, so the next update would replace your changes. Stop following it first."));
+                return Err(AppError::msg("Stop following this modlist first."));
             }
             Some(loaded.modlist)
         }
@@ -405,7 +405,7 @@ pub async fn save_built_modlist(state: State<'_, AppState>, request: SaveBuiltMo
 pub async fn set_modlist_icon(state: State<'_, AppState>, id: String, icon: Option<String>, color: Option<String>) -> AppResult<ModlistSummary> {
     let s = store(&state);
     if s.summary(&id)?.subscription.is_some() {
-        return Err(AppError::msg("This modlist follows an online modlist, so its author picks the icon. Stop following it to make it your own."));
+        return Err(AppError::msg("Stop following this modlist to change its icon."));
     }
     s.set_icon(&id, icon.as_deref(), color.as_deref())?;
     Ok(annotate(&state, vec![s.summary(&id)?]).remove(0))

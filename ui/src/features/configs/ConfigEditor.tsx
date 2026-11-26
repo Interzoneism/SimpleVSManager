@@ -10,7 +10,7 @@ import { copyText, useContextMenu } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
 import { toast, useErrorToast } from "../../components/Toast";
 
-const SAVED = "Saved. Changes apply the next time the game (or world) loads.";
+const SAVED = "Saved. Applies next time the world loads.";
 
 /** The Configs tab: mod config files in ModConfig, edited as a tree (JSON) or as text. */
 /** `focusMod` is a request from "Edit config": a new object each time, handled once. */
@@ -46,7 +46,7 @@ export function ConfigEditor({ enabled, focusMod }: { enabled: boolean; focusMod
     setPendingFocus(false);
   }, [pendingFocus, list.isSuccess, files]);
 
-  if (!enabled) return <p className="empty-state">The Vintage Story data folder wasn't found. Pick it on the <strong>Settings</strong> tab.</p>;
+  if (!enabled) return <p className="empty-state">Data folder not found. Set it in <strong>Settings</strong>.</p>;
 
   return (
     <SplitWorkspace name="config-files" side="left">
@@ -85,7 +85,7 @@ export function ConfigEditor({ enabled, focusMod }: { enabled: boolean; focusMod
         </div>
       </aside>
       <div className="installed-main config-main">
-        {selected ? <FileEditor key={selected} path={selected} /> : <p className="empty-state">Pick a config file to edit it.</p>}
+        {selected ? <FileEditor key={selected} path={selected} /> : <p className="empty-state">Select a config file.</p>}
       </div>
     </SplitWorkspace>
   );
@@ -167,7 +167,6 @@ function FileEditor({ path }: { path: string }) {
         {file.data?.previous != null && (
           <button
             type="button"
-            title="Put back the file as it was before your last save here"
             onClick={async () =>
               (await ask("Put back the version from before your last save?", { title: "Undo last save" })) &&
               save.mutate({ relativePath: path, text: file.data!.previous! }, { onSuccess: () => toast.success(SAVED) })
@@ -237,7 +236,7 @@ function Fields({ value, path, depth, showAll }: { value: JsonObject; path: Path
   const { search } = useFields();
   const visible = value.entries.filter(([k, v]) => showAll || matchesSearch(k, v, search));
   if (visible.length === 0) {
-    return <p className="cfg-empty">{value.entries.length === 0 ? "No settings in here." : depth === 0 ? "No settings match your search." : "No matches in here."}</p>;
+    return <p className="cfg-empty">{value.entries.length === 0 ? "No settings in here." : depth === 0 ? "No matches." : "No matches in here."}</p>;
   }
   const blocks: ReactNode[] = [];
   let rows: ReactNode[] = [];

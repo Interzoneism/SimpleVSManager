@@ -297,7 +297,7 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
         if !sc.is_file() {
             state.update_settings(|s| s.custom_shortcut_path = None)?;
             return Err(AppError::msg(format!(
-                "The custom Vintage Story shortcut wasn't found ({}), so it was cleared. Set it again under Settings, or press Launch to start the game directly.",
+                "The launch shortcut wasn't found ({}), so it was cleared.",
                 sc.display()
             )));
         }
@@ -307,7 +307,7 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
     let exe = match &shortcut {
         Some(_) => None,
         None if flatpak => Some(String::new()),
-        None => Some(env.game_executable.clone().ok_or_else(|| AppError::msg("Vintage Story wasn't found. Pick the game folder under Folders."))?),
+        None => Some(env.game_executable.clone().ok_or_else(|| AppError::msg("Vintage Story wasn't found. Set the game folder in Settings."))?),
     };
     let data = match &shortcut {
         Some(_) => None,
@@ -317,7 +317,7 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
         let _run = state.update_lock.lock().await;
         crate::m5_commands::run_backup(&app, &state)
             .await
-            .map_err(|e| AppError::msg(format!("The automatic backup failed, so the game wasn't started: {}", e.message)))?;
+            .map_err(|e| AppError::msg(format!("Backup failed, so the game wasn't started: {}", e.message)))?;
     }
     match (&shortcut, exe, data) {
         (Some(sc), _, _) if state.host.os == svsm_core::platform::Os::Linux && sc.extension().is_some_and(|e| e.eq_ignore_ascii_case("desktop")) => {

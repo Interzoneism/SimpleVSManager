@@ -65,7 +65,7 @@ pub fn find_running_game() -> Option<RunningGame> {
 }
 
 /// The message shown when an action is blocked because the game is running.
-pub const GAME_RUNNING_MESSAGE: &str = "Vintage Story is running. Close the game first: it rewrites clientsettings.json when it exits and keeps mod files open, so changes made now would be undone or stop halfway.";
+pub const GAME_RUNNING_MESSAGE: &str = "Vintage Story is running. Close the game first.";
 
 #[cfg(test)]
 mod tests {

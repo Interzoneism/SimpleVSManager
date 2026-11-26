@@ -29,7 +29,6 @@ export function FixDependencies({ mod, busy }: { mod: InstalledMod; busy: boolea
           type="button"
           className="primary"
           disabled={busy || fix.isPending}
-          title="Install missing dependencies from the Mod DB, update outdated ones and enable disabled ones"
           onClick={() => fix.mutate(mod.key)}
         >
           <Icon name="wrench" />{fix.isPending ? "Fixing dependencies…" : "Fix dependencies"}
@@ -43,7 +42,7 @@ export function FixDependencies({ mod, busy }: { mod: InstalledMod; busy: boolea
         </ul>
       )}
       {report && report.done.length === 0 && report.failures.length === 0 && (
-        <p className="muted small">Dependencies are already satisfied.</p>
+        <p className="muted small">Nothing to fix.</p>
       )}
       {report && report.failures.length > 0 && (
         <ul className="details-list small error-text">

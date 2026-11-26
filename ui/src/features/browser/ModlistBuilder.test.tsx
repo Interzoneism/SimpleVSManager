@@ -251,7 +251,7 @@ test("Suggested for you is based on the builder's mods when it has some, else th
     }));
   renderBrowser();
   fireEvent.change(await screen.findByRole("combobox", { name: "Sort by" }), { target: { value: "suggested" } });
-  expect(await screen.findByText(/Suggested from your 12 installed mods, using 40 community modlists and 9 people's mod reports/)).toBeInTheDocument();
+  expect(await screen.findByText(/Based on your 12 installed mods\./)).toBeInTheDocument();
   expect(lastSeeds()).toEqual([]);
   expect(screen.getByRole("listitem", { name: /Primitive Survival/ })).toHaveTextContent("7");
 

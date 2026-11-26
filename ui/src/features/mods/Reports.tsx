@@ -107,7 +107,7 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
       {reports.isError && <p className="error-text small">{reports.error.message}</p>}
 
       {r && total === 0 && (
-        <p className="report-empty small">No one has reported on this version yet. Be the first!</p>
+        <p className="report-empty small">No reports yet.</p>
       )}
 
       {r && total > 0 && (
@@ -158,7 +158,7 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
                 {thanks === "removed" ? "Your report was removed." : "Thanks! Your report is in."}
               </span>
             ) : myVote ? (
-              <span>You said <strong>{labelOf(myVote)}</strong>. Pick another to change it.</span>
+              <span>You said <strong>{labelOf(myVote)}</strong>.</span>
             ) : (
               <span>How does it work for you?</span>
             )}
@@ -221,7 +221,7 @@ export function Reports({ modId, version }: { modId: string; version: string }) 
         </div>
       )}
 
-      {!canReport && status.data?.legacyIdentity && <p className="muted small">Sending reports needs the move to the new cloud project.</p>}
+      {!canReport && status.data?.legacyIdentity && <p className="muted small">Move your account to send reports.</p>}
     </section>
   );
 }

@@ -146,7 +146,7 @@ export function ModlistModsTable<R extends ModlistTableRow>(props: {
         return (
           <div key={id} role="gridcell"
             className={`cell col-version${r.compatible === false ? " warn-text" : r.version ? "" : " muted"}`}
-            title={r.compatible === false ? "No release is tagged for your game version; this is the newest release" : r.version ? undefined : "The newest compatible version"}>
+            title={r.compatible === false ? "Not tagged for your game version" : r.version ? undefined : "Newest compatible version"}>
             {looking ? "…" : r.version ?? "Newest"}
           </div>
         );

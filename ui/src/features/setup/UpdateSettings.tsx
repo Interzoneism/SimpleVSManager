@@ -31,7 +31,7 @@ export function UpdateSettings({ env }: { env: DetectedEnvironment }) {
           disabled={prefs.isPending}
           onChange={(e) => prefs.mutate({ offlineMode: e.target.checked })}
         />
-        Offline mode: never contact the Mod DB (cached data and cached mod versions still work)
+        Offline mode
       </label>
 
       <label className="checkbox-row">
@@ -41,7 +41,7 @@ export function UpdateSettings({ env }: { env: DetectedEnvironment }) {
           disabled={prefs.isPending}
           onChange={(e) => prefs.mutate({ modUsageTracking: e.target.checked })}
         />
-        After a few long play sessions, ask me to confirm which mods work (shared as player reports)
+        Ask me which mods work after long play sessions
       </label>
 
       <div className="setting-row">
@@ -61,7 +61,7 @@ export function UpdateSettings({ env }: { env: DetectedEnvironment }) {
           }}
         >
           <option value="">The installed game ({env.gameVersion ?? "unknown"})</option>
-          <option value="latest">Any game version (always the newest release)</option>
+          <option value="latest">Any game version</option>
           {options.length > 0 && (
             <optgroup label="A specific game version">
               {options.map((v) => (
@@ -73,10 +73,6 @@ export function UpdateSettings({ env }: { env: DetectedEnvironment }) {
           )}
         </select>
       </div>
-      <p className="muted small">
-        Updates and the "Latest" column only offer releases tagged for this game version. Pick a newer one before you
-        upgrade the game to see which mods are ready.
-      </p>
 
       <label className="checkbox-row">
         <input
@@ -85,7 +81,7 @@ export function UpdateSettings({ env }: { env: DetectedEnvironment }) {
           disabled={prefs.isPending || target === "latest"}
           onChange={(e) => prefs.mutate({ requireExactVersionMatch: e.target.checked })}
         />
-        Strict: require the exact game version (1.21.5), not just the same minor version (1.21.x)
+        Require the exact game version (1.21.5, not 1.21.x)
       </label>
 
       <div className="setting-row">
@@ -119,10 +115,6 @@ export function UpdateSettings({ env }: { env: DetectedEnvironment }) {
           <Icon name="trash" />Clear cache
         </button>
       </div>
-      <p className="muted small">
-        Kept versions let you roll back and reinstall without downloading. The oldest are removed first when the
-        limit is reached; installed versions are never removed.
-      </p>
       {(prefs.error ?? clear.error) && <p className="error-text small">{(prefs.error ?? clear.error)!.message}</p>}
     </section>
   );

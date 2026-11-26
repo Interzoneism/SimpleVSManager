@@ -20,19 +20,18 @@ export function ConfirmMods({ enabled, onOpenMod }: { enabled: boolean; onOpenMo
 
   const data = sessions.data;
   const due = canReport && !!data?.due && data.mods.length > 0;
-  const longSessions = data?.longSessions ?? 0;
   const modCount = data?.mods.length ?? 0;
   useEffect(() => {
     // Shown while the question is open and the dialog isn't; closing the dialog unanswered brings it back.
     if (!due || open) return;
-    toast.info(`You've played ${longSessions} long sessions. Help other players: confirm which of your ${modCount} mods work.`, {
+    toast.info(`Let other players know which of your ${modCount} mods work.`, {
       id: TOAST_ID,
       title: "Did your mods work?",
       duration: null,
       action: { label: "Confirm working mods", icon: "check", onClick: () => setOpen(true) },
     });
     return () => toast.dismiss(TOAST_ID);
-  }, [due, open, longSessions, modCount]);
+  }, [due, open, modCount]);
   useErrorToast(submit.error);
   if (!due || !data) return null;
   const chosen = worked ?? new Set(data.mods.map((m) => m.key));
@@ -56,10 +55,7 @@ export function ConfirmMods({ enabled, onOpenMod }: { enabled: boolean; onOpenMo
     <>
       {open && (
         <Modal title="Confirm working mods" onClose={() => setOpen(false)} busy={submit.isPending}>
-          <p className="muted small">
-            Ticked mods are reported as "Fully functional" for your game version. Untick any that gave you trouble, and
-            report those from the mod's details instead.
-          </p>
+          <p className="muted small">Untick any that gave you trouble.</p>
           <ul className="check-list tall">
             {data.mods.map((m: UsageMod) => (
               <li key={m.key}>

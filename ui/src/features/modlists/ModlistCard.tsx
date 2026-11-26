@@ -58,12 +58,12 @@ export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, dat
                 </span>
               )}
               {following && (
-                <span className="card-following" title="Following: you get the author's updates" aria-label="Following">
+                <span className="card-following" title="Following" aria-label="Following">
                   <Icon name="follow" />
                 </span>
               )}
               {published && (
-                <span className="card-published" title="Published: other players can find, load and follow it" aria-label="Published">
+                <span className="card-published" title="Published" aria-label="Published">
                   <Icon name="published" />
                 </span>
               )}

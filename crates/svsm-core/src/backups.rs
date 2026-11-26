@@ -50,7 +50,7 @@ pub fn check_restore_target(data_dir: &Path) -> CoreResult<()> {
     if entries.peek().is_none() {
         return Ok(());
     }
-    let refuse = |why: &str| Err(io(data_dir, format!("{why} Nothing was changed. Pick the right data folder under Folders.")));
+    let refuse = |why: &str| Err(io(data_dir, format!("{why} Nothing was changed.")));
     if data_dir.parent().is_none() || data_dir.canonicalize().ok().is_some_and(|c| c.parent().is_none()) {
         return refuse("This is a drive root, not a Vintage Story data folder.");
     }
@@ -61,7 +61,7 @@ pub fn check_restore_target(data_dir: &Path) -> CoreResult<()> {
     let looks_right = data_dir.join("clientsettings.json").is_file()
         || (data_dir.join("Mods").is_dir() && game_dirs.iter().any(|d| data_dir.join(d).is_dir()));
     if !looks_right {
-        return refuse("This doesn't look like a Vintage Story data folder (there is no clientsettings.json).");
+        return refuse("This isn't a Vintage Story data folder.");
     }
     Ok(())
 }
@@ -417,7 +417,7 @@ impl DataBackups {
         if staging.exists() {
             return Err(io(
                 &staging,
-                "An earlier restore was interrupted. Its previous data is in this folder: move what you need back into the data folder, then delete it and try again.",
+                "An earlier restore was interrupted. Move what you need from this folder back into the data folder, then delete it.",
             ));
         }
         let keep = |p: &Path| p == staging || backup_root_canon.as_ref().is_some_and(|r| p.canonicalize().ok().as_ref() == Some(r));

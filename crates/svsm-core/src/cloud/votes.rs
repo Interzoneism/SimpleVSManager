@@ -180,7 +180,7 @@ impl<'a> Votes<'a> {
     pub async fn submit(&self, mod_id: &str, version: &str, game_version: &str, option: VoteOption, comment: Option<&str>) -> CloudResult<VoteSummary> {
         let comment = comment.map(str::trim).filter(|c| !c.is_empty());
         if option.needs_comment() && comment.is_none() {
-            return Err(CloudError::Invalid("Say briefly what goes wrong, so others know what to expect.".into()));
+            return Err(CloudError::Invalid("Say briefly what goes wrong.".into()));
         }
         if mod_id.trim().is_empty() || version.trim().is_empty() || game_version.trim().is_empty() {
             return Err(CloudError::Invalid("A report needs the mod, its version and the game version.".into()));

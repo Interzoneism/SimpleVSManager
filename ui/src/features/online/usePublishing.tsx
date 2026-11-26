@@ -7,7 +7,7 @@ import { toast, useErrorToast } from "../../components/Toast";
 
 /** The cloud holds at most this many modlists per player (slot1..slot5 in the database rules). */
 export const PUBLISH_LIMIT = 5;
-export const LIMIT_MESSAGE = `You already have ${PUBLISH_LIMIT} published modlists, the most the cloud allows. Unpublish one of them first, then publish this one.`;
+export const LIMIT_MESSAGE = `You can publish up to ${PUBLISH_LIMIT} modlists. Unpublish one first.`;
 
 /** Only your own saved modlists can be published: not groups, backups or lists that follow someone else's. */
 export const canBePublished = (entry: ModlistSummary) => entry.kind === "modlist" && !entry.subscription && !entry.error;
@@ -31,11 +31,11 @@ export function usePublishing({ offline, onFlash }: { offline: boolean; onFlash:
 
   /** Why publishing isn't possible right now, or `null`. */
   const blocked = offline || status.data?.offline
-    ? "Publishing needs the cloud. Turn off offline mode first."
+    ? "Turn off offline mode to publish."
     : !status.data
       ? "Checking the cloud…"
       : status.data.legacyIdentity
-        ? "Move your cloud identity to the new project first (see the notice under Online modlists)."
+        ? "Move your account first (see Online modlists)."
         : status.data.playerProblem ?? status.data.signInProblem ?? null;
   const slotList = slots.data?.slots ?? [];
   const slotFor = (registryId: string | undefined): CloudSlotView | null =>
@@ -53,10 +53,10 @@ export function usePublishing({ offline, onFlash }: { offline: boolean; onFlash:
         const revision = s.published?.revision ?? 1;
         onFlash(
           before === null
-            ? `Published "${s.name}". Other players can now find it under From the community.`
+            ? `Published "${s.name}".`
             : revision > before
-              ? `Published the changes to "${s.name}" as revision ${revision}.`
-              : `Published the changes to "${s.name}". The mods are the same, so followers aren't notified.`,
+              ? `Published "${s.name}" (revision ${revision}).`
+              : `Published "${s.name}".`,
         );
         onDone?.();
       },
@@ -72,9 +72,8 @@ export function usePublishing({ offline, onFlash }: { offline: boolean; onFlash:
     }
     const followers = slotFor(entry.published?.registryId)?.subscribers ?? 0;
     const ok = confirmed || await ask(
-      `Unpublish "${entry.name}"? It's removed from the cloud and the community list, and your saved modlist stays as it is.` +
-        (followers ? ` Your ${plural(followers, "follower")} keep their copies, but get no more updates.` : "") +
-        " You can publish it again later, as a new online modlist.",
+      `Unpublish "${entry.name}"? Your saved copy stays.` +
+        (followers ? ` Your ${plural(followers, "follower")} keep their copies but get no more updates.` : ""),
       { title: "Unpublish modlist", kind: "warning", okLabel: "Unpublish", cancelLabel: "Cancel" },
     );
     if (!ok) return false;

@@ -152,7 +152,7 @@ export default function App() {
           </button>
           <div className="header-spacer" />
           {env.data?.settings.offlineMode && (
-            <button type="button" className="badge-button" title="Change offline mode in Settings" onClick={() => setTab("settings")}>
+            <button type="button" className="badge-button" title="Offline mode" onClick={() => setTab("settings")}>
               <Icon name="offline" size={13} />Offline
             </button>
           )}
@@ -163,7 +163,7 @@ export default function App() {
             </div>
           )}
           {!!env.data?.settings.profiles.length && (
-            <button type="button" className="profile-button" title="Manage game profiles in Settings" onClick={() => setTab("settings")}>
+            <button type="button" className="profile-button" title="Game profile" onClick={() => setTab("settings")}>
               <span className="profile-dot" aria-hidden="true" />
               <span>{env.data.settings.activeProfile}</span>
             </button>
@@ -172,7 +172,7 @@ export default function App() {
             type="button"
             className="primary launch-button"
             disabled={!canLaunch || launch.isPending}
-            title={shortcut ? `Start Vintage Story through ${shortcut}` : canLaunch ? "Start Vintage Story with this data folder" : "Set the game and data folders first"}
+            title={shortcut ? `Launch through ${shortcut}` : canLaunch ? undefined : "Set the game and data folders first"}
             onClick={() => launch.mutate()}
           >
             <Icon name="play" />
@@ -194,8 +194,8 @@ export default function App() {
           {env.data && !dataReady && tab !== "settings" && (
             <div className="setup-empty">
               <span className="empty-icon"><Icon name="folder" /></span>
-              <h2>Connect your game data folder</h2>
-              <p className="muted">Choose your Vintage Story data folder to manage mods, modlists and configs.</p>
+              <h2>Data folder not found</h2>
+              <p className="muted">Set your Vintage Story data folder in Settings.</p>
               <button type="button" className="primary" onClick={() => setTab("settings")}><Icon name="settings" />Open Settings</button>
             </div>
           )}

@@ -103,7 +103,7 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
                   src={heroUrl}
                   alt={count > 0 ? `Screenshot ${shot + 1} of ${count}` : ""}
                   onClick={count > 0 ? () => setZoomed(shot) : undefined}
-                  title={count > 0 ? "Click to view full size" : undefined}
+                  title={count > 0 ? "View full size" : undefined}
                 />
               </>
             ) : (
@@ -151,7 +151,7 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
                   type="button"
                   className="primary"
                   disabled={!chosen || install.isPending || install.isSuccess}
-                  title={chosen && !chosen.compatible ? "This release isn't tagged for your target game version" : undefined}
+                  title={chosen && !chosen.compatible ? "Not tagged for your game version" : undefined}
                   onClick={() => chosen && install.mutate({ modId: entry.modId, version: chosen.version })}
                 >
                   <Icon name="download" />{install.isSuccess ? "Installed" : install.isPending ? (progress ?? "Installing…") : `Install ${chosen?.version ?? ""}`}
@@ -176,14 +176,14 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
               <button type="button" onClick={() => openUrl.mutate(pageUrl)}><Icon name="external" />Open in web browser</button>
             )}
           </div>
-          {entry.installed && <p className="muted small mod-window-note">Already installed. Find updates under Installed mods.</p>}
+          {entry.installed && <p className="muted small mod-window-note">Already installed.</p>}
           {chosen && !chosen.compatible && (
             <p className="notice warn-text small mod-window-note">
               {chosen.version} is tagged for {summarizeVersions(chosen.gameVersions)}, not your target game version.
             </p>
           )}
           {!latestCompatible && info && info.releases.length > 0 && !picked && !entry.installed && (
-            <p className="notice warn-text small mod-window-note">No release is tagged for your target game version.</p>
+            <p className="notice warn-text small mod-window-note">No release for your game version.</p>
           )}
           {links.length > 0 && (
             <p className="link-row small mod-window-note">
@@ -201,7 +201,7 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
             {details.data && !info && (
               <p className="notice warn-text small">
                 {details.data.error ??
-                  (offline ? "Details aren't available in offline mode until this mod has been looked up once." : "This mod has no downloadable releases.")}
+                  (offline ? "Not available in offline mode." : "This mod has no downloadable releases.")}
               </p>
             )}
             {html ? (

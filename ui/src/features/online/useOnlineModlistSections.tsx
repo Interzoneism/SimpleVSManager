@@ -44,7 +44,7 @@ export function useOnlineModlistSections({
   useErrorToast(hide.error ?? copy.error ?? move.error);
   const staleReason = listing.data?.error ?? null;
   useEffect(() => {
-    if (staleReason) toast.warning(`Showing the saved list: ${staleReason}`, { id: "online-modlists-stale", title: "Couldn't refresh online modlists" });
+    if (staleReason) toast.warning(staleReason, { id: "online-modlists-stale", title: "Couldn't refresh online modlists" });
   }, [staleReason]);
   const busy = copy.isPending || hide.isPending;
 
@@ -54,7 +54,7 @@ export function useOnlineModlistSections({
   const saveCopy = ({ entry }: OnlineEntry, follow: boolean) =>
     copy.mutate(
       { registryId: entry.registryId, follow },
-      { onSuccess: (s) => toast.success(follow ? `Following "${s.name}". Find it under Saved modlists.` : `Saved "${s.name}" under Saved modlists.`) },
+      { onSuccess: (s) => toast.success(follow ? `Following "${s.name}".` : `Saved "${s.name}".`) },
     );
 
   const hideList = ({ entry }: OnlineEntry) =>
@@ -75,17 +75,16 @@ export function useOnlineModlistSections({
 
   const doMove = async () => {
     const ok = await ask(
-      "This moves your cloud identity and your published modlists from the old cloud project to the current one, like Simple VS Manager 2.3 does.\n\n" +
-        "Your current identity file is kept as firebase-auth.legacy.json (and the SVSM Backup copy likewise). If anything fails, everything is put back.",
-      { title: "Move cloud identity", okLabel: "Move", cancelLabel: "Cancel" },
+      "Move your account and published modlists to the new server?",
+      { title: "Move account", okLabel: "Move", cancelLabel: "Cancel" },
     );
     if (!ok) return;
     move.mutate(undefined, {
       onSuccess: (r) =>
         toast.success(
           r.moved.length
-            ? `Moved. Your modlists ${r.moved.map((n) => `"${n}"`).join(", ")} are published on the current project.`
-            : "Moved. You had no published modlists on the old project.",
+            ? `Moved. Published: ${r.moved.map((n) => `"${n}"`).join(", ")}.`
+            : "Moved.",
         ),
     });
   };
@@ -119,7 +118,7 @@ export function useOnlineModlistSections({
   };
 
   if (offline) {
-    return { sections: <p className="muted small section-empty">Online modlists are unavailable in offline mode.</p> };
+    return { sections: <p className="muted small section-empty">Offline mode is on.</p> };
   }
 
   const noMatches = search.trim() ? "No matches." : null;
@@ -148,10 +147,9 @@ export function useOnlineModlistSections({
     <>
       {status.data?.legacyIdentity && (
         <p className="notice warn-text">
-          Your cloud identity is from the old cloud project. You can browse, follow and load modlists; publishing and
-          reports need the one-time move to the new project.{" "}
+          Move your account to publish and send reports.{" "}
           <button type="button" className="link-button" disabled={move.isPending} onClick={() => void doMove()}>
-            <Icon name="goTo" size={13} />{move.isPending ? "Moving…" : "Move my cloud identity…"}
+            <Icon name="goTo" size={13} />{move.isPending ? "Moving…" : "Move account…"}
           </button>
         </p>
       )}
@@ -163,7 +161,7 @@ export function useOnlineModlistSections({
             collapsed={communityCollapsed}
             onToggle={onToggleCommunity}
             toolbar={communityToolbar}
-            empty={!loaded ? "Loading online modlists…" : visible.length ? undefined : noMatches ?? "No community modlists to show."}
+            empty={!loaded ? "Loading online modlists…" : visible.length ? undefined : noMatches ?? "No modlists."}
           >
             {visible.map(card)}
           </ModlistSection>
@@ -224,7 +222,7 @@ function OnlineDetails({ entry, busy, onLoad, onCopy, onShowLocal, onHide, onHid
           <button type="button" onClick={() => onShowLocal(entry.localId!)}><Icon name="goTo" />Show my copy</button>
         ) : (
           <>
-            <button type="button" disabled={busy} title="Keep a copy that you can update when the author publishes changes" onClick={() => onCopy(true)}>
+            <button type="button" disabled={busy} onClick={() => onCopy(true)}>
               <Icon name="follow" />Follow
             </button>
             <button type="button" disabled={busy} onClick={() => onCopy(false)}><Icon name="copy" />Save a copy</button>
