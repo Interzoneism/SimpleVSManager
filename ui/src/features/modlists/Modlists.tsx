@@ -262,6 +262,18 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
   return (
     <SplitWorkspace name="modlists" widePane>
       <div className="installed-main">
+        <div className="mods-toolbar wrap modlist-actions" role="group" aria-label="Modlist actions">
+          <button
+            type="button"
+            className="primary"
+            title="Combine the selected modlists (or pick them in the next step)"
+            onClick={() => setDialog({ kind: "group", group: null, members: chosen.filter((c) => c.kind !== "group").map((c) => c.id) })}
+          >
+            New group…
+          </button>
+          <button type="button" onClick={() => void doImport()} disabled={importFile.isPending}>Import file…</button>
+          <button type="button" onClick={() => openFolder.mutate("modlists")}>Open folder</button>
+        </div>
         <div className="mods-toolbar wrap">
           <input
             type="search"
@@ -308,19 +320,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
           {online.sections}
         </div>
       </div>
-      <aside className={`details with-toolbar${hasDetails ? "" : " empty"}`} aria-label="Modlist details">
-        <div className="details-toolbar">
-          <button
-            type="button"
-            className="primary"
-            title="Combine the selected modlists (or pick them in the next step)"
-            onClick={() => setDialog({ kind: "group", group: null, members: chosen.filter((c) => c.kind !== "group").map((c) => c.id) })}
-          >
-            New group…
-          </button>
-          <button type="button" onClick={() => void doImport()} disabled={importFile.isPending}>Import file…</button>
-          <button type="button" onClick={() => openFolder.mutate("modlists")}>Open folder</button>
-        </div>
+      <aside className={`details${hasDetails ? "" : " empty"}`} aria-label="Modlist details">
         {hasDetails && <CloseDetails onClose={() => selectLocal([])} />}
         {!hasDetails && (
           <p className="muted details-empty-text">

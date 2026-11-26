@@ -174,7 +174,11 @@ export default function App() {
         )}
         <main className="app-main" ref={main}>
           <div className="page-heading">
-            <h1>{pages[tab].title}</h1>
+            <div className="page-title">
+              <h1>{pages[tab].title}</h1>
+              {/* The Mod DB page fills this in with its list size and age. */}
+              <span id="browse-heading-info" className="page-title-info muted small" hidden={tab !== "browse"} />
+            </div>
             {tab === "browse" && dataReady && <BuilderToggle />}
           </div>
           {env.isPending && <p className="empty-state">Looking for Vintage Story…</p>}
