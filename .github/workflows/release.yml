@@ -9,7 +9,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-    branches: [claude/project-thread-or1lru] # TEMP: test run, removed before merge
   workflow_dispatch:
 
 concurrency:
