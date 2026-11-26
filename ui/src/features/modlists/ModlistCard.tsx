@@ -4,8 +4,10 @@ import { iconThemeClass, ModlistIcon } from "./ModlistIcon";
 
 /** A modlist card: the title across the top, then the icon beside the facts. The description is
  * only in the details panel. */
-export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, date, badges, following, published, selected, buttonRef, onSelect, onLoad, onContextMenu }: {
+export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, date, badges, followers, following, published, selected, buttonRef, onSelect, onLoad, onContextMenu }: {
   title: string;
+  /** How many players follow this list: a people icon and the count in the top right corner. */
+  followers?: number;
   /** Follows an online modlist: a small icon in the top right corner. */
   following?: boolean;
   /** One of your published modlists: a thicker colored border and a cloud in the corner. */
@@ -43,17 +45,29 @@ export function ModlistCard({ title, icon, iconColor, kindIcon, rows, facts, dat
           if (!event.repeat) onLoad();
         }}
       >
-        <span className="card-title">{title}</span>
-        {following && (
-          <span className="card-following" title="Following: you get the author's updates" aria-label="Following">
-            <Icon name="follow" />
-          </span>
-        )}
-        {published && (
-          <span className="card-published" title="Published: other players can find, load and follow it" aria-label="Published">
-            <Icon name="published" />
-          </span>
-        )}
+        <span className="modlist-card-head">
+          <span className="card-title">{title}</span>
+          {(!!followers || following || published) && (
+            <span className="modlist-card-corner">
+              {!!followers && (
+                <span className="card-followers" title={`${followers} ${followers === 1 ? "player follows" : "players follow"} this modlist`} aria-label={`${followers} following`}>
+                  <Icon name="community" />
+                  <strong>{followers}</strong>
+                </span>
+              )}
+              {following && (
+                <span className="card-following" title="Following: you get the author's updates" aria-label="Following">
+                  <Icon name="follow" />
+                </span>
+              )}
+              {published && (
+                <span className="card-published" title="Published: other players can find, load and follow it" aria-label="Published">
+                  <Icon name="published" />
+                </span>
+              )}
+            </span>
+          )}
+        </span>
         <span className="modlist-card-foot">
           <span className={`card-logo modlist-card-icon${iconThemeClass(iconColor)}`}><ModlistIcon icon={icon} fallback={kindIcon} /></span>
           <span className="modlist-card-foot-meta">
