@@ -10,6 +10,7 @@ mod moddb_commands;
 mod modlist_commands;
 mod protocol;
 mod state;
+mod suggest;
 mod watcher;
 
 #[cfg(test)]

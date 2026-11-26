@@ -44,7 +44,7 @@ function browseEntry(modId: string, name: string, downloads: number): BrowseEntr
   return {
     modId, modIds: [modId], numericId: 1, assetId: 1, name, summary: null, author: "Tyron", urlAlias: null, side: "both",
     kind: "mod", logoUrl: null, tags: [], downloads, follows: 0, comments: 0, trendingPoints: 0, lastReleasedMs: null,
-    installed: false, favourite: false,
+    installed: false, favourite: false, suggestion: null,
   };
 }
 
@@ -58,6 +58,7 @@ const saved: ModlistSummary = {
 const page: BrowsePage = {
   total: 2,
   fetchedMs: Date.now(),
+  suggestBasis: null,
   items: [browseEntry("carryon", "Carry On", 5000), browseEntry("primitivesurvival", "Primitive Survival", 9000)],
 };
 
@@ -223,4 +224,29 @@ test("builder state survives a restart", async () => {
   vi.resetModules();
   expect((await import("./builderStore")).getBuilder().entries).toEqual([]);
   act(() => resetBuilderForTests());
+});
+
+test("Suggested for you is based on the builder's mods when it has some, else the installed mods", async () => {
+  const lastSeeds = () => (mocked.browseMods.mock.calls.at(-1)![0] as { seedModIds: string[] }).seedModIds;
+  mocked.browseMods.mockImplementation((q: { sort: string }) =>
+    ok(q.sort !== "suggested" ? page : {
+      ...page,
+      items: [{ ...browseEntry("primitivesurvival", "Primitive Survival", 9000), suggestion: { score: 1, together: 7 } }],
+      suggestBasis: { fromBuilder: false, seedCount: 12, modlists: 40, reporters: 9, error: null },
+    }));
+  renderBrowser();
+  fireEvent.change(await screen.findByRole("combobox", { name: "Sort by" }), { target: { value: "suggested" } });
+  expect(await screen.findByText(/Suggested from your 12 installed mods, using 40 community modlists and 9 people's mod reports/)).toBeInTheDocument();
+  expect(lastSeeds()).toEqual([]);
+  expect(screen.getByRole("listitem", { name: /Primitive Survival/ })).toHaveTextContent("7");
+
+  // An open builder with mods: those are the seeds.
+  act(() => {
+    builder.setOpen(true);
+    builder.add([{ modId: "CarryOn", version: "1.0.0", compatible: true, name: "Carry On", author: null, side: null, logoUrl: null, downloads: null }]);
+  });
+  await waitFor(() => expect(lastSeeds()).toEqual(["carryon"]));
+  // Closing it goes back to the installed mods.
+  act(() => builder.setOpen(false));
+  await waitFor(() => expect(lastSeeds()).toEqual([]));
 });
