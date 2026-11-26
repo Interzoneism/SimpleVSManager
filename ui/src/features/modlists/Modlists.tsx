@@ -29,6 +29,7 @@ import { CloseDetails, SplitWorkspace, useLayoutPreference } from "../../compone
 import type { IconName } from "../../components/Icon";
 import { useContextMenu } from "../../components/ContextMenu";
 import { toast, useErrorToast } from "../../components/Toast";
+import { useDeleteKey } from "../../lib/deleteKey";
 import { Icon } from "../../components/Icon";
 
 type Dialog =
@@ -172,6 +173,9 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     for (const t of published) if (!(await publishing.unpublish(t, true))) return;
     del.mutate(targets.map((t) => t.id), { onSuccess: () => selectLocal([]) });
   };
+  useDeleteKey(() => {
+    if (chosen.length && !busy) void remove(chosen);
+  });
 
   const doImport = async () => {
     const path = await open({ multiple: false, filters: [{ name: "Modlists", extensions: ["json", "pdf"] }] });

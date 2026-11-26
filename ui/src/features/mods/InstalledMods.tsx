@@ -38,6 +38,7 @@ import { Icon, type IconName } from "../../components/Icon";
 import { SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import { copyText, useContextMenu } from "../../components/ContextMenu";
 import { toast, useErrorToast } from "../../components/Toast";
+import { useDeleteKey } from "../../lib/deleteKey";
 
 /** Short progress label for the table, from an UpdateProgress event. */
 export function progressLabel(p: UpdateProgress): string | null {
@@ -150,6 +151,9 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
       { onSuccess: () => setSelected(new Set()) },
     );
   };
+  useDeleteKey(() => {
+    if (selectedMods.length && !busy) void remove(selectedMods);
+  }, enabled);
 
   const onRowMenu = (event: MouseEvent<HTMLDivElement>, mod: InstalledMod) => {
     const targets = selected.has(mod.key) ? selectedMods : [mod];

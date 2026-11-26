@@ -5,11 +5,13 @@ import { commands } from "../../bindings";
 import { Modlists } from "./Modlists";
 import { Toaster } from "../../components/Toast";
 import { ContextMenuProvider } from "../../components/ContextMenu";
+import { ask } from "@tauri-apps/plugin-dialog";
 
 vi.mock("../../bindings", () => ({
-  commands: { listModlists: vi.fn(), cloudStatus: vi.fn(), onlineModlists: vi.fn(), publishSavedModlist: vi.fn() },
+  commands: { listModlists: vi.fn(), cloudStatus: vi.fn(), onlineModlists: vi.fn(), publishSavedModlist: vi.fn(), deleteModlists: vi.fn() },
   events: { modsChanged: { listen: async () => () => {} } },
 }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(), open: vi.fn(), save: vi.fn() }));
 
 const local: ModlistSummary = {
   id: "Modlists/Winter.json",
@@ -204,4 +206,20 @@ test("details offer one Export menu, no Update button, and hide server commands 
   const again = await screen.findByRole("list", { name: "Saved modlists" });
   fireEvent.click(within(again).getByRole("button", { name: /Winter save/ }));
   expect(within(screen.getByRole("complementary", { name: "Modlist details" })).getByRole("button", { name: "Copy server commands" })).toBeVisible();
+});
+
+test("the Delete key deletes the selected modlists after confirming, but not while typing", async () => {
+  vi.mocked(ask).mockResolvedValue(true);
+  vi.mocked(commands.deleteModlists).mockResolvedValue({ status: "ok", data: [] });
+  renderModlists();
+  const saved = await screen.findByRole("list", { name: "Saved modlists" });
+  const search = screen.getByRole("searchbox", { name: "Search modlists" });
+  fireEvent.click(within(saved).getByRole("button", { name: /Winter save/ }));
+
+  fireEvent.keyDown(search, { key: "Delete" });
+  expect(ask).not.toHaveBeenCalled();
+
+  fireEvent.keyDown(within(saved).getByRole("button", { name: /Winter save/ }), { key: "Delete" });
+  await vi.waitFor(() => expect(commands.deleteModlists).toHaveBeenCalledWith(["Modlists/Winter.json"]));
+  expect(ask).toHaveBeenCalledTimes(1);
 });
