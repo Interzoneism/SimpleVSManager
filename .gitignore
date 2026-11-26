@@ -10,3 +10,6 @@ node_modules/
 # Firebase service-account keys (firebase/admin/recover-account.mjs)
 /firebase/admin/service-account*.json
 *-firebase-adminsdk-*.json
+
+# Written by the release workflow when Windows signing secrets are set
+/src-tauri/tauri.windows.conf.json

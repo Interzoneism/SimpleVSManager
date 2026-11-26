@@ -112,6 +112,9 @@ If `pnpm` fails with a Corepack error, run `npx pnpm@10 <command>` instead (this
 
 Installers land in `target/release/bundle/`. To build only one type: `pnpm tauri build --bundles nsis`.
 
+Release builds for all three systems come from GitHub Actions; see `RELEASING.md`. Set the
+version with `node scripts/version.mjs <version>` so all the files agree.
+
 ## Rules of the road
 
 - Logic goes in `svsm-core`. Commands in `src-tauri/src/commands.rs` stay thin.
