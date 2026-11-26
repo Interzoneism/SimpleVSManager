@@ -212,6 +212,11 @@ export function useRefreshModDb() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (mode: LookupMode) => unwrap(commands.moddbStatus(mode)),
+    onMutate: (mode: LookupMode) => {
+      // "Check for updates" also rescans the mod folders, for changes the watcher can't see
+      // (network drives, edits inside folder mods on Linux).
+      if (mode === "force") void client.invalidateQueries({ queryKey: queryKeys.mods });
+    },
     onSuccess: (status: ModDbStatus) => {
       // Every cached status entry (any mods stamp) is now stale; seed the latest.
       client.setQueriesData({ queryKey: queryKeys.moddb }, status);

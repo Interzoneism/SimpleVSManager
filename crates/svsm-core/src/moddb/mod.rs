@@ -37,6 +37,9 @@ pub const TAGS_MAX_AGE_MS: f64 = 24.0 * 3_600_000.0;
 /// Card thumbnails rarely change; look them up again after a week.
 pub const THUMB_MAX_AGE_MS: f64 = 7.0 * 24.0 * 3_600_000.0;
 
+/// A thumbnail lookup that failed is tried again after this long.
+pub const THUMB_RETRY_MS: f64 = 10.0 * 60_000.0;
+
 /// The manager's own Mod DB page (for the "new version of the manager" notice).
 pub const MANAGER_MOD_ID: &str = "5545";
 
@@ -65,6 +68,8 @@ pub struct ModDb {
     catalogue_memo: Mutex<Option<(std::sync::Arc<Vec<ModDbListEntry>>, f64)>>,
     /// Per game-version tag id: the Mod DB ids with a release for it.
     gv_memo: Mutex<HashMap<String, (IdSet, f64)>>,
+    /// Thumbnail lookups that failed (network), by lower-case id, and when.
+    thumb_failures: Mutex<HashMap<String, f64>>,
     /// Only one catalogue load or download at a time.
     catalogue_gate: futures_util::lock::Mutex<()>,
 }
@@ -97,6 +102,7 @@ impl ModDb {
             counter: AtomicU64::new(0),
             thumbs: Mutex::new(None),
             catalogue_memo: Mutex::new(None),
+            thumb_failures: Mutex::new(HashMap::new()),
             gv_memo: Mutex::new(HashMap::new()),
             catalogue_gate: futures_util::lock::Mutex::new(()),
         }
@@ -207,7 +213,11 @@ impl ModDb {
                             changed = true;
                         } else {
                             out.insert(key.clone(), None);
-                            missing.push(key);
+                            // A lookup that failed a moment ago would only fail again.
+                            let failed_at = self.thumb_failures.lock_safe().get(&key).copied();
+                            if failed_at.is_none_or(|at| now - at > THUMB_RETRY_MS) {
+                                missing.push(key);
+                            }
                         }
                     }
                 }
@@ -228,6 +238,13 @@ impl ModDb {
             let fetched_ms = dates::now_ms();
             let mut guard = self.thumbs.lock_safe();
             let map = guard.get_or_insert_with(HashMap::new);
+            let mut failures = self.thumb_failures.lock_safe();
+            for (id, r) in &results {
+                if r.is_err() {
+                    failures.insert(id.clone(), fetched_ms);
+                }
+            }
+            drop(failures);
             for (id, r) in results {
                 if let Ok(raw) = r {
                     let _ = self.cache.store_mod(&id, raw.as_ref(), fetched_ms);

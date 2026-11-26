@@ -37,18 +37,25 @@ impl ModWatcher {
             if paths.is_empty() {
                 return;
             }
+            let state = app.try_state::<crate::state::AppState>();
             // Our own save of clientsettings.json already returned a fresh list.
-            let own_write = paths.iter().all(|p| is_settings_file(p))
-                && app.try_state::<crate::state::AppState>().is_some_and(|s| s.is_own_settings_write());
-            if !own_write {
+            let own_write = paths.iter().all(|p| is_settings_file(p)) && state.as_ref().is_some_and(|s| s.is_own_settings_write());
+            // An update, install or modlist run is changing files and returns the new list itself.
+            let busy = state.as_ref().is_some_and(|s| s.update_lock.try_lock().is_err());
+            if !own_write && !busy {
                 let _ = ModsChanged.emit(&app);
             }
         })?;
 
+        // Linux: inotify needs one watch per folder and older distros allow few, so only the
+        // mod folders themselves are watched there (edits inside folder mods need a refresh).
+        let mode = if cfg!(target_os = "linux") { RecursiveMode::NonRecursive } else { RecursiveMode::Recursive };
         let mut watched = Vec::new();
         for p in search_paths.iter().filter(|p| p.is_dir()) {
-            if debouncer.watch(p, RecursiveMode::Recursive).is_ok() {
-                watched.push(p.clone());
+            match debouncer.watch(p, mode) {
+                Ok(()) => watched.push(p.clone()),
+                // Network drives, some FUSE mounts, or out of inotify watches.
+                Err(e) => tracing::warn!("Not watching {} for changes: {e}", p.display()),
             }
         }
         // clientsettings.json is replaced by rename when saved, so watch its folder (not
