@@ -23,19 +23,17 @@ interface Props {
   onEditConfig?: (modId: string) => void;
   onClose: () => void;
   /** Shown at the top of the panel, whatever is selected (modlist save/load). */
-  toolbar?: React.ReactNode;
 }
 
 /** Right-hand pane: one mod's details, or batch actions for several. */
-export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete, onUpdate, onInstallVersion, onEditConfig, onClose, toolbar }: Props) {
+export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete, onUpdate, onInstallVersion, onEditConfig, onClose }: Props) {
   const prefs = useUpdatePreferences();
   const reveal = useRevealMod();
   const website = useOpenModWebsite();
 
   if (mods.length === 0) {
     return (
-      <aside className={`details empty${toolbar ? " with-toolbar" : ""}`} aria-label="Mod details">
-        {toolbar}
+      <aside className="details empty" aria-label="Mod details">
         <div className="details-empty-text">
           <span className="empty-icon"><Icon name="panel" /></span>
           <h2>Mod details</h2>
@@ -52,7 +50,6 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
     const ids = mods.map((m) => m.modId).filter(Boolean);
     return (
       <aside className="details">
-        {toolbar}
         <DetailsHeader title={`${mods.length} mods selected`} onClose={onClose} />
         <div className="details-actions">
           <button type="button" disabled={busy} onClick={() => onSetActive(manageable, true)}>Enable all</button>
@@ -88,7 +85,6 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
 
   return (
     <aside className="details mod-details">
-      {toolbar}
       <CloseDetails onClose={onClose} />
       <header className="mod-details-head">
         {mod.iconKey ? (
