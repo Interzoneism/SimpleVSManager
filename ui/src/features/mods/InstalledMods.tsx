@@ -247,6 +247,22 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
                 </button>
               ))}
             </div>
+            <div className="modlist-quick-actions" role="group" aria-label="Modlists">
+              <select
+                aria-label="Load a modlist"
+                value=""
+                disabled={loadable.length === 0}
+                onChange={(e) => setLoadingModlist(loadable.find((m) => m.id === e.target.value) ?? null)}
+              >
+                <option value="">{loadable.length ? "Load a modlist…" : "No saved modlists"}</option>
+                {loadable.map((m) => (
+                  <option key={m.id} value={m.id}>{m.active ? `${m.name} (active)` : m.name}</option>
+                ))}
+              </select>
+              <button type="button" title="Save the enabled mods as a new modlist" onClick={() => setSavingModlist(true)}>
+                <Icon name="lists" />Save current mods…
+              </button>
+            </div>
             <div className="header-spacer" />
             <span className={`muted small update-check-status${checking ? " checking" : ""}`} aria-live="polite">
               {checking
@@ -327,24 +343,6 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
           onInstallVersion={(m, version) => installVersions([{ key: m.key, version }])}
           onEditConfig={onEditConfig}
           onClose={() => setSelected(new Set())}
-          toolbar={
-              <div className="details-toolbar modlist-quick-actions" role="group" aria-label="Modlists">
-                <select
-                  aria-label="Load a modlist"
-                  value=""
-                  disabled={loadable.length === 0}
-                  onChange={(e) => setLoadingModlist(loadable.find((m) => m.id === e.target.value) ?? null)}
-                >
-                  <option value="">{loadable.length ? "Load a modlist…" : "No saved modlists"}</option>
-                  {loadable.map((m) => (
-                    <option key={m.id} value={m.id}>{m.active ? `${m.name} (active)` : m.name}</option>
-                  ))}
-                </select>
-                <button type="button" title="Save the enabled mods as a new modlist" onClick={() => setSavingModlist(true)}>
-                  <Icon name="lists" />Save current mods…
-                </button>
-              </div>
-          }
         />
         {savingModlist && (
           <SaveModlistDialog
