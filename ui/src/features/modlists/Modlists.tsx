@@ -15,8 +15,9 @@ import {
   useUnsubscribe,
 } from "../../api";
 import { formatAgo } from "../../lib/format";
-import { canQuickSwitch, filterModlists, kindLabel, serverCommands, type QuickSwitchPreference } from "./modlistView";
+import { canQuickSwitch, filterModlists, kindLabel, serverCommands } from "./modlistView";
 import { LoadModlistDialog } from "./LoadModlistDialog";
+import { quickSwitchNotice, useQuickSwitch } from "./quickSwitch";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
@@ -71,14 +72,9 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
   const [communityCollapsed, setCommunityCollapsed] = useLayoutPreference<boolean>("modlists-community-collapsed", false);
   const [revealId, setRevealId] = useState<string | null>(null);
   const revealCard = useRef<HTMLButtonElement>(null);
-  const [rememberedSwitch, setRememberedSwitch] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch", "review");
-  const quickSwitchEnabled = rememberedSwitch === "keep-configs" || rememberedSwitch === "use-list-configs";
-  // The config choice used when Quick switch is turned on again (in Settings).
-  const [, setLastSwitchConfigs] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch-configs", "keep-configs");
-  const rememberSwitch = (p: QuickSwitchPreference) => {
-    if (p !== "review") setLastSwitchConfigs(p);
-    setRememberedSwitch(p);
-  };
+  const { enabled: quickSwitchEnabled, preference: rememberedSwitch, remember: rememberSwitch } = useQuickSwitch();
+  // A Quick switch that left mods out stays on screen until dismissed.
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (droppedFile) {
@@ -277,6 +273,12 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
           />
         </div>
         {flash && <p className="notice" role="status">{flash}</p>}
+        {switchNotice && (
+          <p className="notice warn-text" role="status">
+            {switchNotice}{" "}
+            <button type="button" className="link-button small" onClick={() => setSwitchNotice(null)}>Dismiss</button>
+          </p>
+        )}
         {error && <p className="notice error-text">{error.message}</p>}
         {lists.isPending && <p className="empty-state">Loading modlists…</p>}
         {lists.isError && <p className="empty-state error-text">{lists.error.message}</p>}
@@ -374,9 +376,16 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             start: !!dialog.quick && quickSwitchEnabled,
             preference: quickSwitchEnabled ? rememberedSwitch : "review",
             onRemember: rememberSwitch,
-            onDone: () => {
+            onDone: (report) => {
               setDialog(null);
-              setFlash(`Switched to "${dialog.title}".`);
+              const notice = quickSwitchNotice(dialog.title, report, os);
+              if (notice.problems) {
+                setFlash(null);
+                setSwitchNotice(notice.text);
+              } else {
+                setSwitchNotice(null);
+                setFlash(notice.text);
+              }
             },
           } : undefined}
           onShowBackup={(id) => {

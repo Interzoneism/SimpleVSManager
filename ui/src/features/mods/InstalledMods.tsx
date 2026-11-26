@@ -31,6 +31,8 @@ import { ModDetails } from "./ModDetails";
 import { UpdateDialog } from "./UpdateDialog";
 import { SaveModlistDialog } from "../modlists/SaveModlistDialog";
 import { LoadModlistDialog } from "../modlists/LoadModlistDialog";
+import { canQuickSwitch } from "../modlists/modlistView";
+import { quickSwitchNotice, useQuickSwitch } from "../modlists/quickSwitch";
 import type { ModlistSummary } from "../../bindings";
 import { Icon, type IconName } from "../../components/Icon";
 import { SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
@@ -80,6 +82,7 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
   const modlists = useModlists();
   const [savingModlist, setSavingModlist] = useState(false);
   const [loadingModlist, setLoadingModlist] = useState<ModlistSummary | null>(null);
+  const quickSwitch = useQuickSwitch();
   const [modlistFlash, setModlistFlash] = useState<string | null>(null);
   const loadable = (modlists.data ?? []).filter((m) => m.kind !== "backup" && !m.error);
 
@@ -359,6 +362,15 @@ export function InstalledMods({ os, enabled, onEditConfig, onBrowse }: {
             source={{ id: loadingModlist.id, file: null, online: null }}
             kind={loadingModlist.kind}
             title={loadingModlist.name}
+            quickSwitch={canQuickSwitch(loadingModlist.kind) ? {
+              start: quickSwitch.enabled,
+              preference: quickSwitch.enabled ? quickSwitch.preference : "review",
+              onRemember: quickSwitch.remember,
+              onDone: (report) => {
+                setModlistFlash(quickSwitchNotice(loadingModlist.name, report, os).text);
+                setLoadingModlist(null);
+              },
+            } : undefined}
             onShowBackup={() => setLoadingModlist(null)}
             onClose={() => setLoadingModlist(null)}
           />

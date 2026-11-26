@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LoadMode, ModlistKind, ModlistProgress, ModlistSource, Os, UpdateProgress } from "../../bindings";
+import type { ApplyReport, LoadMode, ModlistKind, ModlistProgress, ModlistSource, Os, UpdateProgress } from "../../bindings";
 import { cancelUpdates, useApplyModlist, useModlistPreview, useModlistProgress, useUpdateProgress } from "../../api";
 import { defaultMode, describePlan, type QuickSwitchPreference } from "./modlistView";
 import { Modal } from "./Modal";
@@ -15,7 +15,8 @@ interface Props {
     start: boolean;
     preference: QuickSwitchPreference;
     onRemember: (preference: QuickSwitchPreference) => void;
-    onDone: () => void;
+    /** The switch finished without needing a decision; `report` is null when nothing had to change. */
+    onDone: (report: ApplyReport | null) => void;
   };
   onShowBackup: (id: string) => void;
   onClose: () => void;
@@ -62,15 +63,18 @@ export function LoadModlistDialog({ os, source, kind, title, initialMode, quickS
     if (!checkingQuick || preview.isFetching || preview.isPending || quickStarted.current) return;
     quickStarted.current = true;
     setCheckingQuick(false);
-    if (!preview.isSuccess || !p || !quickSwitch || lines.length === 0 || p.toDownload > 0 || p.plan.skipped.length > 0 ||
-        p.conflicts.some((conflict) => !conflict.resolvedByUser)) return;
+    // Only a choice the user still has to make (group conflicts) opens the review. Mods that
+    // can't be changed or downloaded are left out, and the page lists them in a notice.
+    if (!preview.isSuccess || !p || !quickSwitch || p.conflicts.some((conflict) => !conflict.resolvedByUser)) return;
+    if (lines.length === 0) {
+      quickSwitch.onDone(null);
+      return;
+    }
 
     apply.mutate({ source, mode: "replace", importConfigs }, {
       onSuccess: (result) => {
-        const movedToTrash = result.removed > result.toLibrary;
-        if (!result.cancelled && !movedToTrash && result.failures.length === 0 && result.skipped.length === 0) {
-          quickSwitch.onDone();
-        }
+        // Stopping early shows the full report, so it's clear what was left half done.
+        if (!result.cancelled) quickSwitch.onDone(result);
       },
     });
   }, [apply, checkingQuick, importConfigs, lines.length, p, preview.isFetching, preview.isPending, preview.isSuccess, quickSwitch, source]);
