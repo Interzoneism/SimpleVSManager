@@ -7,70 +7,32 @@ import { useErrorToast } from "../../components/Toast";
 export const DISCORD_URL = "https://discord.gg/Zhm3QnD2s9";
 export const MANAGER_MODDB_URL = "https://mods.vintagestory.at/simplevsmanager";
 
-const SECTIONS: { title: string; body: string[] }[] = [
-  {
-    title: "Installed mods",
-    body: [
-      "Everything in your Mods folder. Click the checkbox to turn a mod on or off; select several with Ctrl or Shift.",
-      "The Latest column shows updates from the Mod DB for your game version. Manage updates skips mods you left out.",
-      "Delete moves a mod to the Recycle Bin / Trash. Older versions stay in your mod library for rollback.",
-      "Drag the divider to resize a pane, or focus it and use the arrow keys. Double-click the divider to reset its width.",
-      "Right-click the column titles to choose which columns show. Drag the edge of a column title to resize it; double-click the edge to reset it.",
-    ],
-  },
-  {
-    title: "Modlists",
-    body: [
-      "Save your enabled mods with their exact versions. Saved modlists also includes groups and copies of online modlists.",
-      "Switch to a modlist and your Mods folder ends up with exactly that list. Other mods go to your mod library, so switching back needs no download.",
-      "Turn on Quick switch in Settings → Modlists to switch saved modlists and groups in one step, here or from Load a modlist on Installed mods. Mods that can't be loaded are left out and listed in a notice. Use Load… to open the review anyway.",
-      "Groups combine several modlists. Backups are saved automatically before a modlist loads and before updates or deletes.",
-      "Export a modlist as PDF or JSON; Simple VS Manager 2.3 can load both. Drop a .json or .pdf on the window to load it.",
-      "Load modlists other players published, save a copy, or follow one to get its updates.",
-      "Publish your own saved modlists (up to five) under your player name; they are marked with a cloud under Saved modlists.",
-    ],
-  },
-  {
-    title: "Browse the Mod DB",
-    body: ["Search every mod on mods.vintagestory.at and install with one click. The whole catalogue is cached, so search is instant."],
-  },
-  {
-    title: "Mod configs",
-    body: [
-      "Edit the files in VintagestoryData/ModConfig. JSON files show as fields; YAML and broken files as text.",
-      "Saving checks the file first. Undo last save puts back the version from before your last save.",
-    ],
-  },
-  {
-    title: "Settings",
-    body: [
-      "Folders: the game and data folders are found automatically; pick them if not.",
-      "Launch through a shortcut: Launch opens your own shortcut (for example one with extra options) instead of starting the game directly.",
-      "Manager folder: Change folder… moves the manager's settings, modlists and caches to another place, for example another drive.",
-      "Game profiles: separate folders and target versions, for example vanilla and modded.",
-      "Data folder backups: worlds, settings and mods in one backup; optional before every launch.",
-      "Offline mode stops all network use. Cached Mod DB data and your mod library keep working.",
-    ],
-  },
-];
+/** The Discord logo (filled, unlike the app's stroke icons). */
+function DiscordLogo({ size = 56 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.21.38-.44.87-.61 1.25a18.3 18.3 0 0 0-5.49 0 12.6 12.6 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.7 19.7 0 0 0-4.88 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.1 18.06a.08.08 0 0 0 .03.06 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.29 1.23-1.99a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.89.08.08 0 0 1-.01-.13l.37-.29a.07.07 0 0 1 .08-.01c3.93 1.79 8.18 1.79 12.07 0a.07.07 0 0 1 .08.01l.37.29a.08.08 0 0 1-.01.13c-.6.35-1.22.65-1.87.89a.08.08 0 0 0-.04.11c.36.7.78 1.36 1.23 1.99a.08.08 0 0 0 .08.03 19.8 19.8 0 0 0 6-3.03.08.08 0 0 0 .03-.06c.5-5.18-.84-9.67-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.09-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.33-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.15-1.09-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.33-.95 2.42-2.16 2.42Z" />
+    </svg>
+  );
+}
 
-/** One help page instead of 2.x's Help, Guide and Menu Guide dialogs. */
+/** Just the two places to get help: the Discord and the manager's Mod DB page. */
 export function HelpDialog({ onClose }: { onClose: () => void }) {
   const openUrl = useOpenUrl();
   useErrorToast(openUrl.error);
   return (
     <Modal title="Help" onClose={onClose}>
       <div className="help">
-        {SECTIONS.map((s) => (
-          <section key={s.title}>
-            <h3>{s.title}</h3>
-            <ul>{s.body.map((b) => <li key={b}>{b}</li>)}</ul>
-          </section>
-        ))}
+        <button type="button" className="help-discord" onClick={() => openUrl.mutate(DISCORD_URL)}
+          title={DISCORD_URL} aria-label="Join the Discord">
+          <DiscordLogo />
+        </button>
+        <p>If you have any issues or just want to hang out, come say hi on the Discord!</p>
+        <button type="button" className="link-button" onClick={() => openUrl.mutate(MANAGER_MODDB_URL)} title={MANAGER_MODDB_URL}>
+          <Icon name="external" />Simple VS Manager on the Mod DB
+        </button>
       </div>
       <div className="modal-actions">
-        <button type="button" onClick={() => openUrl.mutate(DISCORD_URL)} title={DISCORD_URL}><Icon name="comment" />Discord</button>
-        <button type="button" onClick={() => openUrl.mutate(MANAGER_MODDB_URL)} title={MANAGER_MODDB_URL}><Icon name="external" />Mod DB page</button>
         <span className="header-spacer" />
         <button type="button" className="primary" onClick={onClose}><Icon name="close" />Close</button>
       </div>
