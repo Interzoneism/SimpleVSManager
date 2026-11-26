@@ -1,5 +1,6 @@
 import { useLayoutPreference } from "../../components/SplitWorkspace";
 import type { QuickSwitchPreference } from "../modlists/modlistView";
+import { useShowServerCommands } from "../modlists/quickSwitch";
 import { useCallback, useState } from "react";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import type { BackupProgress, DetectedEnvironment } from "../../bindings";
@@ -187,6 +188,7 @@ export function ModlistSettings() {
   const [lastConfigs, setLastConfigs] = useLayoutPreference<QuickSwitchPreference>("modlist-quick-switch-configs", "keep-configs");
   const on = remembered === "keep-configs" || remembered === "use-list-configs";
   const configs = on ? remembered : lastConfigs;
+  const [showServerCommands, setShowServerCommands] = useShowServerCommands();
   return (
     <section className="settings-section" aria-labelledby="modlist-settings-heading">
       <h2 id="modlist-settings-heading">Modlists</h2>
@@ -211,6 +213,10 @@ export function ModlistSettings() {
           </select>
         </div>
       )}
+      <label className="checkbox-row">
+        <input type="checkbox" checked={showServerCommands} onChange={(e) => setShowServerCommands(e.target.checked)} />
+        Show a "Copy server commands" button on modlist details
+      </label>
     </section>
   );
 }

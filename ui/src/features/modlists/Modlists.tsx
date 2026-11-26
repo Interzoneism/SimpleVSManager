@@ -17,7 +17,7 @@ import {
 import { formatAgo } from "../../lib/format";
 import { canQuickSwitch, filterModlists, kindLabel, serverCommands, sortSaved } from "./modlistView";
 import { LoadModlistDialog } from "./LoadModlistDialog";
-import { quickSwitchNotice, showQuickSwitchToast, useQuickSwitch } from "./quickSwitch";
+import { quickSwitchNotice, showQuickSwitchToast, useQuickSwitch, useShowServerCommands } from "./quickSwitch";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
@@ -381,7 +381,6 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             onCopy={() => void copy(serverCommands(chosen[0]), "server install commands")}
             onEditGroup={() => setDialog({ kind: "group", group: chosen[0], members: [] })}
             onChangeIcon={() => setDialog({ kind: "icon", entry: chosen[0] })}
-            onUpdateMods={canUpdateMods(chosen[0]) ? () => void doUpdateMods(chosen[0]) : undefined}
             onDelete={() => void remove([chosen[0]])}
             onSelectMember={showEntry}
             onResolve={(modId, reference) => resolve.mutate({ id: chosen[0].id, modId, reference })}
@@ -454,7 +453,6 @@ interface DetailsProps {
   onExport: (format: "json" | "pdf") => void;
   onCopy: () => void;
   onEditGroup: () => void;
-  onUpdateMods?: () => void;
   onChangeIcon: () => void;
   onDelete: () => void;
   onSelectMember: (id: string) => void;
@@ -464,8 +462,10 @@ interface DetailsProps {
   publishing: Publishing;
 }
 
-function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onUpdateMods, onChangeIcon, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe, publishing }: DetailsProps) {
+function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onChangeIcon, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe, publishing }: DetailsProps) {
   const hasCommands = entry.mods.some((m) => m.version);
+  const [showServerCommands] = useShowServerCommands();
+  const openMenu = useContextMenu();
   const slot = publishing.slotFor(entry.published?.registryId);
   const blockedTitle = publishing.blocked ?? undefined;
   return (
@@ -555,9 +555,6 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
         >
           <Icon name="load" />Load…
         </button>
-        {onUpdateMods && !entry.active && (
-          <button type="button" disabled={busy} title="Replace its mods with the mods you have enabled now" onClick={onUpdateMods}><Icon name="save" />Update</button>
-        )}
         {entry.kind === "group" && <button type="button" disabled={busy} onClick={onEditGroup}><Icon name="edit" />Edit group…</button>}
         {canBePublished(entry) && !entry.published && (
           <button
@@ -569,9 +566,18 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
             <Icon name="published" />Publish
           </button>
         )}
-        <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("pdf")}><Icon name="export" />Export PDF…</button>
-        <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("json")}><Icon name="export" />Export JSON…</button>
-        {hasCommands && (
+        <button
+          type="button"
+          aria-haspopup="menu"
+          disabled={!!entry.error || busy}
+          onClick={(event) => openMenu(event, "Export as", [[
+            { label: "PDF file…", run: () => onExport("pdf") },
+            { label: "JSON file…", run: () => onExport("json") },
+          ]], { below: true })}
+        >
+          <Icon name="export" />Export…
+        </button>
+        {hasCommands && showServerCommands && (
           <button type="button" title="/moddb install commands for a server console" onClick={onCopy}>
             <Icon name="copy" />Copy server commands
           </button>

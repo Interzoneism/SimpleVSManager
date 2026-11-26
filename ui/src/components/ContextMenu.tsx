@@ -5,7 +5,8 @@ import { toast } from "./Toast";
 /** `checked` makes a checkbox item; `keepOpen` leaves the menu open after it (for toggling several). */
 type Action = { label: string; run: () => void | Promise<void>; disabled?: boolean; danger?: boolean; checked?: boolean; keepOpen?: boolean };
 type Groups = (Action | false | undefined)[][];
-type OpenMenu = (event: ReactMouseEvent<HTMLElement>, label: string, groups: Groups) => void;
+/** `below` opens the menu under the clicked control (a menu button) instead of at the pointer. */
+type OpenMenu = (event: ReactMouseEvent<HTMLElement>, label: string, groups: Groups, options?: { below?: boolean }) => void;
 type Menu = {
   x: number;
   y: number;
@@ -30,14 +31,15 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     setMenu(null);
   }, [menu]);
 
-  const open = useCallback<OpenMenu>((event, label, groups) => {
+  const open = useCallback<OpenMenu>((event, label, groups, options) => {
     event.preventDefault();
     event.stopPropagation();
     const trigger = event.currentTarget.matches(focusable)
       ? event.currentTarget
       : event.currentTarget.querySelector<HTMLElement>("button:enabled") ?? event.currentTarget.querySelector<HTMLElement>(focusable);
+    const rect = options?.below ? event.currentTarget.getBoundingClientRect() : null;
     setMenu({
-      x: event.clientX, y: event.clientY, label, trigger,
+      x: rect ? rect.left : event.clientX, y: rect ? rect.bottom + 2 : event.clientY, label, trigger,
       groups: groups.map((group) => group.filter((item): item is Action => !!item)).filter((group) => group.length > 0),
     });
   }, []);
