@@ -16,6 +16,9 @@ export function useQuickSwitch() {
   return { enabled, preference, remember };
 }
 
+/** Whether the details panel shows "Copy server commands" (Settings → Modlists, off by default). */
+export const useShowServerCommands = () => useLayoutPreference<boolean>("modlist-show-server-commands", false);
+
 const names = (items: string[], max = 5) =>
   items.length <= max ? items.join(", ") : `${items.slice(0, max).join(", ")} and ${items.length - max} more`;
 

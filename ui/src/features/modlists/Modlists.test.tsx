@@ -4,6 +4,7 @@ import type { CloudStatus, ModlistSummary, OnlineEntry, OnlineListing } from "..
 import { commands } from "../../bindings";
 import { Modlists } from "./Modlists";
 import { Toaster } from "../../components/Toast";
+import { ContextMenuProvider } from "../../components/ContextMenu";
 
 vi.mock("../../bindings", () => ({
   commands: { listModlists: vi.fn(), cloudStatus: vi.fn(), onlineModlists: vi.fn(), publishSavedModlist: vi.fn() },
@@ -61,7 +62,9 @@ function renderModlists(offline = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <Modlists os="windows" offline={offline} droppedFile={null} onDroppedFileHandled={() => {}} />
+      <ContextMenuProvider>
+        <Modlists os="windows" offline={offline} droppedFile={null} onDroppedFileHandled={() => {}} />
+      </ContextMenuProvider>
       <Toaster />
     </QueryClientProvider>,
   );
@@ -172,4 +175,33 @@ test("publishes a saved modlist from its details, and offers Unpublish for a pub
   expect(details.getByText("Published", { selector: ".badge" })).toBeVisible();
   expect(details.getByRole("button", { name: "Unpublish…" })).toBeVisible();
   expect(details.queryByRole("button", { name: "Publish" })).toBeNull();
+});
+
+test("details offer one Export menu, no Update button, and hide server commands unless turned on in Settings", async () => {
+  const withVersions: ModlistSummary = { ...local, mods: [{ modId: "carryon", version: "1.0.0", isActive: true }] };
+  vi.mocked(commands.listModlists).mockResolvedValue({ status: "ok", data: [withVersions] });
+  const stored = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (k: string) => stored.get(k) ?? null,
+    setItem: (k: string, v: string) => void stored.set(k, v),
+    removeItem: (k: string) => void stored.delete(k),
+  });
+  const view = renderModlists();
+  const saved = await screen.findByRole("list", { name: "Saved modlists" });
+  fireEvent.click(within(saved).getByRole("button", { name: /Winter save/ }));
+  const details = within(screen.getByRole("complementary", { name: "Modlist details" }));
+  expect(details.queryByRole("button", { name: "Update" })).toBeNull();
+  expect(details.queryByRole("button", { name: /Export (PDF|JSON)/ })).toBeNull();
+  expect(details.queryByRole("button", { name: "Copy server commands" })).toBeNull();
+
+  fireEvent.click(details.getByRole("button", { name: "Export…" }));
+  const menu = within(screen.getByRole("menu", { name: "Export as" }));
+  expect(menu.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["PDF file…", "JSON file…"]);
+
+  view.unmount();
+  stored.set("svsm-layout:modlist-show-server-commands", "true");
+  renderModlists();
+  const again = await screen.findByRole("list", { name: "Saved modlists" });
+  fireEvent.click(within(again).getByRole("button", { name: /Winter save/ }));
+  expect(within(screen.getByRole("complementary", { name: "Modlist details" })).getByRole("button", { name: "Copy server commands" })).toBeVisible();
 });
