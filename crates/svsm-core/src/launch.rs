@@ -56,6 +56,39 @@ pub fn launch_game(os: Os, executable: &Path, data_dir: &Path) -> CoreResult<()>
     game_command(os, executable, data_dir).spawn().map(|_| ()).map_err(|e| CoreError::io(executable, e))
 }
 
+/// Flathub id of the Vintage Story Flatpak.
+pub const FLATPAK_ID: &str = "at.vintagestory.VintageStory";
+
+/// Linux: whether the game is installed as a Flatpak (per user or system wide).
+pub fn flatpak_installed(host: &crate::HostEnv) -> bool {
+    if host.os != Os::Linux {
+        return false;
+    }
+    let user = host.data_local_dir.as_ref().map(|d| d.join("flatpak/app").join(FLATPAK_ID));
+    let system = std::path::PathBuf::from("/var/lib/flatpak/app").join(FLATPAK_ID);
+    user.is_some_and(|p| p.is_dir()) || system.is_dir()
+}
+
+/// The command that starts the Flatpak with our data folder.
+pub fn flatpak_command(data_dir: &Path) -> Command {
+    let mut cmd = Command::new("flatpak");
+    cmd.arg("run").arg(FLATPAK_ID).arg("--dataPath").arg(data_dir);
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    if std::env::var_os("APPIMAGE").is_some() {
+        for key in APPIMAGE_ENV {
+            cmd.env_remove(key);
+        }
+    }
+    detach(&mut cmd);
+    cmd
+}
+
+/// Starts the Flatpak version of the game.
+pub fn launch_flatpak(data_dir: &Path) -> CoreResult<()> {
+    std::fs::create_dir_all(data_dir).map_err(|e| CoreError::io(data_dir, e))?;
+    flatpak_command(data_dir).spawn().map(|_| ()).map_err(|e| CoreError::io(Path::new("flatpak"), e))
+}
+
 /// Linux: starts a `.desktop` shortcut with `gio launch` (opening it would usually show it
 /// in a text editor instead).
 pub fn launch_desktop_entry(entry: &Path) -> CoreResult<()> {
@@ -110,6 +143,14 @@ mod tests {
         // A plain executable still starts directly.
         let cmd = game_command(Os::Macos, Path::new("/games/vs/Vintagestory"), Path::new("/data"));
         assert_eq!(cmd.get_program(), "/games/vs/Vintagestory");
+    }
+
+    #[test]
+    fn flatpak_command_passes_the_data_path() {
+        let cmd = flatpak_command(Path::new("/data"));
+        let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        assert_eq!(cmd.get_program(), "flatpak");
+        assert_eq!(args, ["run", FLATPAK_ID, "--dataPath", "/data"]);
     }
 
     #[test]

@@ -4,7 +4,7 @@ use svsm_core::sync::{LockExt as _, RwLockExt as _};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use svsm_core::clientsettings::ClientSettings;
@@ -186,22 +186,42 @@ pub(crate) fn restart_watcher(app: &AppHandle, state: &AppState) {
 #[tauri::command]
 #[specta::specta]
 pub async fn list_mods(app: AppHandle, state: State<'_, AppState>) -> AppResult<ModList> {
-    state.rescan()?;
+    let list = blocking(&app, |state| {
+        state.rescan()?;
+        current_list(state)
+    })
+    .await?;
     restart_watcher(&app, &state);
-    current_list(&state)
+    Ok(list)
+}
+
+/// Runs disk-heavy work (scans, zip reads, trash) on a blocking thread, so it doesn't hold up
+/// the async runtime that serves every other command.
+pub(crate) async fn blocking<R: tauri::Runtime, T: Send + 'static>(
+    app: &AppHandle<R>,
+    work: impl FnOnce(&AppState) -> AppResult<T> + Send + 'static,
+) -> AppResult<T> {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || work(&app.state::<AppState>()))
+        .await
+        .map_err(|e| AppError::msg(format!("The operation stopped unexpectedly: {e}")))?
 }
 
 /// Enables or disables mods (by key) in clientsettings.json, then rescans.
 #[tauri::command]
 #[specta::specta]
-pub async fn set_mods_active(state: State<'_, AppState>, keys: Vec<String>, active: bool) -> AppResult<ModList> {
+pub async fn set_mods_active<R: tauri::Runtime>(app: AppHandle<R>, keys: Vec<String>, active: bool) -> AppResult<ModList> {
+    blocking(&app, move |state| set_active_now(state, &keys, active)).await
+}
+
+fn set_active_now(state: &AppState, keys: &[String], active: bool) -> AppResult<ModList> {
     state.ensure_game_closed()?;
     {
         let _guard = state.mods_lock.lock_safe();
         let (data, _) = state.mod_roots()?;
         let mut settings = ClientSettings::load(&data)?;
         let mut changed = false;
-        for key in &keys {
+        for key in keys {
             let m = state.find_mod(key)?;
             if m.mod_id.trim().is_empty() {
                 continue;
@@ -214,25 +234,29 @@ pub async fn set_mods_active(state: State<'_, AppState>, keys: Vec<String>, acti
         }
     }
     state.rescan()?;
-    current_list(&state)
+    current_list(state)
 }
 
 /// Moves mods to the system trash, then rescans.
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_mods(state: State<'_, AppState>, keys: Vec<String>) -> AppResult<ModList> {
+pub async fn delete_mods<R: tauri::Runtime>(app: AppHandle<R>, keys: Vec<String>) -> AppResult<ModList> {
+    blocking(&app, move |state| delete_now(state, &keys)).await
+}
+
+fn delete_now(state: &AppState, keys: &[String]) -> AppResult<ModList> {
     state.ensure_game_closed()?;
-    crate::modlist_commands::snapshot_installed(&state, "ModsDeleted", Vec::new());
+    crate::modlist_commands::snapshot_installed(state, "ModsDeleted", Vec::new());
     {
         let _guard = state.mods_lock.lock_safe();
         let search_paths = state.mods.read_safe().search_paths.clone();
-        for key in &keys {
+        for key in keys {
             let m = state.find_mod(key)?;
             svsm_core::mods::delete_mod(Path::new(&m.source_path), &search_paths)?;
         }
     }
     state.rescan()?;
-    current_list(&state)
+    current_list(state)
 }
 
 /// Shows a mod's file or folder in the system file manager.
@@ -278,8 +302,11 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
             )));
         }
     }
+    // Linux: a Flatpak install has no game folder we can run directly.
+    let flatpak = shortcut.is_none() && env.game_executable.is_none() && svsm_core::launch::flatpak_installed(&state.host);
     let exe = match &shortcut {
         Some(_) => None,
+        None if flatpak => Some(String::new()),
         None => Some(env.game_executable.clone().ok_or_else(|| AppError::msg("Vintage Story wasn't found. Pick the game folder under Folders."))?),
     };
     let data = match &shortcut {
@@ -300,6 +327,7 @@ pub async fn launch_game<R: tauri::Runtime>(app: AppHandle<R>, state: State<'_, 
             .opener()
             .open_path(sc.display().to_string(), None::<&str>)
             .map_err(|e| AppError::msg(format!("Couldn't start Vintage Story through the shortcut: {e}")))?,
+        (None, Some(_), Some(data)) if flatpak => svsm_core::launch::launch_flatpak(&data)?,
         (None, Some(exe), Some(data)) => svsm_core::launch::launch_game(state.host.os, Path::new(&exe), &data)?,
         _ => unreachable!("exe and data are set when there is no shortcut"),
     }

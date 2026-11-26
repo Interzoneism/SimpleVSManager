@@ -587,13 +587,13 @@ fn changes_are_blocked_while_the_game_runs() {
     let before = std::fs::read_to_string(m.data.join("clientsettings.json")).unwrap();
     let key = key_of(&state, "carryon");
     *state.game_probe.write_safe() = std::sync::Arc::new(|| Some(svsm_core::game_process::RunningGame { pid: 1, name: "Vintagestory.exe".into() }));
-    let err = run(crate::commands::set_mods_active(state.clone(), vec![key.clone()], false)).unwrap_err();
+    let err = run(crate::commands::set_mods_active(m.app.handle().clone(), vec![key.clone()], false)).unwrap_err();
     assert!(err.message.contains("Vintage Story is running"), "{}", err.message);
-    assert!(run(crate::commands::delete_mods(state.clone(), vec![key.clone()])).is_err());
+    assert!(run(crate::commands::delete_mods(m.app.handle().clone(), vec![key.clone()])).is_err());
     let err = run(crate::m5_commands::restore_data_backup(m.app.handle().clone(), state.clone(), "x".into(), false)).unwrap_err();
     assert!(err.message.contains("Vintage Story is running"), "{}", err.message);
     assert!(m.data.join("Mods/CarryOn-1.14.0.zip").exists());
     assert_eq!(std::fs::read_to_string(m.data.join("clientsettings.json")).unwrap(), before);
     *state.game_probe.write_safe() = std::sync::Arc::new(|| None);
-    run(crate::commands::set_mods_active(state.clone(), vec![key], false)).unwrap();
+    run(crate::commands::set_mods_active(m.app.handle().clone(), vec![key], false)).unwrap();
 }

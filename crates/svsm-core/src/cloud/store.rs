@@ -547,6 +547,7 @@ impl<'a> CloudStore<'a> {
         let now = now_iso();
         let created = existing.and_then(|n| s(n, "createdAt").or_else(|| s(n, "dateAdded"))).unwrap_or_else(|| now.clone());
         let content = with_uploader(content, identity);
+        check_limits(&content)?;
         // A new revision (what followers are told about) only when the mods or configs change;
         // detail edits (description, icon...) keep the revision and the update time.
         let old_content = existing.and_then(|n| n.get("content"));
@@ -611,6 +612,39 @@ impl<'a> CloudStore<'a> {
         }
         Ok(())
     }
+}
+
+/// Text limits the database rules enforce (firebase/database.rules.json). Checked before
+/// publishing so the user gets a clear message instead of "permission denied".
+pub const TEXT_LIMITS: &[(&str, &str, usize)] = &[
+    ("name", "The name", 100),
+    ("description", "The description", 1000),
+    ("uploader", "The player name", 64),
+    ("gameVersion", "The game version", 32),
+    ("vsVersion", "The game version", 32),
+    ("icon", "The icon", 64),
+    ("iconColor", "The icon colour", 64),
+];
+
+fn check_limits(content: &Value) -> CloudResult<()> {
+    for (key, what, max) in TEXT_LIMITS {
+        if let Some(text) = content.get(*key).and_then(Value::as_str) {
+            if text.chars().count() > *max {
+                return Err(CloudError::Invalid(format!("{what} is too long for an online modlist (at most {max} characters).")));
+            }
+        }
+    }
+    let mods = content.get("mods").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+    if mods.len() > 9999 {
+        return Err(CloudError::Invalid("An online modlist can hold at most 9,999 mods.".into()));
+    }
+    for m in mods {
+        let id = s(m, "modId").unwrap_or_default();
+        if id.chars().count() > 100 || s(m, "version").is_some_and(|v| v.chars().count() > 50) {
+            return Err(CloudError::Invalid(format!("The mod id or version of \"{id}\" is too long for an online modlist.")));
+        }
+    }
+    Ok(())
 }
 
 /// Whether two published contents have the same mods and config files (what a load installs).
@@ -836,5 +870,19 @@ mod tests {
         let a = new_id();
         assert_eq!(a.len(), 32);
         assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+
+    #[test]
+    fn limits_match_the_rules() {
+        assert!(check_limits(&json!({"name": "ok", "mods": [{"modId": "carryon", "version": "1.0"}]})).is_ok());
+        assert!(check_limits(&json!({"name": "n".repeat(101)})).is_err());
+        assert!(check_limits(&json!({"description": "d".repeat(1000)})).is_ok());
+        assert!(check_limits(&json!({"description": "d".repeat(1001)})).is_err());
+        assert!(check_limits(&json!({"mods": [{"modId": "m".repeat(101)}]})).is_err());
     }
 }

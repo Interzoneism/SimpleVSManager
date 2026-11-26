@@ -1,5 +1,6 @@
 //! Finds installed mods the way the game does. Port of `ModDiscoveryService.cs`.
 
+use crate::sync::LockExt as _;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::io::Read;
@@ -93,6 +94,8 @@ pub fn discover_mods(settings: &ClientSettings, game_dir: Option<&Path>) -> Disc
 
     let loaded: Vec<(InstalledMod, Option<Vec<u8>>)> =
         entries.par_iter().filter_map(|p| load_entry(p)).collect();
+    // Forget zips that are gone, so the cache never outgrows the mod folders.
+    zip_cache().lock_safe().retain(|p, _| entries.contains(p));
 
     let mut icons = HashMap::new();
     let mut mods = Vec::with_capacity(loaded.len());
@@ -124,10 +127,34 @@ fn load_entry(path: &Path) -> Option<(InstalledMod, Option<Vec<u8>>)> {
         return load_folder(path, &file_name, &meta);
     }
     match ext.as_str() {
-        "zip" => Some(load_zip(path, &file_name, &meta)),
+        "zip" => Some(load_zip_cached(path, &file_name, &meta)),
         "cs" | "dll" => Some((code_mod(path, &file_name, &meta, ext == "cs"), None)),
         _ => None,
     }
+}
+
+/// A parsed zip, valid while its size and modification time stay the same.
+struct CachedZip {
+    len: u64,
+    modified: Option<std::time::SystemTime>,
+    entry: (InstalledMod, Option<Vec<u8>>),
+}
+
+/// Zips parsed by earlier scans. Rescans happen often (every toggle, update, modlist step and
+/// watcher event) and reopening every zip was most of their cost.
+fn zip_cache() -> &'static std::sync::Mutex<HashMap<PathBuf, CachedZip>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<PathBuf, CachedZip>>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+fn load_zip_cached(path: &Path, file_name: &str, meta: &std::fs::Metadata) -> (InstalledMod, Option<Vec<u8>>) {
+    let (len, modified) = (meta.len(), meta.modified().ok());
+    if let Some(hit) = zip_cache().lock_safe().get(path).filter(|c| c.len == len && c.modified == modified && modified.is_some()) {
+        return hit.entry.clone();
+    }
+    let entry = load_zip(path, file_name, meta);
+    zip_cache().lock_safe().insert(path.to_path_buf(), CachedZip { len, modified, entry: entry.clone() });
+    entry
 }
 
 fn load_folder(dir: &Path, file_name: &str, meta: &std::fs::Metadata) -> Option<(InstalledMod, Option<Vec<u8>>)> {
