@@ -655,9 +655,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 
 .update-badge { background: color-mix(in srgb, var(--palette-warning) 40%, transparent); color: var(--palette-white); }
 .notice.quiet { border-left-color: var(--palette-grey); }
-.report-counts { display: grid; grid-template-columns: 1fr max-content; gap: 2px 10px; margin: 4px 0; }
-.report-form { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.report-form textarea { background: var(--palette-base-surface-shadowed); border: 1px solid var(--palette-bevel-shadow); border-radius: 3px; padding: 5px 8px; font: inherit; color: var(--palette-text-primary); }
 .check-list.tall { max-height: 50vh; }
 .check-list.tall li { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .backup-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
@@ -819,13 +816,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .mod-details .version-picker { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 12px 0 4px; }
 .version-picker-row { display: flex; gap: 6px; }
 .version-picker-row select { flex: 1; min-width: 0; }
-.report-bars { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 5px; }
-.report-bars li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(40px, 1fr) max-content; gap: 8px; align-items: center; }
-.report-bar { height: 6px; border-radius: 3px; background: var(--palette-interactive-surface); overflow: hidden; }
-.report-bar > span { display: block; height: 100%; background: var(--palette-success); border-radius: 3px; }
-.report-someIssuesButWorks .report-bar > span { background: var(--palette-warning); }
-.report-notFunctional .report-bar > span, .report-crashesOrFreezesGame .report-bar > span { background: var(--palette-error); }
-.report-count { color: var(--palette-grey); }
 .dependency-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .dependency-list li { display: flex; gap: 6px; }
 .dependency-list li.ok > span { color: var(--palette-success); }
@@ -1024,3 +1014,88 @@ body.pointer-dragging, body.pointer-dragging * { cursor: grabbing !important; us
 .modlist-mods .modlist-table { flex: none; }
 .modlist-mods .modlist-table .mod-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
 .modlist-mods-empty { padding: 12px; margin: 0; }
+
+/* --- Player reports --- */
+.tone-fullyFunctional { --tone: var(--palette-success); }
+.tone-noIssuesSoFar { --tone: var(--palette-success); }
+.tone-someIssuesButWorks { --tone: var(--palette-warning); }
+.tone-notFunctional { --tone: var(--palette-error); }
+.tone-crashesOrFreezesGame { --tone: var(--palette-error); }
+@supports (color: color-mix(in srgb, white, black)) {
+  .tone-noIssuesSoFar { --tone: color-mix(in srgb, var(--palette-success) 70%, var(--palette-warning)); }
+  .tone-notFunctional { --tone: color-mix(in srgb, var(--palette-error) 75%, var(--palette-warning)); }
+}
+
+.report-empty { margin: 0 0 10px !important; color: var(--palette-grey); }
+.report-summary { display: grid; gap: 8px; margin-bottom: 10px; }
+.report-headline { display: flex; align-items: baseline; gap: 8px; color: var(--palette-grey); }
+.report-score { font-size: 24px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.report-score-good { color: var(--palette-success); }
+.report-score-mixed { color: var(--palette-warning); }
+.report-score-bad { color: var(--palette-error); }
+.report-stack { display: flex; gap: 3px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--palette-interactive-surface); }
+.report-seg { flex-basis: 0; min-width: 6px; background: var(--tone); transition: flex-grow 420ms cubic-bezier(.2, .8, .2, 1); }
+.report-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--palette-grey); }
+.report-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.report-legend strong { color: var(--palette-text-primary); font-weight: 650; font-variant-numeric: tabular-nums; }
+.report-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); flex: none; }
+
+.report-problems { margin-bottom: 10px; }
+.report-problems summary {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; list-style: none; user-select: none;
+  padding: 3px 10px 3px 8px; border-radius: 999px; color: var(--palette-text-primary);
+  background: color-mix(in srgb, var(--palette-error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--palette-error) 30%, transparent);
+}
+.report-problems summary::-webkit-details-marker { display: none; }
+.report-problems summary::before { content: "›"; display: inline-block; font-size: 15px; line-height: 1; transition: transform 160ms ease; }
+.report-problems[open] summary::before { transform: rotate(90deg); }
+.report-problems summary:hover { background: color-mix(in srgb, var(--palette-error) 20%, transparent); }
+.report-problems-count { min-width: 18px; padding: 0 5px; border-radius: 999px; text-align: center; font-weight: 650; background: color-mix(in srgb, var(--palette-error) 30%, transparent); }
+.report-problems ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.report-problems li {
+  padding: 7px 10px; border-radius: 7px; border-left: 3px solid color-mix(in srgb, var(--palette-error) 70%, transparent);
+  background: var(--palette-base-surface-shadowed); white-space: pre-wrap;
+}
+
+.report-vote { padding: 10px; border-radius: var(--radius); background: var(--palette-base-surface-shadowed); border: 1px solid var(--border); }
+.report-vote-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; min-height: 18px; color: var(--palette-grey); }
+.report-vote-head strong { color: var(--palette-text-primary); font-weight: 650; }
+.report-thanks { color: var(--palette-success); font-weight: 600; animation: report-pop 360ms cubic-bezier(.2, 1.4, .4, 1); }
+.report-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 6px; }
+.report-choice {
+  position: relative; flex-direction: column; gap: 5px; padding: 9px 4px 7px; white-space: normal; line-height: 1.2;
+  border-radius: 9px; color: var(--palette-grey); background: var(--palette-base-surface-raised); border-color: var(--border);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+.report-choice .report-face { color: var(--tone); opacity: 0.75; transition: opacity 140ms ease,  transform 200ms cubic-bezier(.2, 1.6, .4, 1); }
+.report-choice:hover:not(:disabled) {
+  color: var(--tone); border-color: color-mix(in srgb, var(--tone) 55%, transparent);
+  background: color-mix(in srgb, var(--tone) 10%, var(--palette-base-surface-raised)); transform: translateY(-2px);
+}
+.report-choice:hover:not(:disabled) .report-face, .report-choice.is-selected .report-face { opacity: 1; }
+.report-choice:hover:not(:disabled) .report-face { transform: scale(1.12) rotate(-6deg); }
+.report-choice:active:not(:disabled) { transform: translateY(0) scale(0.96); }
+.report-choice:disabled { background: var(--palette-base-surface-raised); opacity: 0.5; }
+.report-choice.is-selected, .report-choice.is-selected:hover:not(:disabled) {
+  color: var(--tone); border-color: var(--tone); transform: none;
+  background: color-mix(in srgb, var(--tone) 18%, var(--palette-base-surface-raised));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 18%, transparent);
+}
+.report-choice.is-mine::after {
+  content: "✓"; position: absolute; top: -6px; right: -6px; width: 17px; height: 17px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 11px; font-weight: 800;
+  background: var(--tone); color: var(--palette-base-surface-shadowed);
+}
+.report-choice-label { font-size: 12px; font-weight: 600; color: var(--palette-text-primary); text-align: center; }
+.report-choice.is-sending .report-face { animation: report-wobble 700ms ease-in-out infinite; }
+.report-choice.is-thanked .report-face { animation: report-pop 480ms cubic-bezier(.2, 1.6, .4, 1); }
+.report-comment { display: grid; gap: 6px; margin-top: 8px; animation: mod-window-rise 180ms ease-out; }
+.report-comment textarea {
+  resize: vertical; min-height: 52px; border-radius: 7px; padding: 7px 9px; font: inherit; color: var(--palette-text-primary);
+  background: var(--palette-base-surface-raised); border: 1px solid var(--border);
+}
+.report-comment-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+
+@keyframes report-pop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.18); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes report-wobble { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
