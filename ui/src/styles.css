@@ -730,6 +730,8 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
   .app:not(.sidebar-collapsed) .split-right > .details { width: 100%; height: 42%; min-height: 115px; margin-top: 10px; }
   .app:not(.sidebar-collapsed) .split-right.split-wide > .details { height: 54%; }
   .app:not(.sidebar-collapsed) .split-right > .details.empty { display: none; }
+  .app:not(.sidebar-collapsed) .split-right > .details.empty.with-toolbar { display: flex; height: auto; min-height: 0; }
+  .app:not(.sidebar-collapsed) .split-right > .details.empty.with-toolbar > .details-empty-text { display: none; }
 }
 
 @media (max-width: 850px) {
@@ -738,6 +740,8 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
   .split-right > .details { width: 100%; height: 42%; min-height: 115px; margin-top: 10px; }
   .split-right.split-wide > .details { height: 54%; }
   .split-right > .details.empty { display: none; }
+  .split-right > .details.empty.with-toolbar { display: flex; height: auto; min-height: 0; }
+  .split-right > .details.empty.with-toolbar > .details-empty-text { display: none; }
   .game-version, .stat-icon { display: none; }
   .library-overview { gap: 6px; margin-bottom: 12px; }
   button.library-stat { padding: 8px; min-height: 59px; }
@@ -997,8 +1001,15 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .drag-ghost-icon { width: 28px; height: 28px; flex: none; border-radius: 6px; object-fit: cover; }
 .drag-ghost-icon.placeholder { display: inline-flex; align-items: center; justify-content: center; background: var(--palette-interactive-surface); color: var(--palette-grey); }
 body.pointer-dragging, body.pointer-dragging * { cursor: grabbing !important; user-select: none; }
-.modlist-quick-actions select { flex: 0 1 auto; min-width: 0; max-width: 260px; }
-.modlist-quick-actions .ui-icon { width: 15px; height: 15px; margin-right: 5px; }
+/* Load/Save modlist controls at the top of the Installed mods details pane: one row of equal-width controls that stacks when the pane is narrow. */
+.details-toolbar.modlist-quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.modlist-quick-actions > select, .modlist-quick-actions > button { width: 100%; min-width: 0; }
+.modlist-quick-actions > button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+.modlist-quick-actions .ui-icon { width: 15px; height: 15px; margin-right: 5px; flex: none; }
+/* Nothing selected: controls anchored at the top, the hint centered in the space below. */
+.details.empty.with-toolbar { display: flex; flex-direction: column; align-items: stretch; text-align: left; }
+.details.empty.with-toolbar > .details-toolbar { max-width: none; padding-right: 0; flex: none; }
+.details.empty.with-toolbar > .details-empty-text { flex: 1; align-self: center; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-bottom: 12%; }
 
 /* --- Save modlist dialog --- */
 .save-hero { display: flex; gap: 16px; align-items: stretch; }
