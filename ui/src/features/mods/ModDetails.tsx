@@ -152,6 +152,8 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
       {progress.get(mod.key) && <p className="muted small">{progress.get(mod.key)}</p>}
       {actionError && <p className="error-text small">{actionError.message}</p>}
 
+      {mod.modId && mod.version && <Reports modId={mod.modId} version={mod.version} />}
+
       {mod.modId && (
         <ModDbPanel
           mod={mod}
@@ -160,8 +162,6 @@ export function ModDetails({ os, mods, db, busy, progress, onSetActive, onDelete
           onInstallVersion={(v) => onInstallVersion(mod, v)}
         />
       )}
-
-      {mod.modId && mod.version && <Reports modId={mod.modId} version={mod.version} />}
 
       <Section title="About this file">
         <dl className="details-facts">

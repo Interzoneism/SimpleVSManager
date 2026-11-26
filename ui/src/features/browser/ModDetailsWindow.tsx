@@ -170,7 +170,7 @@ export function ModDetailsWindow({ entry, thumbUrl, offline, onClose, onFavourit
               </>
             )}
             <button type="button" disabled={favouriteBusy} onClick={onFavourite}>
-              <Icon name="star" filled={entry.favourite} />{entry.favourite ? "★ Favourite" : "☆ Favourite"}
+              <Icon name="star" filled={entry.favourite} />Favourite
             </button>
             {pageUrl && (
               <button type="button" onClick={() => openUrl.mutate(pageUrl)}><Icon name="external" />Open in web browser</button>
