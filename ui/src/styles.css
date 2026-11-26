@@ -801,13 +801,6 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 }
 .toolbar-toggle:has(input:checked) { border-color: var(--accent); background: var(--selection); }
 .details-header h2 .badge { vertical-align: middle; }
-.publish-card {
-  align-items: center; justify-content: center; flex-direction: row; gap: 14px; height: 100%; min-height: 136px;
-  border-style: dashed; background: transparent; color: var(--palette-grey);
-}
-.publish-card:hover:not(:disabled) { border-color: var(--accent); color: var(--palette-white); background: var(--palette-overlay-hover-tint); }
-.publish-card-plus { font-size: 34px; line-height: 1; color: var(--accent); }
-.publish-card-text { display: flex; flex-direction: column; gap: 2px; text-align: left; }
 
 /* --- Installed mod details --- */
 .mod-details > .close-details { position: absolute; top: 10px; right: 10px; }
@@ -950,6 +943,20 @@ input[type="radio"] { accent-color: var(--palette-accent-primary); margin: 0; }
 .modlist-card:has(.card-following) > .card-title { padding-right: 22px; }
 .card-following { position: absolute; top: 13px; right: 12px; color: var(--accent); display: grid; place-items: center; }
 .card-following .ui-icon { width: 18px; height: 18px; stroke-width: 2.2; }
+/* Published saved modlists: a thicker, warmer border (1px less padding keeps the size) and a
+ * cloud in the corner. */
+.modlist-card.published {
+  --published: var(--palette-warning);
+  border: 2px solid color-mix(in srgb, var(--published) 70%, var(--border));
+  background: color-mix(in srgb, var(--published) 5%, var(--surface));
+}
+.modlist-card-grid .modlist-card.published { padding: 13px; }
+.modlist-card.published.selected { border-color: var(--published); background: color-mix(in srgb, var(--published) 10%, var(--selection)); }
+.modlist-card:has(.card-published) > .card-title { padding-right: 24px; }
+.card-published { position: absolute; top: 12px; right: 11px; color: var(--published, var(--palette-warning)); display: grid; place-items: center; }
+.card-published .ui-icon { width: 20px; height: 20px; stroke-width: 2; }
+.badge.published-badge { background: color-mix(in srgb, var(--palette-warning) 22%, transparent); color: var(--palette-warning); }
+.publish-notice { border-left-color: var(--palette-warning); }
 .details-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 34px 12px 0; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
 
 /* --- Modlist builder (beside the Mod DB cards) --- */

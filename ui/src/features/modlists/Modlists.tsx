@@ -15,21 +15,21 @@ import {
   useUnsubscribe,
 } from "../../api";
 import { formatAgo } from "../../lib/format";
-import { canQuickSwitch, filterModlists, kindLabel, serverCommands } from "./modlistView";
+import { canQuickSwitch, filterModlists, kindLabel, serverCommands, sortSaved } from "./modlistView";
 import { LoadModlistDialog } from "./LoadModlistDialog";
 import { quickSwitchNotice, useQuickSwitch } from "./quickSwitch";
 import { GroupDialog } from "./GroupDialog";
 import { ModCards } from "./ModCards";
 import { ModlistCard } from "./ModlistCard";
 import { ModlistSection } from "./ModlistSection";
-import { useOnlineModlistSections, type OnlineModlistDialog } from "../online/useOnlineModlistSections";
+import { useOnlineModlistSections } from "../online/useOnlineModlistSections";
+import { canBePublished, usePublishing, type Publishing } from "../online/usePublishing";
 import { IconPicker, iconThemeClass, ModlistIcon } from "./ModlistIcon";
 import { CloseDetails, SplitWorkspace, useLayoutPreference } from "../../components/SplitWorkspace";
 import type { IconName } from "../../components/Icon";
 import { useContextMenu } from "../../components/ContextMenu";
 
 type Dialog =
-  | OnlineModlistDialog
   | { kind: "load"; source: ModlistSource; listKind: ModlistKind | null; title: string; mode?: LoadMode; quick?: boolean }
   | { kind: "group"; group: ModlistSummary | null; members: string[] }
   | { kind: "icon"; entry: ModlistSummary };
@@ -68,7 +68,6 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
   const [flash, setFlash] = useState<string | null>(null);
   const [backupsCollapsed, setBackupsCollapsed] = useLayoutPreference<boolean>("modlists-backups-collapsed", true);
   const [savedCollapsed, setSavedCollapsed] = useLayoutPreference<boolean>("modlists-saved-collapsed", false);
-  const [publishedCollapsed, setPublishedCollapsed] = useLayoutPreference<boolean>("modlists-published-collapsed", false);
   const [communityCollapsed, setCommunityCollapsed] = useLayoutPreference<boolean>("modlists-community-collapsed", false);
   const [revealId, setRevealId] = useState<string | null>(null);
   const revealCard = useRef<HTMLButtonElement>(null);
@@ -101,17 +100,36 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
 
   const chosen = all.filter((m) => selected.includes(m.id));
   const error = del.error ?? importFile.error ?? exportList.error ?? resolve.error ?? openFolder.error ?? sync.error ?? unsubscribe.error ?? updateMods.error;
-  const busy = del.isPending || resolve.isPending || exportList.isPending || sync.isPending || unsubscribe.isPending || updateMods.isPending;
+  const publishing = usePublishing({ offline, onFlash: setFlash });
+  const busy = del.isPending || resolve.isPending || exportList.isPending || sync.isPending || unsubscribe.isPending || updateMods.isPending || publishing.busy;
   const canUpdateMods = (entry: ModlistSummary) => entry.kind === "modlist" && !entry.subscription && !entry.error;
 
   const doUpdateMods = async (entry: ModlistSummary) => {
-    const ok = await ask(`Replace the mods in "${entry.name}" with the mods you have enabled now? The name, description and icon stay.`, {
-      title: "Update with enabled mods",
-      okLabel: "Update",
-      cancelLabel: "Cancel",
+    const followers = publishing.slotFor(entry.published?.registryId)?.subscribers ?? 0;
+    const ok = await ask(
+      `Replace the mods in "${entry.name}" with the mods you have enabled now? The name, description and icon stay.` +
+        (entry.published
+          ? ` It's published, so the changes are published too${followers ? ` and your ${followers} follower${followers === 1 ? "" : "s"} get an update` : ""}.`
+          : ""),
+      { title: "Update with enabled mods", okLabel: "Update", cancelLabel: "Cancel" },
+    );
+    if (!ok) return;
+    updateMods.mutate(entry.id, {
+      onSuccess: (s) => {
+        setFlash(`Updated "${s.name}": ${s.mods.length} mods.`);
+        if (s.published?.changed && !publishing.blocked) publishing.publish(s);
+      },
     });
-    if (ok) updateMods.mutate(entry.id, { onSuccess: (s) => setFlash(`Updated "${s.name}": ${s.mods.length} mods.`) });
   };
+
+  const changeIcon = (entry: ModlistSummary, icon: string | null, color: string | null) =>
+    setIcon.mutate({ id: entry.id, icon, color }, {
+      onSuccess: (s) => {
+        setDialog(null);
+        // Keep a published list in step, unless it has other changes that aren't published yet.
+        if (entry.published && !entry.published.changed && s.published?.changed && !publishing.blocked) publishing.publish(s);
+      },
+    });
 
   const select = (id: string, additive: boolean) =>
     selectLocal(additive ? (selected.includes(id) ? selected.filter((p) => p !== id) : [...selected, id]) : [id]);
@@ -137,23 +155,28 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     ),
     onShowLocal: showEntry,
     onLoad: (id, title) => setDialog({ kind: "load", source: { id: null, file: null, online: id }, listKind: null, title }),
-    dialog: dialog?.kind === "publish" || dialog?.kind === "editPublished" ? dialog : null,
-    onDialogChange: setDialog,
-    publishedCollapsed,
     communityCollapsed,
-    onTogglePublished: () => setPublishedCollapsed(!publishedCollapsed),
     onToggleCommunity: () => setCommunityCollapsed(!communityCollapsed),
   });
 
   const remove = async (targets: ModlistSummary[]) => {
     const what = targets.length === 1 ? `"${targets[0].name}"` : `${targets.length} items`;
-    const ok = await ask(`Move ${what} to the ${os === "windows" ? "Recycle Bin" : "Trash"}?`, {
-      title: "Delete",
-      kind: "warning",
-      okLabel: "Delete",
-      cancelLabel: "Cancel",
-    });
-    if (ok) del.mutate(targets.map((t) => t.id), { onSuccess: () => selectLocal([]) });
+    const published = targets.filter((t) => t.published);
+    const bin = os === "windows" ? "Recycle Bin" : "Trash";
+    if (published.length && publishing.blocked) {
+      setFlash(`Published modlists can only be deleted while the cloud is reachable, since they are unpublished first. ${publishing.blocked}`);
+      return;
+    }
+    const names = published.map((t) => `"${t.name}"`).join(", ");
+    const ok = await ask(
+      published.length
+        ? `Move ${what} to the ${bin}? ${names} ${published.length === 1 ? "is" : "are"} published and will be unpublished first: removed from the cloud, while followers keep their copies.`
+        : `Move ${what} to the ${bin}?`,
+      { title: "Delete", kind: "warning", okLabel: published.length ? "Unpublish and delete" : "Delete", cancelLabel: "Cancel" },
+    );
+    if (!ok) return;
+    for (const t of published) if (!(await publishing.unpublish(t, true))) return;
+    del.mutate(targets.map((t) => t.id), { onSuccess: () => selectLocal([]) });
   };
 
   const doImport = async () => {
@@ -188,6 +211,18 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     }
   };
 
+  const publishMenu = (entry: ModlistSummary) => {
+    const off = busy || !!publishing.blocked;
+    if (entry.published) {
+      return [
+        entry.published.changed && { label: "Publish changes", disabled: off, run: () => publishing.publish(entry) },
+        { label: "Edit online details…", disabled: off, run: () => publishing.editDetails(entry) },
+        { label: "Unpublish…", disabled: off, run: () => void publishing.unpublish(entry) },
+      ];
+    }
+    return [canBePublished(entry) && { label: "Publish", disabled: off, run: () => publishing.publish(entry) }];
+  };
+
   const onCardMenu = (event: MouseEvent<HTMLButtonElement>, entry: ModlistSummary) => {
     const alreadySelected = selected.includes(entry.id);
     const targets = alreadySelected ? chosen : [entry];
@@ -209,7 +244,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
       canUpdateMods(entry) && { label: "Update with enabled mods…", disabled: busy, run: () => void doUpdateMods(entry) },
       entry.kind === "group" && { label: "Edit group…", disabled: busy, run: () => setDialog({ kind: "group", group: entry, members: [] }) },
       { label: "Change icon…", disabled: busy || !!entry.error, run: () => setDialog({ kind: "icon", entry }) },
-    ], [
+    ], publishMenu(entry), [
       { label: "Export JSON…", disabled: cannotLoad, run: () => doExport(entry, "json") },
       { label: "Export PDF…", disabled: cannotLoad, run: () => doExport(entry, "pdf") },
       entry.mods.some((mod) => mod.version) && { label: "Copy server commands", run: () => copy(serverCommands(entry), "server install commands") },
@@ -218,7 +253,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
     ]]);
   };
 
-  const saved = filterModlists(all, ["modlist", "group"], search).sort((a, b) => a.name.localeCompare(b.name));
+  const saved = sortSaved(filterModlists(all, ["modlist", "group"], search));
   const backups = filterModlists(all, ["backup"], search);
   const hasDetails = chosen.length > 0 || !!online.details;
   const card = (m: ModlistSummary) => {
@@ -229,8 +264,11 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
       m.error ? "Can't be read" : <><strong>{m.mods.length}</strong> mod{m.mods.length === 1 ? "" : "s"}</>,
       m.gameVersion ? `VS ${m.gameVersion}` : "Any game version",
     ];
+    const slot = publishing.slotFor(m.published?.registryId);
     const facts = [
       m.subscription && `Revision ${m.subscription.syncedRevision}`,
+      m.published && `Revision ${slot?.info.revision ?? m.published.revision}`,
+      !!slot?.subscribers && `${slot.subscribers} following`,
       m.configCount > 0 && `${m.configCount} config${m.configCount === 1 ? "" : "s"}`,
       m.group && m.group.conflicts.length > 0 && `${m.group.conflicts.length} to check`,
       !m.active && m.downloadsNeeded > 0 && `${m.downloadsNeeded} to download`,
@@ -247,9 +285,11 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
         facts={facts}
         date={m.modifiedMs ? formatAgo(m.modifiedMs) : undefined}
         following={!!m.subscription}
-        badges={(m.active || m.subscription?.updateAvailable) && <>
+        published={!!m.published}
+        badges={(m.active || m.subscription?.updateAvailable || m.published?.changed) && <>
           {m.active && <span className="badge active-badge">Active</span>}
           {m.subscription?.updateAvailable && <span className="badge update-badge">Update available</span>}
+          {m.published?.changed && <span className="badge published-badge" title="This saved modlist changed since it was published">Changes to publish</span>}
         </>}
         selected={selected.includes(m.id)}
         onSelect={(event) => select(m.id, event.ctrlKey || event.metaKey)}
@@ -292,6 +332,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
           </p>
         )}
         {error && <p className="notice error-text">{error.message}</p>}
+        {publishing.banner}
         {lists.isPending && <p className="empty-state">Loading modlists…</p>}
         {lists.isError && <p className="empty-state error-text">{lists.error.message}</p>}
         <div className="modlist-scroll">
@@ -361,6 +402,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
             onResolve={(modId, reference) => resolve.mutate({ id: chosen[0].id, modId, reference })}
             onSync={() => sync.mutate(chosen[0].id, { onSuccess: (s) => setFlash(`Updated "${s.name}" to the latest online revision.`) })}
             onUnsubscribe={() => unsubscribe.mutate(chosen[0].id, { onSuccess: (s) => setFlash(`"${s.name}" is now a normal modlist.`) })}
+            publishing={publishing}
             busy={busy}
           />
         )}
@@ -402,7 +444,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
           fallback={kindIcons[dialog.entry.kind]}
           busy={setIcon.isPending}
           error={setIcon.error?.message}
-          onPick={(icon, color) => setIcon.mutate({ id: dialog.entry.id, icon, color }, { onSuccess: () => setDialog(null) })}
+          onPick={(icon, color) => changeIcon(dialog.entry, icon, color)}
           onClose={() => {
             setIcon.reset();
             setDialog(null);
@@ -421,7 +463,7 @@ export function Modlists({ os, offline, droppedFile, onDroppedFileHandled }: Pro
           onClose={() => setDialog(null)}
         />
       )}
-      {online.modal}
+      {publishing.modal}
     </SplitWorkspace>
   );
 }
@@ -441,10 +483,13 @@ interface DetailsProps {
   onResolve: (modId: string, reference: string) => void;
   onSync: () => void;
   onUnsubscribe: () => void;
+  publishing: Publishing;
 }
 
-function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onUpdateMods, onChangeIcon, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe }: DetailsProps) {
+function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, onEditGroup, onUpdateMods, onChangeIcon, onDelete, onSelectMember, onResolve, onSync, onUnsubscribe, publishing }: DetailsProps) {
   const hasCommands = entry.mods.some((m) => m.version);
+  const slot = publishing.slotFor(entry.published?.registryId);
+  const blockedTitle = publishing.blocked ?? undefined;
   return (
     <>
       <div className="details-header">
@@ -462,9 +507,32 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
           {entry.name}
           <span className="badge">{kindLabel(entry.kind)}</span>
           {entry.active && <span className="badge active-badge" title="Your installed mods match this list">Active</span>}
+          {entry.published && <span className="badge published-badge" title="Other players can find, load and follow it">Published</span>}
         </h2>
       </div>
       {entry.error && <p className="notice error-text">{entry.error}</p>}
+      {entry.published && (
+        <div className="notice publish-notice">
+          {entry.published.changed
+            ? "Published, but this saved modlist changed since then. Publish the changes to share them."
+            : "Published: other players can find, load and follow it."}{" "}
+          Revision {slot?.info.revision ?? entry.published.revision}
+          {slot ? `, ${slot.subscribers} following` : ""}.
+          <div className="link-row">
+            {entry.published.changed && (
+              <button type="button" className="primary" disabled={busy || !!publishing.blocked} title={blockedTitle} onClick={() => publishing.publish(entry)}>
+                Publish changes
+              </button>
+            )}
+            <button type="button" disabled={busy || !!publishing.blocked} title={blockedTitle ?? "Description, game version and icon, online and here"} onClick={() => publishing.editDetails(entry)}>
+              Edit online details…
+            </button>
+            <button type="button" className="link-button small" disabled={busy || !!publishing.blocked} title={blockedTitle} onClick={() => void publishing.unpublish(entry)}>
+              Unpublish…
+            </button>
+          </div>
+        </div>
+      )}
       {entry.subscription && (
         <div className={`notice${entry.subscription.updateAvailable ? "" : " quiet"}`}>
           {entry.subscription.sourceGone
@@ -512,6 +580,16 @@ function ModlistDetails({ entry, busy, onLoad, onQuickSwitch, onExport, onCopy, 
           <button type="button" disabled={busy} title="Replace its mods with the mods you have enabled now" onClick={onUpdateMods}>Update</button>
         )}
         {entry.kind === "group" && <button type="button" disabled={busy} onClick={onEditGroup}>Edit group…</button>}
+        {canBePublished(entry) && !entry.published && (
+          <button
+            type="button"
+            disabled={busy || !!publishing.blocked}
+            title={blockedTitle ?? `Share it with other players (${publishing.usedSlots} of 5 published)`}
+            onClick={() => publishing.publish(entry)}
+          >
+            Publish
+          </button>
+        )}
         <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("pdf")}>Export PDF…</button>
         <button type="button" disabled={!!entry.error || busy} onClick={() => onExport("json")}>Export JSON…</button>
         {hasCommands && (

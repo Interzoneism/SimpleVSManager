@@ -20,6 +20,11 @@ export function filterModlists(all: ModlistSummary[], kinds: ModlistKind[], sear
   );
 }
 
+/** Saved modlists: your published ones first, then by name. */
+export function sortSaved(list: ModlistSummary[]): ModlistSummary[] {
+  return [...list].sort((a, b) => Number(!!b.published) - Number(!!a.published) || a.name.localeCompare(b.name));
+}
+
 /** Saved lists switch over by default. Imported files and online lists add to what's there. */
 export function defaultMode(kind: ModlistKind | null): LoadMode {
   if (kind === null) return "add";

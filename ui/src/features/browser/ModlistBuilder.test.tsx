@@ -53,6 +53,7 @@ const saved: ModlistSummary = {
   iconColor: null, version: null, gameVersion: null, uploader: null, modifiedMs: null,
   mods: [{ modId: "carryon", version: "1.8.0", isActive: true }], configCount: 0, hasVersions: true, error: null,
   group: null, active: false, downloadsNeeded: 0, subscription: null,
+    published: null,
 };
 
 const page: BrowsePage = {

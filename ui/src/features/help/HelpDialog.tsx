@@ -25,7 +25,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
       "Groups combine several modlists. Backups are saved automatically before a modlist loads and before updates or deletes.",
       "Export a modlist as PDF or JSON; Simple VS Manager 2.3 can load both. Drop a .json or .pdf on the window to load it.",
       "Load modlists other players published, save a copy, or follow one to get its updates.",
-      "Publish your own to five cloud slots under your player name.",
+      "Publish your own saved modlists (up to five) under your player name; they are marked with a cloud under Saved modlists.",
     ],
   },
   {

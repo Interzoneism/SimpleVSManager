@@ -1,10 +1,5 @@
 import type { OnlineEntry } from "../../bindings";
 
-/** Your own published modlists (shown in their own section first) and everyone else's. */
-export function splitOwn(list: OnlineEntry[]): { mine: OnlineEntry[]; others: OnlineEntry[] } {
-  return { mine: list.filter((o) => o.mine), others: list.filter((o) => !o.mine) };
-}
-
 export type OnlineSort = "newest" | "subscribers" | "mods" | "name";
 
 /** Search (name, description, author, mod ids) and sort the online listing. */

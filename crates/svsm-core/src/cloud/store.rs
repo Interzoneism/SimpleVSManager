@@ -199,6 +199,7 @@ pub fn with_uploader(content: &Value, identity: &PlayerIdentity) -> Value {
     let mut map = content.as_object().cloned().unwrap_or_default();
     // Local subscription bookkeeping never goes public.
     map.remove("onlineSubscription");
+    map.remove("published");
     // Revisions replace the author-set modlist version.
     map.remove("version");
     map.insert("uploader".into(), Value::String(identity.name.clone()));
@@ -505,13 +506,18 @@ impl<'a> CloudStore<'a> {
     }
 
     pub async fn my_slots(&self, identity: &PlayerIdentity) -> CloudResult<Vec<SlotInfo>> {
+        Ok(self.my_slots_with_content(identity).await?.into_iter().map(|(info, _)| info).collect())
+    }
+
+    /// The player's used slots with their published content (modlist JSON).
+    pub async fn my_slots_with_content(&self, identity: &PlayerIdentity) -> CloudResult<Vec<(SlotInfo, Value)>> {
         let slots = self.read_slots(identity).await?;
         Ok(SLOTS
             .iter()
             .filter_map(|slot| {
                 let node = slots.get(*slot)?;
                 let content = node.get("content")?;
-                Some(SlotInfo {
+                let info = SlotInfo {
                     slot: slot.to_string(),
                     registry_id: s(node, "registryId"),
                     name: s(content, "name"),
@@ -519,7 +525,8 @@ impl<'a> CloudStore<'a> {
                     revision: revision(node),
                     updated_ms: s(node, "updatedAt").or_else(|| s(node, "dateAdded")).and_then(|d| parse_iso_ms(&d)),
                     mod_count: content.get("mods").and_then(Value::as_array).map(|a| a.len() as u32).unwrap_or(0),
-                })
+                };
+                Some((info, content.clone()))
             })
             .collect())
     }

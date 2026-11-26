@@ -9,7 +9,7 @@ pub mod pdf;
 pub mod store;
 
 pub use apply::{plan, ApplyPlan, LoadMode};
-pub use format::{clean_icon, parse_modlist, to_json, ConfigFile, ConfigList, Modlist, ModlistConfig, ModlistMod, OnlineSubscription};
+pub use format::{clean_icon, parse_modlist, to_json, ConfigFile, ConfigList, Modlist, ModlistConfig, ModlistMod, OnlineSubscription, PublishedLink};
 pub use groups::{GroupConflict, GroupDefinition};
 pub use store::{read_modlist_file, LoadedModlist, ModlistKind, ModlistStore, ModlistSummary};
 
@@ -58,6 +58,7 @@ pub fn from_installed(installed: &[InstalledMod], meta: ModlistMeta, configs: Ve
         include_mod_versions: Some(true),
         exclusive: Some(true),
         online_subscription: None,
+        published: None,
     }
 }
 
