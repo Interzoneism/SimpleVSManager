@@ -8,6 +8,7 @@
 pub mod auth;
 pub mod migrate;
 pub mod store;
+pub mod suggest;
 pub mod validator;
 pub mod votes;
 

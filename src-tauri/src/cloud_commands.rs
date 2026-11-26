@@ -22,7 +22,7 @@ fn err(e: svsm_core::cloud::CloudError) -> AppError {
     AppError::msg(e.to_string())
 }
 
-fn cache_dir(state: &AppState) -> PathBuf {
+pub(crate) fn cache_dir(state: &AppState) -> PathBuf {
     state.manager_dir().join("Temp Cache").join("Firebase Cache")
 }
 

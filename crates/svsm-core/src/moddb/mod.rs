@@ -21,7 +21,7 @@ use std::sync::Mutex;
 
 use futures_util::stream::{self, StreamExt};
 
-pub use browse::{browse, BrowseEntry, BrowsePage, BrowseQuery, BrowseSort};
+pub use browse::{browse, browse_with, BrowseEntry, BrowsePage, BrowseQuery, BrowseSort, SuggestBasis, SuggestionHint};
 pub use cache::{CachedMod, ModDbCache};
 pub use client::{DownloadProgress, ModDbClient, NetError, NetResult};
 pub use install::{install_archive, CachedMods, CachedVersion, InstallPlan, InstallTarget};

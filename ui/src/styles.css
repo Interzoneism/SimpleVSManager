@@ -513,6 +513,8 @@ button.library-stat[aria-pressed="true"] {
 }
 .db-card-stats > span { display: inline-flex; align-items: center; gap: 4px; }
 .db-card-stats .ui-icon { width: 13px; height: 13px; }
+.db-card-stats > .suggest-stat { color: var(--accent); font-weight: 600; }
+.suggest-basis { margin: 0 0 8px; }
 .db-card-title {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; overflow-wrap: anywhere;
   font-size: 15px; line-height: 1.3; font-weight: 650; color: var(--palette-white);

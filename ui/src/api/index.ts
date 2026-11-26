@@ -384,6 +384,7 @@ export function defaultBrowseQuery(): BrowseQuery {
     hideInstalled: false,
     offset: 0,
     limit: 60,
+    seedModIds: [],
   };
 }
 

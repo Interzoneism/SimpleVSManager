@@ -696,13 +696,16 @@ pub async fn browse_mods(
     let installed: HashSet<String> =
         state.mods.read_safe().mods.iter().map(|m| m.mod_id.to_ascii_lowercase()).collect();
     let settings = &env.settings;
-    Ok(moddb::browse(
-        entries,
-        &query,
-        |e| e.mod_ids.iter().any(|id| installed.contains(&id.to_ascii_lowercase())),
-        |e| e.mod_ids.iter().any(|id| settings.is_favourite(id)) || settings.is_favourite(&e.mod_id),
-        fetched_ms,
-    ))
+    let is_installed = |e: &moddb::ModDbListEntry| e.mod_ids.iter().any(|id| installed.contains(&id.to_ascii_lowercase()));
+    let is_favourite =
+        |e: &moddb::ModDbListEntry| e.mod_ids.iter().any(|id| settings.is_favourite(id)) || settings.is_favourite(&e.mod_id);
+    if query.sort != moddb::BrowseSort::Suggested {
+        return Ok(moddb::browse(entries, &query, is_installed, is_favourite, fetched_ms));
+    }
+    let (score, basis) = crate::suggest::scorer(&state, &query.seed_mod_ids, refresh).await;
+    let mut page = moddb::browse_with(entries, &query, is_installed, is_favourite, score, fetched_ms);
+    page.suggest_basis = Some(basis);
+    Ok(page)
 }
 
 /// The Mod DB's own card thumbnails for browser cards, by lower-case mod id. The catalogue's

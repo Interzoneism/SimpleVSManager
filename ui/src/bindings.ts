@@ -819,7 +819,11 @@ export type BrowseEntry = ({
 /**
  * Primary string id (`modidstrs[0]`), or the numeric id if there is none.
  */
-modId: string; modIds: string[]; numericId: number; assetId: number | null; name: string; summary: string | null; author: string | null; urlAlias: string | null; side: string | null; kind: string | null; logoUrl: string | null; tags: string[]; downloads: number; follows: number; comments: number; trendingPoints: number; lastReleasedMs: number | null }) & { installed: boolean; favourite: boolean }
+modId: string; modIds: string[]; numericId: number; assetId: number | null; name: string; summary: string | null; author: string | null; urlAlias: string | null; side: string | null; kind: string | null; logoUrl: string | null; tags: string[]; downloads: number; follows: number; comments: number; trendingPoints: number; lastReleasedMs: number | null }) & { installed: boolean; favourite: boolean; 
+/**
+ * Set when sorting by [`BrowseSort::Suggested`].
+ */
+suggestion: SuggestionHint | null }
 export type BrowseFacets = { tags: TagCount[]; 
 /**
  * Stable game versions, newest first.
@@ -829,7 +833,11 @@ export type BrowsePage = { total: number; items: BrowseEntry[];
 /**
  * When the catalogue was downloaded.
  */
-fetchedMs: number }
+fetchedMs: number; 
+/**
+ * What "Suggested for you" was based on (only with that sort).
+ */
+suggestBasis: SuggestBasis | null }
 export type BrowseQuery = { text: string; 
 /**
  * Category tag names; a mod must have all of them.
@@ -842,7 +850,12 @@ side: string | null; sort: BrowseSort;
 /**
  * Reverse the sort (default: biggest/newest first, names A to Z).
  */
-reverse: boolean; onlyFavourites: boolean; hideInstalled: boolean; offset: number; limit: number }
+reverse: boolean; onlyFavourites: boolean; hideInstalled: boolean; offset: number; limit: number; 
+/**
+ * For [`BrowseSort::Suggested`]: the mods to base suggestions on (the modlist builder's).
+ * Empty = the installed mods.
+ */
+seedModIds: string[] }
 export type BrowseSort = 
 /**
  * Best text match first (falls back to downloads with no text).
@@ -851,7 +864,12 @@ export type BrowseSort =
 /**
  * Newest mods first (by Mod DB id, which grows over time).
  */
-"recentlyAdded" | "name"
+"recentlyAdded" | "name" | 
+/**
+ * "Suggested for you": mods the community uses with the seed mods, most recommended first.
+ * Only mods with a suggestion score are shown.
+ */
+"suggested"
 /**
  * The version a builder entry gets when the list doesn't pin one.
  */
@@ -1521,6 +1539,21 @@ export type SubscriptionView = { registryId: string; syncedRevision: number; rem
  * The online modlist was deleted by its author.
  */
 sourceGone: boolean }
+export type SuggestBasis = { 
+/**
+ * The seed mods were the modlist builder's (else the installed mods).
+ */
+fromBuilder: boolean; seedCount: number; modlists: number; reporters: number; 
+/**
+ * The community data couldn't be refreshed (an older copy or nothing was used).
+ */
+error: string | null }
+export type SuggestionHint = { score: number; 
+/**
+ * Most modlists/reporters that had it together with any one of the seed mods (0 = only
+ * popular, no overlap with the seeds).
+ */
+together: number }
 export type TagCount = { name: string; count: number }
 export type UpdateOffer = { version: string; compatible: boolean; message: string }
 export type UpdateOutcome = { key: string; modId: string; name: string; ok: boolean; fromVersion: string | null; toVersion: string | null; message: string | null }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { BrowseEntry, BrowseQuery, BrowseSort } from "../../bindings";
+import type { BrowseEntry, BrowseQuery, BrowseSort, SuggestBasis } from "../../bindings";
 import {
   defaultBrowseQuery,
   useBrowseFacets,
@@ -22,6 +22,7 @@ import { ModlistBuilder } from "./ModlistBuilder";
 
 const SORTS: { value: BrowseSort; label: string }[] = [
   { value: "relevance", label: "Best match" },
+  { value: "suggested", label: "Suggested for you" },
   { value: "downloads", label: "Most downloaded" },
   { value: "follows", label: "Most followed" },
   { value: "trending", label: "Trending" },
@@ -33,7 +34,7 @@ const SORTS: { value: BrowseSort; label: string }[] = [
 
 const PAGE = 60;
 
-/** A remembered query is only used if it still looks like one. */
+/** A remembered query is only used if it still looks like one. (Seed mods are filled in fresh.) */
 function isBrowseQuery(v: unknown): v is BrowseQuery {
   const q = v as BrowseQuery;
   return !!q && typeof q === "object" && typeof q.sort === "string" && SORTS.some((s) => s.value === q.sort)
@@ -56,7 +57,10 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   const offline = !!env.data?.settings.offlineMode;
   // Search, filters and how many cards are shown stay put when you leave the page and come back.
   const [text, setText] = useState(() => recall("browse-text", ""));
-  const [query, setQuery] = useState<BrowseQuery>(() => recall("browse-query", defaultBrowseQuery(), isBrowseQuery));
+  const [query, setQuery] = useState<BrowseQuery>(() => ({
+    ...recall("browse-query", defaultBrowseQuery(), isBrowseQuery),
+    seedModIds: [],
+  }));
   const [gameVersion, setGameVersion] = useState<string>(() => recall("browse-game-version", ""));
   useEffect(() => remember("browse-text", text), [text]);
   useEffect(() => remember("browse-query", query), [query]);
@@ -64,7 +68,17 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   const [selected, setSelected] = useState<BrowseEntry | null>(null);
   const debouncedText = useDebounced(text, 200);
 
-  const effective = useMemo(() => ({ ...query, text: debouncedText }), [query, debouncedText]);
+  // The modlist builder: cards are dragged into it.
+  const b = useBuilder();
+  const inList = useMemo(() => new Set(b.entries.map((e) => e.modId.toLowerCase())), [b.entries]);
+
+  // "Suggested for you" is based on the modlist being built, else (empty list) the installed mods.
+  const suggested = query.sort === "suggested";
+  const seedKey = suggested && b.open ? [...inList].sort().join("\n") : "";
+  const effective = useMemo(
+    () => ({ ...query, text: debouncedText, seedModIds: seedKey ? seedKey.split("\n") : [] }),
+    [query, debouncedText, seedKey],
+  );
   const results = useBrowseMods(effective, gameVersion || null, enabled);
   const facets = useBrowseFacets(enabled);
   const refresh = useRefreshCatalogue();
@@ -93,9 +107,6 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useRememberedScroll("browse-scroll", scrollRef, !!page);
 
-  // The modlist builder: cards are dragged into it.
-  const b = useBuilder();
-  const inList = useMemo(() => new Set(b.entries.map((e) => e.modId.toLowerCase())), [b.entries]);
   const builderPane = useRef<HTMLElement | null>(null);
   const [overBuilder, setOverBuilder] = useState(false);
   const cardDrag = usePointerDrag<BuilderEntry>({
@@ -212,6 +223,7 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
             </span>
           )}
         </div>
+        {suggested && page?.suggestBasis && <SuggestBasisLine basis={page.suggestBasis} />}
         {(results.error ?? refresh.error) && (
           <p className="notice error-text">
             {offline && !page
@@ -222,7 +234,13 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
         {(prefs.error || openUrl.error) && <p className="notice error-text">{(prefs.error ?? openUrl.error)?.message}</p>}
         <div className="browse-scroll" ref={scrollRef}>
           {results.isPending && <p className="empty-state">Loading the Mod DB… (the first time takes a few seconds)</p>}
-          {page && page.items.length === 0 && <p className="empty-state">No mods match.</p>}
+          {page && page.items.length === 0 && (
+            <p className="empty-state">
+              {suggested && !page.suggestBasis?.seedCount
+                ? "Nothing to base suggestions on yet. Install some mods, or add mods to the modlist builder."
+                : suggested ? "No suggestions match. Try other filters, or add more mods to base them on." : "No mods match."}
+            </p>
+          )}
           <div className="db-card-grid" role="list">
             {page?.items.map((e) => (
               <ModCard key={e.modId} entry={e} thumbUrl={thumbFor(e)} selected={selected?.modId === e.modId}
@@ -251,6 +269,24 @@ export function ModBrowser({ enabled }: { enabled: boolean }) {
       )}
       {cardDrag.overlay}
     </SplitWorkspace>
+  );
+}
+
+/** What "Suggested for you" is based on, under the toolbar. */
+function SuggestBasisLine({ basis }: { basis: SuggestBasis }) {
+  const seeds = basis.fromBuilder
+    ? `the ${basis.seedCount === 1 ? "mod" : `${basis.seedCount} mods`} in your modlist builder`
+    : `your ${basis.seedCount === 1 ? "installed mod" : `${basis.seedCount} installed mods`}`;
+  const sources = [
+    basis.modlists && `${formatCount(basis.modlists)} community modlists`,
+    basis.reporters && `${formatCount(basis.reporters)} people's mod reports`,
+  ].filter(Boolean);
+  return (
+    <p className="muted small suggest-basis">
+      {basis.seedCount ? `Suggested from ${seeds}` : "Popular in community modlists"}
+      {sources.length ? `, using ${sources.join(" and ")}.` : "."}
+      {basis.error && <span title={basis.error}> (Couldn't refresh the community data; using what was saved.)</span>}
+    </p>
   );
 }
 
@@ -302,6 +338,12 @@ ${entry.summary}` : entry.name}
       )}
       <span className="db-card-desc">
         <span className="db-card-stats">
+          {!!entry.suggestion?.together && (
+            <span className="suggest-stat" title={`Used together with your mods in ${entry.suggestion.together} community modlists or reports`}>
+              <Icon name="community" />
+              {formatCount(entry.suggestion.together)}
+            </span>
+          )}
           <span title={`${entry.downloads.toLocaleString()} downloads`}>
             <Icon name="download" />
             {formatCount(entry.downloads)}
