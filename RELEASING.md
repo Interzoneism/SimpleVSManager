@@ -34,14 +34,6 @@ To try a build without tagging, run the workflow by hand: Actions, Release, Run 
 makes a draft for the current version in the files; delete the draft afterwards if you don't
 want it.
 
-## Actions minutes
-
-The repo is private on GitHub Free: 2,000 Actions minutes a month, with macOS minutes counted
-10x and Windows 2x. A full release run uses about 200. CI tests only Linux on pushes and PRs; to
-test Windows and macOS too, run CI by hand (Actions, CI, Run workflow). When the minutes run out,
-every job fails within seconds with no log until the 1st of the month, unless a budget is set
-under GitHub Billing.
-
 ## What gets built
 
 | System | Files | Built on |
