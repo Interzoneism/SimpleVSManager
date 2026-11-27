@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/svsm-core", "src-tauri"]
 
 [workspace.package]
-version = "3.0.0-alpha.0"
+version = "3.0.0-beta.1"
 edition = "2021"
 license = "UNLICENSED"
 authors = ["Interzone"]

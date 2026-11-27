@@ -1,0 +1,203 @@
+name: Release
+
+# Builds installers for Windows, macOS and Linux and uploads them to a *draft* GitHub Release.
+# Runs when a version tag (v3.1.0, v3.1.0-beta.1, ...) is pushed, or by hand from the Actions tab.
+# Nothing is published until the draft is reviewed and published on GitHub. See RELEASING.md.
+#
+# Code signing is optional: each platform signs only when its secrets are set (see RELEASING.md).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: v
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          version=$(node scripts/version.mjs --check "$TAG")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+      # One draft release, made here so the three build jobs don't race to create it.
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+          PRERELEASE: ${{ steps.v.outputs.prerelease }}
+        run: |
+          tag="v$VERSION"
+          if draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" != "true" ]; then
+              echo "::error::Release $tag is already published. Bump the version first."
+              exit 1
+            fi
+            echo "Draft $tag exists; pointing it at this commit, build jobs will replace its files."
+            gh release edit "$tag" --target "$GITHUB_SHA"
+            exit 0
+          fi
+          flags=(--draft --title "Simple VS Manager $tag" --target "$GITHUB_SHA")
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          cat > notes.md <<'NOTES'
+          Download the file for your system:
+
+          - **Windows 10/11**: `Simple-VS-Manager_..._Windows-x64-setup.exe`
+          - **macOS 11+** (Apple Silicon and Intel): `Simple-VS-Manager_..._macOS-universal.dmg`
+          - **Linux**: `.AppImage` (any distro), `.deb` (Debian, Ubuntu, Mint) or `.rpm` (Fedora, openSUSE)
+
+          The builds aren't code signed yet. Windows may show "Windows protected your PC": click **More info**, then **Run anyway**. macOS may say Apple can't check the app: open it once, then go to System Settings, Privacy & Security, and click **Open Anyway**.
+          NOTES
+          gh release create "$tag" "${flags[@]}" --notes-file notes.md
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            args: "--bundles nsis"
+            files: target/release/bundle/nsis/*-setup.exe
+            label: Windows-x64
+          - name: macOS (universal)
+            os: macos-latest
+            args: "--target universal-apple-darwin --bundles dmg"
+            files: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            label: macOS-universal
+          # Oldest supported Ubuntu runner, so the AppImage/.deb run on older glibc too.
+          - name: Linux
+            os: ubuntu-22.04
+            args: "--bundles appimage,deb,rpm"
+            files: target/release/bundle/appimage/*.AppImage target/release/bundle/deb/*.deb target/release/bundle/rpm/*.rpm
+            label: Linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system libraries for Tauri
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev patchelf file
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # --- Optional signing: only switched on when the secrets exist. ---
+
+      - name: macOS signing and notarization
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          put() { { echo "$1<<__SVSM_EOF__"; echo "$2"; echo "__SVSM_EOF__"; } >> "$GITHUB_ENV"; }
+          if [ -n "$APPLE_CERTIFICATE" ]; then
+            echo "Signing with the Developer ID certificate."
+            put APPLE_CERTIFICATE "$APPLE_CERTIFICATE"
+            put APPLE_CERTIFICATE_PASSWORD "$APPLE_CERTIFICATE_PASSWORD"
+            put APPLE_SIGNING_IDENTITY "$APPLE_SIGNING_IDENTITY"
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              echo "Notarizing with Apple ID."
+              put APPLE_ID "$APPLE_ID"
+              put APPLE_PASSWORD "$APPLE_PASSWORD"
+              put APPLE_TEAM_ID "$APPLE_TEAM_ID"
+            else
+              echo "::warning::No notarization secrets: the app is signed but not notarized."
+            fi
+          else
+            # Ad-hoc signature: required for Apple Silicon to run the app at all when unsigned.
+            echo "::warning::No APPLE_CERTIFICATE secret: building an unsigned (ad-hoc signed) app."
+            put APPLE_SIGNING_IDENTITY "-"
+          fi
+
+      - name: Windows signing
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            Write-Output "::warning::No WINDOWS_CERTIFICATE secret: building an unsigned installer."
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          # Tauri merges tauri.windows.conf.json into tauri.conf.json on Windows builds.
+          @{ bundle = @{ windows = @{
+              certificateThumbprint = $cert.Thumbprint
+              digestAlgorithm = "sha256"
+              timestampUrl = "http://timestamp.digicert.com"
+          } } } | ConvertTo-Json -Depth 5 | Set-Content src-tauri/tauri.windows.conf.json
+          Write-Output "Signing with certificate $($cert.Subject)."
+
+      - name: Build
+        shell: bash
+        run: pnpm tauri build ${{ matrix.args }}
+
+      # Upload only the installers (no .app archives, updater files or other build output),
+      # renamed to Simple-VS-Manager_<version>_<system>.<ext>.
+      - name: Upload installers to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p upload
+          shopt -s nullglob
+          for f in ${{ matrix.files }}; do
+            name=$(basename "$f")
+            case "$name" in
+              *-setup.exe) out="Simple-VS-Manager_${VERSION}_${{ matrix.label }}-setup.exe" ;;
+              *.dmg)       out="Simple-VS-Manager_${VERSION}_${{ matrix.label }}.dmg" ;;
+              *.AppImage)  out="Simple-VS-Manager_${VERSION}_Linux-x86_64.AppImage" ;;
+              *.deb)       out="Simple-VS-Manager_${VERSION}_Linux-amd64.deb" ;;
+              *.rpm)       out="Simple-VS-Manager_${VERSION}_Linux-x86_64.rpm" ;;
+              *) continue ;;
+            esac
+            cp "$f" "upload/$out"
+          done
+          ls -l upload
+          [ -n "$(ls upload)" ] || { echo "::error::No installers found"; exit 1; }
+          gh release upload "v$VERSION" upload/* --clobber

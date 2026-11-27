@@ -38,6 +38,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/version.mjs --check
 
       # The Tauri crate embeds the built UI (dist/), so build it before the Rust tests.
       - run: pnpm build

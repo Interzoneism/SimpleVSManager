@@ -1,7 +1,7 @@
 {
   "name": "simple-vs-manager",
   "private": true,
-  "version": "3.0.0-alpha.0",
+  "version": "3.0.0-beta.1",
   "type": "module",
   "packageManager": "pnpm@10.28.0",
   "scripts": {
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "tauri": "tauri",
-    "bindings": "cargo run --quiet --bin export-bindings",
+    "bindings": "cargo run --quiet -p simple-vs-manager --example export-bindings",
     "app:dev": "tauri dev",
     "app:build": "tauri build",
     "check": "cargo test --workspace && pnpm typecheck && pnpm test"
