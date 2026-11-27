@@ -38,8 +38,8 @@ want it.
 
 | System | Files | Built on |
 | --- | --- | --- |
-| Windows 10/11 (x64) | `_x64-setup.exe` (NSIS installer, installs for the current user, no admin needed) | `windows-latest` |
-| macOS 11+ (Apple Silicon and Intel) | `_universal.dmg`, plus `.app.tar.gz` | `macos-latest` |
+| Windows 10/11 (x64) | `_Windows-x64-setup.exe` (NSIS installer, installs for the current user, no admin needed) | `windows-latest` |
+| macOS 11+ (Apple Silicon and Intel) | `_macOS-universal.dmg` | `macos-latest` |
 | Linux (x64) | `.AppImage` (runs on most distros), `.deb` (Debian, Ubuntu, Mint), `.rpm` (Fedora, openSUSE) | `ubuntu-22.04` |
 
 Linux builds run on the oldest supported Ubuntu runner on purpose: the app then works on any
