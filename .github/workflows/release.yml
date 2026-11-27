@@ -9,7 +9,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-    branches: [claude/project-thread-or1lru] # TEMP: test run, removed before merge
   workflow_dispatch:
 
 concurrency:
@@ -47,8 +46,13 @@ jobs:
           PRERELEASE: ${{ steps.v.outputs.prerelease }}
         run: |
           tag="v$VERSION"
-          if gh release view "$tag" --json isDraft >/dev/null 2>&1; then
-            echo "Release $tag exists; build jobs will replace its files."
+          if draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" != "true" ]; then
+              echo "::error::Release $tag is already published. Bump the version first."
+              exit 1
+            fi
+            echo "Draft $tag exists; pointing it at this commit, build jobs will replace its files."
+            gh release edit "$tag" --target "$GITHUB_SHA"
             exit 0
           fi
           flags=(--draft --title "Simple VS Manager $tag" --target "$GITHUB_SHA")
