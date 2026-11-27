@@ -60,7 +60,7 @@ jobs:
           cat > notes.md <<'NOTES'
           Download the file for your system:
 
-          - **Windows 10/11**: `Simple-VS-Manager_..._Windows-x64-setup.exe`
+          - **Windows 10/11**: `Simple-VS-Manager_..._Windows-x64-portable.exe` (one file, runs from anywhere) or `..._Windows-x64-setup.exe` (installer)
           - **macOS 11+** (Apple Silicon and Intel): `Simple-VS-Manager_..._macOS-universal.dmg`
           - **Linux**: `.AppImage` (any distro), `.deb` (Debian, Ubuntu, Mint) or `.rpm` (Fedora, openSUSE)
 
@@ -198,6 +198,82 @@ jobs:
             esac
             cp "$f" "upload/$out"
           done
+          # Windows: the app is a single exe, also shipped on its own as the portable version.
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/release/Simple VS Manager.exe" "upload/Simple-VS-Manager_${VERSION}_Windows-x64-portable.exe"
+          fi
           ls -l upload
           [ -n "$(ls upload)" ] || { echo "::error::No installers found"; exit 1; }
           gh release upload "v$VERSION" upload/* --clobber
+
+      # In-app updates: sign the file each platform updates itself from and describe it for
+      # latest.json. Skipped when the TAURI_SIGNING_PRIVATE_KEY secret isn't set; the app then
+      # only links to the release page.
+      - name: Sign the update file
+        id: sign
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: no in-app update for this release."
+            exit 0
+          fi
+          base="https://github.com/${{ github.repository }}/releases/download/v$VERSION"
+          case "${{ runner.os }}" in
+            Windows)
+              file="upload/Simple-VS-Manager_${VERSION}_Windows-x64-portable.exe"
+              keys='["windows-x86_64-portable"]' ;;
+            macOS)
+              # Tauri's updater replaces the .app from a .tar.gz of it.
+              file="upload/Simple-VS-Manager_${VERSION}_macOS-universal.app.tar.gz"
+              tar -czf "$file" -C target/universal-apple-darwin/release/bundle/macos "Simple VS Manager.app"
+              gh release upload "v$VERSION" "$file" --clobber
+              keys='["darwin-aarch64","darwin-x86_64"]' ;;
+            Linux)
+              file="upload/Simple-VS-Manager_${VERSION}_Linux-x86_64.AppImage"
+              keys='["linux-x86_64"]' ;;
+          esac
+          pnpm tauri signer sign "$file"
+          sig=$(cat "$file.sig")
+          url="$base/$(basename "$file")"
+          jq -n --argjson keys "$keys" --arg sig "$sig" --arg url "$url" \
+            'reduce $keys[] as $k ({}; .[$k] = {signature: $sig, url: $url})' > "update-${{ matrix.label }}.json"
+          cat "update-${{ matrix.label }}.json"
+          echo "fragment=update-${{ matrix.label }}.json" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.sign.outputs.fragment
+        with:
+          name: update-${{ matrix.label }}
+          path: ${{ steps.sign.outputs.fragment }}
+
+  # latest.json: what the app reads to find and verify an update.
+  update-manifest:
+    name: Update manifest
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true # none when there is no signing key
+        with:
+          pattern: update-*
+          merge-multiple: true
+      - name: Upload latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          shopt -s nullglob
+          parts=(update-*.json)
+          if [ ${#parts[@]} -eq 0 ]; then
+            echo "No signed update files (no signing key); skipping latest.json."
+            exit 0
+          fi
+          jq -s --arg v "$VERSION" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{version: $v, notes: "", pub_date: $date, platforms: (add)}' "${parts[@]}" > latest.json
+          cat latest.json
+          gh release upload "v$VERSION" latest.json --clobber --repo "${{ github.repository }}"

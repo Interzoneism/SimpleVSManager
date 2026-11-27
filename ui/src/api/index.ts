@@ -444,6 +444,11 @@ export function useManagerUpdate() {
   return useQuery({ queryKey: queryKeys.managerUpdate, queryFn: () => unwrap(commands.managerUpdate()) });
 }
 
+/** Downloads the new version, checks its signature and restarts into it. */
+export function useInstallManagerUpdate() {
+  return useMutation({ mutationFn: () => unwrap(commands.installManagerUpdate()) });
+}
+
 export function useOpenUrl() {
   return useMutation({ mutationFn: (url: string) => unwrap(commands.openUrl(url)) });
 }

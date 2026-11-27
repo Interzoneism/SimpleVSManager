@@ -761,28 +761,6 @@ pub async fn browse_card_reports(state: State<'_, AppState>, mod_ids: Vec<String
 // Misc
 // ---------------------------------------------------------------------------------------------
 
-#[derive(Debug, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagerUpdate {
-    pub version: String,
-    pub page_url: Option<String>,
-}
-
-/// A newer Simple VS Manager on the Mod DB, if there is one.
-#[tauri::command]
-#[specta::specta]
-pub async fn manager_update(app: AppHandle, state: State<'_, AppState>) -> AppResult<Option<ManagerUpdate>> {
-    let db = state.moddb()?;
-    let (cached, _) = db.get_mod(moddb::MANAGER_MOD_ID, false).await;
-    let current = app.package_info().version.to_string();
-    let Some(raw) = cached.and_then(|c| c.raw) else { return Ok(None) };
-    let info = parse::build_info(moddb::MANAGER_MOD_ID, &raw, None, false, 0.0);
-    Ok(info
-        .latest_release()
-        .filter(|r| svsm_core::version::is_candidate_newer(Some(&r.version), Some(&current)))
-        .map(|r| ManagerUpdate { version: r.version.clone(), page_url: info.page_url.clone() }))
-}
-
 /// Opens an http(s) link (Mod DB pages, links inside descriptions) in the default browser.
 #[tauri::command]
 #[specta::specta]
