@@ -11,6 +11,7 @@ mod modlist_commands;
 mod protocol;
 mod state;
 mod suggest;
+mod updater;
 mod watcher;
 
 #[cfg(test)]
@@ -53,7 +54,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             moddb_commands::browse_mods,
             moddb_commands::browse_thumbnails,
             moddb_commands::browse_card_reports,
-            moddb_commands::manager_update,
+            updater::manager_update,
+            updater::install_manager_update,
             moddb_commands::open_url,
             modlist_commands::list_modlists,
             modlist_commands::delete_modlists,
@@ -167,7 +169,7 @@ pub fn run() {
         tracing::warn!("Could not export TypeScript bindings: {e}");
     }
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         // Must be registered first so a second launch focuses the running window.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
@@ -178,8 +180,10 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .manage(state::AppState::new())
+        .plugin(tauri_plugin_dialog::init());
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let app = app.plugin(tauri_plugin_updater::Builder::new().pubkey(updater::PUBKEY.trim()).build());
+    app.manage(state::AppState::new())
         .register_uri_scheme_protocol("svsm", protocol::handle)
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {

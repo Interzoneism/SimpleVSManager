@@ -38,7 +38,7 @@ want it.
 
 | System | Files | Built on |
 | --- | --- | --- |
-| Windows 10/11 (x64) | `_Windows-x64-setup.exe` (NSIS installer, installs for the current user, no admin needed) | `windows-latest` |
+| Windows 10/11 (x64) | `_Windows-x64-portable.exe` (the whole app in one file, runs from any folder) and `_Windows-x64-setup.exe` (NSIS installer, current user, no admin needed) | `windows-latest` |
 | macOS 11+ (Apple Silicon and Intel) | `_macOS-universal.dmg` | `macos-latest` |
 | Linux (x64) | `.AppImage` (runs on most distros), `.deb` (Debian, Ubuntu, Mint), `.rpm` (Fedora, openSUSE) | `ubuntu-22.04` |
 
@@ -48,6 +48,34 @@ also need WebKitGTK 4.1, which the `.deb`/`.rpm` pull in and most desktops alrea
 
 There is no `.msi`: the MSI format (WiX) rejects versions like `3.0.0-alpha.0`, and the NSIS
 installer covers the same users.
+
+With the update signing key set (below), the release also gets `latest.json` and, for macOS,
+`_macOS-universal.app.tar.gz`. These are what the app's "Update and restart" downloads.
+
+## In-app updates
+
+The app checks GitHub Releases (at most once an hour, never in offline mode). Users on a beta
+get betas and stable releases; everyone else only stable ones. When a newer release has a
+`latest.json`, the update notice offers **Update and restart**: the download's signature is
+checked against `src-tauri/updater.pub`, then
+
+- Windows (portable or installed): the running exe is swapped for the new portable exe;
+- macOS and the Linux AppImage: Tauri's updater replaces the app;
+- `.deb` / `.rpm`: no in-place update, the notice links to the release page.
+
+Settings need no migration on update: missing fields get defaults and unknown fields are kept
+when saving (see `crates/svsm-core/src/settings.rs` for the rules).
+
+### Update signing key (required for in-app updates)
+
+| Secret | Value |
+| --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | The private key made with `pnpm tauri signer generate` (the whole file content) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Its password; leave unset if it has none |
+
+The matching public key is `src-tauri/updater.pub`. Keep a backup of the private key: if it is
+lost, already installed versions can't verify updates signed with a new key, and users have to
+download the next version by hand once.
 
 ## Code signing (optional)
 

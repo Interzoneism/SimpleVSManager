@@ -37,6 +37,17 @@ tauri-plugin-dialog = "2"
 tauri-plugin-window-state = "2"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 tracing-appender = "0.2.5"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "charset", "system-proxy", "gzip", "json"] }
+semver = "1"
+minisign-verify = "0.2"
+base64 = "0.23.1"
+
+# In-app updates: Windows swaps its own exe, macOS and the Linux AppImage use Tauri's updater.
+[target.'cfg(windows)'.dependencies]
+self-replace = "1"
+
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+tauri-plugin-updater = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

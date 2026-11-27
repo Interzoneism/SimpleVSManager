@@ -1,6 +1,7 @@
 import { Activity, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { useAppInfo, useEnvironment, useLaunchGame, useManagerUpdate, useOpenUrl } from "./api";
+import { useAppInfo, useEnvironment, useLaunchGame, useManagerUpdate,
+  useInstallManagerUpdate, useOpenUrl } from "./api";
 import { BuilderToggle } from "./features/browser/ModlistBuilder";
 import { ModBrowser } from "./features/browser/ModBrowser";
 import { SetupOverview } from "./features/setup/SetupOverview";
@@ -99,19 +100,29 @@ export default function App() {
     return () => applied.forEach((k) => root.style.removeProperty(k));
   }, [theme, palette]);
   useErrorToast(launch.error, { title: "Couldn't launch Vintage Story" });
-  // A new manager version: shown once per run, until closed.
+  // A new manager version: shown once per run, until closed. "Update and restart" downloads
+  // it, checks its signature and restarts; otherwise the release page has the downloads.
   const update = managerUpdate.data;
+  const installUpdate = useInstallManagerUpdate();
+  useErrorToast(installUpdate.error, { title: "Couldn't update Simple VS Manager" });
   useEffect(() => {
     if (!update) return;
-    toast.info(`Simple VS Manager ${update.version} is available.`, {
-      id: "manager-update",
-      title: "Update available",
-      duration: null,
-      action: update.pageUrl ? { label: "Open the Mod DB page", icon: "external", onClick: () => openUrl.mutate(update.pageUrl!) } : undefined,
-    });
-    // openUrl is a fresh object each render; the toast only needs to appear when the update does.
+    const action = update.canInstall
+      ? {
+          label: "Update and restart",
+          icon: "download" as const,
+          onClick: () => {
+            toast.info(`Downloading Simple VS Manager ${update.version}. It restarts when done.`, { id: "manager-update", title: "Updating", duration: null });
+            installUpdate.mutate();
+          },
+        }
+      : update.pageUrl
+        ? { label: "Open the download page", icon: "external" as const, onClick: () => openUrl.mutate(update.pageUrl!) }
+        : undefined;
+    toast.info(`Simple VS Manager ${update.version} is available.`, { id: "manager-update", title: "Update available", duration: null, action });
+    // The mutations are fresh objects each render; the toast only needs to appear when the update does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [update?.version, update?.pageUrl]);
+  }, [update?.version, update?.pageUrl, update?.canInstall]);
   const shortcut = env.data?.settings.customShortcutPath;
   const canLaunch = !!shortcut || (!!env.data?.gameExecutable && dataReady);
 

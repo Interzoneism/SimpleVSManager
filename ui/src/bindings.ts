@@ -307,11 +307,23 @@ async browseCardReports(modIds: string[]) : Promise<Result<Partial<{ [key in str
 }
 },
 /**
- * A newer Simple VS Manager on the Mod DB, if there is one.
+ * A newer Simple VS Manager on GitHub, if there is one. Quietly `None` in offline mode or
+ * when GitHub can't be reached (an update check must never get in the way).
  */
 async managerUpdate() : Promise<Result<ManagerUpdate | null, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("manager_update") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Downloads and installs the update found by [`manager_update`], then restarts the app.
+ */
+async installManagerUpdate() : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("install_manager_update") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1089,7 +1101,19 @@ export type ManagerFolderMove = { folder: string;
  * Some files of the old folder were in use and stayed behind (the copy is complete).
  */
 oldFolderLeft: boolean }
-export type ManagerUpdate = { version: string; pageUrl: string | null }
+export type ManagerUpdate = { version: string; 
+/**
+ * The release page, for notes and manual downloads.
+ */
+pageUrl: string | null; 
+/**
+ * Release notes (Markdown), if any.
+ */
+notes: string | null; 
+/**
+ * True when "Update and restart" can do it in place; false = download it yourself.
+ */
+canInstall: boolean }
 export type MigrationReport = { 
 /**
  * Names of the modlists moved to the new project.

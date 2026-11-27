@@ -1,8 +1,11 @@
 //! The new app's own settings file: `<manager dir>/svsm3-settings.json`.
 //!
 //! Kept separate from the WPF app's `SimpleVSManagerConfiguration.json` so the two apps can run
-//! side by side without overwriting each other. Unknown fields are ignored and missing ones get
-//! defaults, so older and newer versions of this app can share the file.
+//! side by side without overwriting each other. Missing fields get defaults and unknown ones are
+//! kept as they are, so older and newer versions of this app can share the file without
+//! migrations. Rules for changing [`Settings`]: only add fields (with a sensible default), never
+//! rename a field or change what its value means. If that is ever unavoidable, bump
+//! `CURRENT_SCHEMA` and convert the old value when loading.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -74,6 +77,11 @@ pub struct Settings {
     pub custom_shortcut_path: Option<String>,
     /// Set once the 2.x custom shortcut was copied over.
     pub legacy_shortcut_imported: bool,
+    /// Fields this version doesn't know, written by a newer version. Kept and written back on
+    /// save, so going back to an older version never wipes a newer version's settings.
+    #[serde(flatten)]
+    #[cfg_attr(feature = "specta", specta(skip))]
+    pub unknown_fields: serde_json::Map<String, serde_json::Value>,
 }
 
 /// A game profile. The active profile's values live in the top-level settings fields; the
@@ -125,6 +133,7 @@ impl Default for Settings {
             legacy_m5_imported: false,
             custom_shortcut_path: None,
             legacy_shortcut_imported: false,
+            unknown_fields: serde_json::Map::new(),
         }
     }
 }
@@ -403,6 +412,24 @@ mod tests {
         s.custom_shortcut_path = None;
         s.import_legacy_shortcut("default", Some(Path::new("C:/vs.lnk")));
         assert_eq!(s.custom_shortcut_path, None, "clearing it sticks");
+    }
+
+    #[test]
+    fn unknown_fields_survive_a_save() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            Settings::path(dir.path()),
+            r#"{"schemaVersion": 1, "offlineMode": true, "fromTheFuture": {"x": [1, 2]}}"#,
+        )
+        .unwrap();
+        let mut s = Settings::load(dir.path()).unwrap();
+        assert!(s.offline_mode);
+        s.close_after_launch = true;
+        s.save(dir.path()).unwrap();
+        let raw: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(Settings::path(dir.path())).unwrap()).unwrap();
+        assert_eq!(raw["fromTheFuture"]["x"][1], 2);
+        assert_eq!(raw["closeAfterLaunch"], true);
+        assert!(raw.get("unknownFields").is_none());
     }
 
     #[test]
