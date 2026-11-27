@@ -5,15 +5,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      all_platforms:
-        description: "Also test on Windows and macOS"
-        type: boolean
-        default: true
 
-# Pushes and PRs test on Linux only. Windows and macOS minutes count 2x and 10x against the
-# free private-repo allowance, so those run only when started by hand (Actions, CI, Run workflow)
-# and in the Release workflow.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -24,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.all_platforms && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
+        os: [windows-latest, macos-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
