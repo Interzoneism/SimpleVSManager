@@ -16,7 +16,8 @@ const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const CRATES = ["simple-vs-manager", "svsm-core"];
 
 const cargoRe = /(\[workspace\.package\][^[]*?\nversion\s*=\s*")([^"]+)(")/;
-const lockRe = (name) => new RegExp(`(\\[\\[package\\]\\]\\nname = "${name}"\\nversion = ")([^"]+)(")`);
+// \r?\n: Windows checkouts may have CRLF line endings.
+const lockRe = (name) => new RegExp(`(\\[\\[package\\]\\]\\r?\\nname = "${name}"\\r?\\nversion = ")([^"]+)(")`);
 
 function current() {
   const pkg = JSON.parse(read("package.json")).version;
